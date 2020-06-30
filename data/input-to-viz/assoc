@@ -1,0 +1,53 @@
+Context:
+i     : I
+k     : I
+r     : _≡_ {x.A.ℓ} {x.A} z w
+q     : _≡_ {x.A.ℓ} {x.A} y z
+p     : _≡_ {x.A.ℓ} {x.A} x y
+w     : x.A   (not in scope)
+z     : x.A   (not in scope)
+y     : x.A   (not in scope)
+x     : x.A   (not in scope)
+x.A   : Type x.A.ℓ   (not in scope)
+x.A.ℓ : Level   (not in scope)
+
+Goal:
+x.A
+
+Boundary:
+k = i0 ⊢ hcomp {x.A.ℓ} {x.A} {~ i ∨ i}
+         (λ { j (i = i0) → x
+            ; j (i = i1)
+                → hcomp {x.A.ℓ} {x.A} {~ j ∨ j}
+                  (Cubical.Foundations.Prelude..extendedlambda0 {x.A.ℓ} {x.A} {y} {y}
+                   {z} {w} (λ _ → y) q r j)
+                  (q j)
+            })
+         (p i)
+k = i1 ⊢ hcomp {x.A.ℓ} {x.A} {~ i ∨ i}
+         (λ { j (i = i0) → x ; j (i = i1) → r j })
+         (hcomp {x.A.ℓ} {x.A} {~ i ∨ i}
+          (λ { j (i = i0) → x ; j (i = i1) → q j }) (p i))
+i = i0 ⊢ x
+i = i1 ⊢ w
+
+Term:
+hcomp {x.A.ℓ} {x.A} {~ i ∨ i}
+(λ { j (i = i0) → x
+   ; j (i = i1)
+       → hcomp {x.A.ℓ} {x.A} {~ j ∨ j ∨ k}
+         (λ { k₁ (j = i0) → q (~ (~ k))
+            ; k₁ (j = i1) → r k₁
+            ; k₁ ((~ k) = i0) → r (j ∧ k₁)
+            })
+         (q (j ∨ k))
+   })
+(hcomp {x.A.ℓ} {x.A} {(~ i ∨ i) ∨ ~ k}
+ (λ { j ((~ i ∨ i) = i1)
+        → (λ { (i = i0) → x ; (i = i1) → q (k ∧ j) }) _
+    ; j (k = i0)
+        → outS {x.A.ℓ} {x.A} {~ i ∨ i}
+          {λ { (i = i0) → x ; (i = i1) → q i0 }}
+          (inS {x.A.ℓ} {x.A} {~ i ∨ i} (p i))
+    })
+ (p i))

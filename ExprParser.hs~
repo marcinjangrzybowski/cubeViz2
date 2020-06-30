@@ -1,0 +1,244 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+
+module ExprParser where
+
+import Text.RawString.QQ
+
+import Text.Parsec
+import Text.Parsec.Expr
+
+import Data.List
+
+import Syntax
+
+assoc :: String
+assoc = [r|hcomp {x.A.ℓ} {x.A} {(~ i ∨ i) ∨ ~ j ∨ j}
+(λ i' →
+   primPOr {x.A.ℓ} (~ i ∨ i) (~ j ∨ j) {λ _ → x.A}
+   (λ .o →
+      primPOr {x.A.ℓ} (~ i) i {λ _ → _≡_ {x.A.ℓ} {x.A} x v}
+      (λ _ i₁ →
+         hcomp {x.A.ℓ} {x.A} {~ i₁ ∨ i₁}
+         (λ j₁ →
+            primPOr {x.A.ℓ} (~ i₁) i₁ {λ _ → x.A} (λ _ → x)
+            (λ _ →
+               hcomp {x.A.ℓ} {x.A} {~ j₁ ∨ j₁}
+               (λ j₂ →
+                  primPOr {x.A.ℓ} (~ j₁) j₁ {λ _ → x.A} (λ _ → y)
+                  (λ _ →
+                     hcomp {x.A.ℓ} {x.A} {~ j₂ ∨ j₂ ∨ ~ i'}
+                     (λ k →
+                        primPOr {x.A.ℓ} (~ j₂) (j₂ ∨ ~ i') {λ _ → x.A} (λ _ → r (~ i'))
+                        (primPOr {x.A.ℓ} j₂ (~ i') {λ _ → x.A} (λ _ → s k)
+                         (λ _ → s (j₂ ∧ k))))
+                     (r (j₂ ∨ ~ i'))))
+               (hcomp {x.A.ℓ} {x.A} {~ j₁ ∨ j₁ ∨ i'}
+                (λ k →
+                   primPOr {x.A.ℓ} (~ j₁) (j₁ ∨ i') {λ _ → x.A} (λ _ → y)
+                   (primPOr {x.A.ℓ} j₁ i' {λ _ → x.A} (λ _ → r (~ i' ∧ k))
+                    (λ _ → q j₁)))
+                (q j₁))))
+         (p i₁))
+      (λ _ i₁ →
+         hcomp {x.A.ℓ} {x.A} {~ i₁ ∨ i₁}
+         (λ j₁ →
+            primPOr {x.A.ℓ} (~ i₁) i₁ {λ _ → x.A} (λ _ → x) (λ _ → s j₁))
+         (hcomp {x.A.ℓ} {x.A} {~ i₁ ∨ i₁}
+          (λ j₁ →
+             primPOr {x.A.ℓ} (~ i₁) i₁ {λ _ → x.A} (λ _ → x)
+             (λ _ →
+                hcomp {x.A.ℓ} {x.A} {~ j₁ ∨ j₁ ∨ i'}
+                (λ k →
+                   primPOr {x.A.ℓ} (~ j₁) (j₁ ∨ i') {λ _ → x.A} (λ _ → q i')
+                   (primPOr {x.A.ℓ} j₁ i' {λ _ → x.A} (λ _ → r k) (λ _ → r (j₁ ∧ k))))
+                (q (j₁ ∨ i'))))
+          (hcomp {x.A.ℓ} {x.A} {~ i₁ ∨ i₁ ∨ ~ i'}
+           (λ k →
+              primPOr {x.A.ℓ} (~ i₁) (i₁ ∨ ~ i') {λ _ → x.A} (λ _ → x)
+              (primPOr {x.A.ℓ} i₁ (~ i') {λ _ → x.A} (λ _ → q (i' ∧ k))
+               (λ _ → p i₁)))
+           (p i₁))))
+      _ j)
+   (primPOr {x.A.ℓ} (~ j) j {λ _ → x.A} (λ _ → x) (λ _ → v)))
+(hcomp {x.A.ℓ} {x.A} {~ j ∨ j}
+ (λ j₁ →
+    primPOr {x.A.ℓ} (~ j) j {λ _ → x.A} (λ _ → x)
+    (λ _ →
+       hcomp {x.A.ℓ} {x.A} {~ j₁ ∨ j₁ ∨ i}
+       (λ k →
+          primPOr {x.A.ℓ} (~ j₁) (j₁ ∨ i) {λ _ → x.A}
+          (λ _ →
+             hcomp {x.A.ℓ} {x.A} {~ i ∨ i}
+             (λ j₂ → primPOr {x.A.ℓ} (~ i) i {λ _ → x.A} (λ _ → y) (λ _ → r j₂))
+             (q i))
+          (primPOr {x.A.ℓ} j₁ i {λ _ → x.A} (λ _ → s k) (λ _ → s (j₁ ∧ k))))
+       (hcomp {x.A.ℓ} {x.A} {(~ j₁ ∧ ~ i) ∨ j₁ ∨ i}
+        (λ j₂ →
+           primPOr {x.A.ℓ} (~ j₁ ∧ ~ i) (j₁ ∨ i) {λ _ → x.A} (λ _ → y)
+           (λ _ → r j₂))
+        (q (j₁ ∨ i)))))
+ (hcomp {x.A.ℓ} {x.A} {~ j ∨ j ∨ ~ i}
+  (λ k →
+     primPOr {x.A.ℓ} (~ j) (j ∨ ~ i) {λ _ → x.A} (λ _ → x)
+     (primPOr {x.A.ℓ} j (~ i) {λ _ → x.A}
+      (λ _ →
+         hcomp {x.A.ℓ} {x.A} {(~ i ∨ ~ k) ∨ i ∧ k}
+         (λ j₁ →
+            primPOr {x.A.ℓ} (~ i ∨ ~ k) (i ∧ k) {λ _ → x.A} (λ _ → y)
+            (λ _ → r j₁))
+         (q (i ∧ k)))
+      (λ _ → p j)))
+  (p j)))|]
+
+ho :: Parsec String Context Expr
+ho = do char '?'
+        return (Var 0 [])
+
+
+varIdentifier :: Parsec String Context ()
+varIdentifier = return ()
+
+dimIdentifier :: Parsec String Context ()
+dimIdentifier = return ()
+
+
+
+-- tableI = [    [ Prefix ((char '~' >> return Neg)) ]
+--            ,  [ Infix (char '∧' >> return Min) AssocRight]
+--            ,  [ Infix (char '∨' >> return Max) AssocRight]
+--             ]
+
+
+
+agdaName = many1 (digit <|> letter <|> (char '.') <|> (oneOf "₀₁₂₃₄₅₆₇₈₉"))
+
+iExprVar :: Parsec String Context IExpr
+iExprVar = do --(optional ((char '~') <* space))
+              agdaName
+              return (Dim False 0)
+
+              
+-- iExpr :: Parsec String Context IExpr
+-- iExpr = do spaces
+--            e <- ((char '~' *> space *> iExpr)
+--                  <|> (do l <- iExpr
+--                          space
+--                          char '∧'
+--                          space
+--                          r <- iExpr
+--                          return (Min l r)
+--                          )
+--                   <|> (do l <- iExpr
+--                           space
+--                           char '∨'
+--                           space
+--                           r <- iExpr
+--                           return (Max l r)
+--                          )       
+--                  <|> (between (char '(') (char ')') iExpr)
+--                  <|> iExprVar)
+--            spaces
+--            return e
+
+iExpr3 :: Parsec String Context IExpr
+iExpr3 = do spaces
+            e <- ((between (char '(') (char ')') iExpr0) <|> iExprVar)
+            spaces
+            return e
+
+
+iExpr2 :: Parsec String Context IExpr
+iExpr2 = do spaces
+            e <- ((char '~' *> spaces *> (Neg <$> iExpr3))      
+                  <|> iExpr3)
+            spaces
+            return e
+
+
+iExpr1 :: Parsec String Context IExpr
+iExpr1 = do spaces
+            e <- ((try (do l <- iExpr2
+                           char '∧'
+                           r <- iExpr2
+                           return (Min l r)
+                          ))       
+                  <|> iExpr2)
+            spaces
+            return e
+
+iExpr0 :: Parsec String Context IExpr
+iExpr0 = do spaces
+           e <- ((try (do l <- iExpr1
+                          char '∨'
+                          r <- iExpr1
+                          return (Max l r)
+                         ))       
+                  <|> iExpr1)
+           spaces           
+           return e
+
+iExpr :: Parsec String Context IExpr
+iExpr = iExpr <* eof
+
+
+var :: Parsec String Context Expr
+var =  do h <- varIdentifier
+          many1 space
+          tl <- sepBy iExpr0 (many1 space)
+          ho
+
+hcomp :: Parsec String Context Expr
+hcomp = ho
+
+implArg :: Parsec String Context Expr -> Parsec String Context Expr
+implArg = between (char '{') (char '}')
+
+expr :: Parsec String Context Expr
+expr =     spaces
+        *> (between (char '(') (char ')') expr
+        <|> hcomp
+        <|> var)
+        <* spaces
+  
+  
+parseExpr :: Context -> String -> Either ParseError Expr
+parseExpr c s = Right (Var 0 [])
+
+
+
+
+--tests:
+
+-- IExpr parser
+
+
+iExprParsingTests =
+  [(emptyC , "j")
+  ,(emptyC , "(j)")
+  ,(emptyC , "j ∨ k")
+  ,(emptyC , "j ∨ k ∧ l")
+  ,(emptyC , "j ∧    k ∨ l")
+  ,(emptyC , "( j ∨ ( j ∨ ( i ∧ k )))")
+  ,(emptyC , "~ (~ (( j ∨ ~ (i ∧ k))))")
+  ,(emptyC , "~ j ∧ j ∨ ~ k)")]
+
+
+runParserTests :: Parsec String a b -> [(a , String)] -> String
+runParserTests p =
+   intercalate "\n" . (map (\(x , y) ->
+                              either
+                              (\z -> "BAD - " ++ y)
+                              (\z -> "OK - " ++ y)
+                              (runParser p x "" y)
+                            ))
+
+
+runIExprTests = putStr $ runParserTests iExpr iExprParsingTests
+
+
+-- iExprTest1 = runParser iExpr emptyC "" "~ ( j ∨ ( j ∨ ~ (i ∧ k)))"
+-- iExprTest2 = runParser iExpr emptyC "" "~ j ∧ j ∨ ~ k"
