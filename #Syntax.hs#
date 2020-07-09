@@ -156,6 +156,7 @@ instance Show Context where
      "Types:\n" ++ (intercalate "\n" (map (\(nm, val) -> nm ++ " : " ++ show val) ty)) 
      ++ "\nDimensions:\n" ++ (intercalate "\n" (map (\(nm, _) -> nm ++ " : " ++ "X") dims))
 
+
 type Boundary = [((Int,Bool),Expr)]
 
 
