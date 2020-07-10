@@ -120,13 +120,20 @@ data Expr =
 
 
 
-type Type = Expr
+data Type =
+  Type Int Int
+  deriving Show
+
+
+-- TODO : dodac array leveli
+-- TODO : dodac array primitive typow
+-- TODO : dodac liste equations, w nich kodowac "brzegi" kolejnych typow
 
 
 data Context = Context [(String,Type)] [(String , Maybe Bool)] -- (Maybe Type)
                 -- deriving Show
 
-addTyToContext :: Context -> Expr -> String -> Context
+addTyToContext :: Context -> Type -> String -> Context
 addTyToContext (Context t d) tm name = Context ((name , tm) : t) d
 
 addDimToContext :: Context -> String -> Context
@@ -155,6 +162,7 @@ instance Show Context where
    show (Context ty dims) =
      "Types:\n" ++ (intercalate "\n" (map (\(nm, val) -> nm ++ " : " ++ show val) ty)) 
      ++ "\nDimensions:\n" ++ (intercalate "\n" (map (\(nm, _) -> nm ++ " : " ++ "X") dims))
+
 
 type Boundary = [((Int,Bool),Expr)]
 
