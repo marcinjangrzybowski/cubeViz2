@@ -1,12 +1,8 @@
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module ExprParser where
 
@@ -28,30 +24,6 @@ import Syntax
 -- parser without suffix is standalone parser
 -- TODO : rename standalone parsers to "standalone", o maybe wrap them in common function?
 
-changeState
-  :: forall m s u v a . (Functor m, Monad m)
-  => (u -> v)
-  -> (v -> u)
-  -> ParsecT s u m a
-  -> ParsecT s v m a
-changeState forward backward = mkPT . transform . runParsecT
-  where
-    mapState :: forall u v . (u -> v) -> State s u -> State s v
-    mapState f st = st { stateUser = f (stateUser st) }
-
-    mapReply :: forall u v . (u -> v) -> Reply s u a -> Reply s v a
-    mapReply f (Ok a st err) = Ok a (mapState f st) err
-    mapReply _ (Error e) = Error e
-
-    fmap3 = fmap . fmap . fmap
-
-    transform
-      :: (State s u -> m (Consumed (m (Reply s u a))))
-      -> (State s v -> m (Consumed (m (Reply s v a))))
-    transform p st = fmap3 (mapReply forward) (p (mapState backward st))
-
-parsecSnd :: a -> Parsec String b z -> Parsec String (a , b) z
-parsecSnd a = changeState (a,) snd
   
 implArg :: Parsec String Context z -> Parsec String Context z
 implArg z = spaces *> (between (char '{') (spaces *> char '}')) z
@@ -152,10 +124,10 @@ var :: Parsec String Context Expr
 var = var0 <* spaces  <* eof
 
 typeP :: Parsec String Context ()
-typeP = agdaName *> (pure ())
+typeP = var0 *> (pure ())
 
 levelP :: Parsec String Context ()
-levelP = agdaName *> (pure ())
+levelP = var0 *> (pure ())
 
 
 partialPrimPOr :: IExpr -> Parsec String Context Partial

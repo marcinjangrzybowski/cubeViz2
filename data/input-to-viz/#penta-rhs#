@@ -1,0 +1,141 @@
+Goal: A
+Elaborates to: hcomp {ℓ} {A} {(~ i ∨ i) ∨ ~ j ∨ j}
+               (λ i' →
+                  primPOr {ℓ} (~ i ∨ i) (~ j ∨ j) {λ _ → A}
+                  (primPOr {ℓ} (~ i) i {λ _ → A}
+                   (λ _ →
+                      hcomp {ℓ} {A} {~ j ∨ j}
+                      (λ j₁ →
+                         primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x)
+                         (λ _ →
+                            hcomp {ℓ} {A} {~ j₁ ∨ j₁}
+                            (λ j₂ →
+                               primPOr {ℓ} (~ j₁) j₁ {λ _ → A} (λ _ → y)
+                               (λ _ →
+                                  hcomp {ℓ} {A} {~ j₂ ∨ j₂ ∨ ~ i'}
+                                  (λ k →
+                                     primPOr {ℓ} (~ j₂) (j₂ ∨ ~ i') {λ _ → A} (λ _ → r (~ i'))
+                                     (primPOr {ℓ} j₂ (~ i') {λ _ → A} (λ _ → s k)
+                                      (λ _ → s (j₂ ∧ k))))
+                                  (r (j₂ ∨ ~ i'))))
+                            (hcomp {ℓ} {A} {~ j₁ ∨ j₁ ∨ i'}
+                             (λ k →
+                                primPOr {ℓ} (~ j₁) (j₁ ∨ i') {λ _ → A} (λ _ → y)
+                                (primPOr {ℓ} j₁ i' {λ _ → A} (λ _ → r (~ i' ∧ k)) (λ _ → q j₁)))
+                             (q j₁))))
+                      (p j))
+                   (λ _ →
+                      hcomp {ℓ} {A} {~ j ∨ j}
+                      (λ j₁ → primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x) (λ _ → s j₁))
+                      (hcomp {ℓ} {A} {~ j ∨ j}
+                       (λ j₁ →
+                          primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x)
+                          (λ _ →
+                             hcomp {ℓ} {A} {~ j₁ ∨ j₁ ∨ i'}
+                             (λ k →
+                                primPOr {ℓ} (~ j₁) (j₁ ∨ i') {λ _ → A} (λ _ → q i')
+                                (primPOr {ℓ} j₁ i' {λ _ → A} (λ _ → r k) (λ _ → r (j₁ ∧ k))))
+                             (q (j₁ ∨ i'))))
+                       (hcomp {ℓ} {A} {~ j ∨ j ∨ ~ i'}
+                        (λ k →
+                           primPOr {ℓ} (~ j) (j ∨ ~ i') {λ _ → A} (λ _ → x)
+                           (primPOr {ℓ} j (~ i') {λ _ → A} (λ _ → q (i' ∧ k)) (λ _ → p j)))
+                        (p j)))))
+                  (primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x) (λ _ → v)))
+               (hcomp {ℓ} {A} {~ j ∨ j}
+	       
+                (λ j₁ →
+                   primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x)
+                   (λ _ →
+                      hcomp {ℓ} {A} {~ j₁ ∨ j₁ ∨ i}
+                      (λ k →
+                         primPOr {ℓ} (~ j₁) (j₁ ∨ i) {λ _ → A}
+                         (λ _ →
+                            hcomp {ℓ} {A} {~ i ∨ i}
+                            (λ j₂ → primPOr {ℓ} (~ i) i {λ _ → A} (λ _ → y) (λ _ → r j₂))
+                            (q i))
+                         (primPOr {ℓ} j₁ i {λ _ → A} (λ _ → s k) (λ _ → s (j₁ ∧ k))))
+                      (hcomp {ℓ} {A} {(~ j₁ ∧ ~ i) ∨ j₁ ∨ i}
+                       (λ j₂ →
+                          primPOr {ℓ} (~ j₁ ∧ ~ i) (j₁ ∨ i) {λ _ → A} (λ _ → y) (λ _ → r j₂))
+                       (q (j₁ ∨ i)))))
+                (hcomp {ℓ} {A} {~ j ∨ j ∨ ~ i}
+                 (λ k →
+                    primPOr {ℓ} (~ j) (j ∨ ~ i) {λ _ → A} (λ _ → x)
+                    (primPOr {ℓ} j (~ i) {λ _ → A}
+                     (λ _ →
+                        hcomp {ℓ} {A} {(~ i ∨ ~ k) ∨ i ∧ k}
+                        (λ j₁ →
+                           primPOr {ℓ} (~ i ∨ ~ k) (i ∧ k) {λ _ → A} (λ _ → y) (λ _ → r j₁))
+                        (q (i ∧ k)))
+                     (λ _ → p j)))
+                 (p j)))
+———— Boundary ——————————————————————————————————————————————
+i = i0 ⊢ hcomp {ℓ} {A} {~ j ∨ j}
+         (λ j₁ →
+            primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x)
+            (λ _ →
+               hcomp {ℓ} {A} {~ j₁ ∨ j₁}
+               (λ j₂ →
+                  primPOr {ℓ} (~ j₁) j₁ {λ _ → A} (λ _ → y)
+                  (λ _ →
+                     hcomp {ℓ} {A} {~ j₂ ∨ j₂}
+                     (λ j₃ → primPOr {ℓ} (~ j₂) j₂ {λ _ → A} (λ _ → z) (λ _ → s j₃))
+                     (r j₂)))
+               (q j₁)))
+         (p j)
+i = i1 ⊢ hcomp {ℓ} {A} {~ j ∨ j}
+         (λ j₁ → primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x) (λ _ → s j₁))
+         (hcomp {ℓ} {A} {~ j ∨ j}
+          (λ j₁ → primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x) (λ _ → r j₁))
+          (hcomp {ℓ} {A} {~ j ∨ j}
+           (λ j₁ → primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x) (λ _ → q j₁))
+           (p j)))
+j = i0 ⊢ x
+j = i1 ⊢ v
+————————————————————————————————————————————————————————————
+j : I
+i : I
+s : _≡_ {ℓ}
+  {A}
+  w v
+r : _≡_ {ℓ} {A} z w
+q :
+  _≡_
+   {ℓ} {A} y z
+p : _≡_ {ℓ} {A}
+ x y
+v : A
+w : A
+z : A
+y : A
+x : A
+A : Type ℓ
+ℓ : Level
+———— Constraints ———————————————————————————————————————————
+v = ?0 (j = i1) : A
+x = ?0 (j = i0) : A
+hcomp {ℓ} {A} {~ j ∨ j}
+(λ j₁ → primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x) (λ _ → s j₁))
+(hcomp {ℓ} {A} {~ j ∨ j}
+ (λ j₁ → primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x) (λ _ → r j₁))
+ (hcomp {ℓ} {A} {~ j ∨ j}
+  (λ j₁ → primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x) (λ _ → q j₁))
+  (p j)))
+  = ?0 (i = i1)
+  : A
+hcomp {ℓ} {A} {~ j ∨ j}
+(λ j₁ →
+   primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x)
+   (λ _ →
+      hcomp {ℓ} {A} {~ j₁ ∨ j₁}
+      (λ j₂ →
+         primPOr {ℓ} (~ j₁) j₁ {λ _ → A} (λ _ → y)
+         (λ _ →
+            hcomp {ℓ} {A} {~ j₂ ∨ j₂}
+            (λ j₃ → primPOr {ℓ} (~ j₂) j₂ {λ _ → A} (λ _ → z) (λ _ → s j₃))
+            (r j₂)))
+      (q j₁)))
+(p j)
+  = ?0 (i = i0)
+  : A
