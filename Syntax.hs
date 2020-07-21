@@ -26,9 +26,9 @@ import Data.List.Split
 
 type IExpr = Set.Set ( Set.Set (Int , Bool))
 
-type Face = Map.Map Int Bool
+type SubFace = Map.Map Int Bool
 
-type FExpr = Set.Set Face
+type FExpr = Set.Set SubFace
 
 
 -- minMB :: (Maybe Bool) -> (Maybe Bool) -> (Maybe Bool)
@@ -90,19 +90,19 @@ iFromL = Set.fromList . (map Set.fromList)
 --          h1 (y : ys) = foldr Min y ys
     
 
-toFace :: IExpr -> FExpr
-toFace =
+toSubFace :: IExpr -> FExpr
+toSubFace =
    Set.map (Map.fromList . Set.toList . (uncurry Set.union))
    . (Set.filter ((Set.null . (uncurry Set.intersection) . (bimap (Set.map fst) (Set.map fst))) ))
    . (Set.map (Set.partition snd))
 
-type Partial = Map.Map Face Expr
+type Partial = Map.Map SubFace Expr
 
 partialEmpty :: Partial
 partialEmpty = Map.empty
 
 partialConst :: IExpr -> Expr -> Partial
-partialConst i e = Map.fromSet (\_ -> e) (toFace i)
+partialConst i e = Map.fromSet (\_ -> e) (toSubFace i)
   
 primPOr :: IExpr -> IExpr -> IExpr -> Partial -> Partial -> Either String Partial
 primPOr ei ei1 ei2 pa1 pa2 =
@@ -245,7 +245,7 @@ instance Codelike Expr where
         hc <- getVarSymbol c h
         return (hc ++ " " ++ (intercalate " " (map parr l)))
   
-instance Codelike Face where
+instance Codelike SubFace where
   toCode c f =
     do l <- traverse (toCode c) (Map.toList f)
        return (intercalate " ∧ " l) 

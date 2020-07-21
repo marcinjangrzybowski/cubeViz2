@@ -179,7 +179,7 @@ partial0 :: IExpr -> Parsec String Context Partial
 partial0 x = 
      spaces *>
      ((partialPrimPOr x)       
-            <|> (partialConst x <$> faceAbs (toFace x) expr0))
+            <|> (partialConst x <$> faceAbs (toSubFace x) expr0))
      
 
 partialArg :: IExpr -> Parsec String Context Partial
