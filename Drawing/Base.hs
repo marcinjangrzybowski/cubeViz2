@@ -1,7 +1,10 @@
 {-# LANGUAGE DeriveFunctor #-}
-module Drawing where
+module Drawing.Base where
 
 import Data.Bifunctor
+
+-- import Data.Colour
+
 
 type NPoint = [ Float ]
 
@@ -18,16 +21,16 @@ type Shp a = (Prll , a)
 data Drawing a = Drawing [(Shp a)]
   deriving Functor
 
-data Color = Rgba (Float , Float , Float , Float)
+data Color = Rgba Float Float Float Float
 
 -- type Settings = ()
 
 -- type DStyle a = (Color , [ Settings ])
     
-data MetaColor a = MaskedShape [a] | Shape [a] | Mask
+data MetaColor a = MShape [a] | SShape [a] | Mask
    deriving Functor
 
-
+type DrawingGL = Drawing (MetaColor Color)
 
 
 -- pointR = 1    
@@ -88,8 +91,11 @@ data MetaColor a = MaskedShape [a] | Shape [a] | Mask
 --     |> List.map (Tuple.first)                
 
 
-monoColorize :: b -> Drawing a -> Drawing b                   
-monoColorize = fmap . const                  
+metaTint :: b -> Drawing a -> Drawing b                   
+metaTint = fmap . const                  
+
+
+
 
 -- mapCoords : ((Int -> Float) -> (Int -> Float)) -> Drawing a -> Drawing a
 -- mapCoords f = 
@@ -151,19 +157,24 @@ monoColorize = fmap . const
 -- embed : Int -> (List (Float) -> Float) -> Drawing a -> Drawing a
 -- embed k f = mapCoordsAsL (\l -> listInsert k (f l) l)  
 
--- ptZero : Prll
--- ptZero = (0 , [[]] )
+ptZero :: Prll
+ptZero = (0 , [[]] )
          
--- segOne : Prll
--- segOne =  (1 , [[0] , [1]] )
+segOne :: Prll
+segOne =  (1 , [[0] , [1]] )
          
--- unitHyCube : Int -> Prll
--- unitHyCube =
---     (iter ( (\(k , x)  -> (k + 1
---                   , List.concat [
---                          (List.map (listInsert 0 0.0) x)
---                        , (List.map (listInsert 0 1.0) x)
---                       ]))) ptZero)                
+unitHyCube :: Int -> Prll
+unitHyCube 0 = ptZero
+unitHyCube 1 = segOne
+unitHyCube n =
+  let (_ , prev) = unitHyCube (n - 1)
+  in (n , (map (0:) prev) ++ (map (1:) prev))
+
+    -- (iter ( (\(k , x)  -> (k + 1
+    --               , concat [
+    --                      (List.map (listInsert 0 0.0) x)
+    --                    , (List.map (listInsert 0 1.0) x)
+    --                   ]))) ptZero)                
 
 
 -- -- it not changes dim of ambient space!        

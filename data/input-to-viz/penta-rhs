@@ -43,6 +43,7 @@ Elaborates to: hcomp {ℓ} {A} {(~ i ∨ i) ∨ ~ j ∨ j}
                         (p j)))))
                   (primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x) (λ _ → v)))
                (hcomp {ℓ} {A} {~ j ∨ j}
+	       
                 (λ j₁ →
                    primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x)
                    (λ _ →
