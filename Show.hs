@@ -9,6 +9,10 @@ import Foreign.Storable
 
 data Descriptor = Descriptor VertexArrayObject ArrayIndex NumArrayIndices
 
+
+
+
+
 bufferOffset :: Integral a => a -> Ptr b
 bufferOffset = plusPtr nullPtr . fromIntegral
 
@@ -192,83 +196,5 @@ onDisplay win descriptor@(Descriptor triangles firstIndex numVertices) = do
   forever $ do
      GLFW.pollEvents
      onDisplay win descriptor
-
-
--- import Graphics.Rendering.OpenGL
--- import Graphics.UI.GLUT
-
--- import Drawing.Base
-
-
-
--- s1 :: DrawingGL
--- s1 = Drawing [ (unitHyCube 3 , SShape ([Rgba 0 1 0 1])) ]
-
-
-
-
-
--- -- zz = Window
-
--- main = do
---   getArgsAndInitialize
---   --currentWindow $= Just zz
--- --  createSubWindow zz (Position 10 10) (Size 200 200)
---   createWindow "Triangle"
---   displayCallback $= display  
---   matrixMode $= Projection
---   loadIdentity
---   ortho2D (- 0.1) 1.1 (- 0.1) 1.1
---   matrixMode $= Modelview 0
---   blendFunc $= (One, One) 
---   blend $= Enabled
---   mainLoop
-
-
--- -- triangleL :: [GLfloat] -> IO ()
--- triangleL =
---   sequence . map triangle
---      -- return ()
-
--- red = (0.7 , 0 , 0)
-
--- green = (0 , 0.7 , 0)
-
--- blue = (0 , 0 , 0.7)
-
-
--- mask1 = ((0.3,0.4),(0.8,0.6),(0.2,-0.05))
-  
--- display = do
---   clear [ColorBuffer]
---   let lOfTriangles =
---          [
---            (blue , mask1)
---          , (red , ((0,0),(0,1),(1,0)))
---          , (green , ((1,1),(0,1),(1,0)))
-
---          ]
---   renderPrimitive Triangles $ (sequence (map triangle lOfTriangles)) 
---   swapBuffers
-
-
-
--- triangle :: ((GLfloat , GLfloat , GLfloat) , ((GLfloat , GLfloat) ,  (GLfloat , GLfloat) , (GLfloat , GLfloat))) -> IO ()
--- triangle ((r , g , b) , (c0 , c1 , c2)) =
---   do color  (Color3  r g b)
---      let toV = \(x , y) -> vertex $ Vertex2 x y
---      toV c0
---      toV c1
---      toV c2
-     
---      -- corner 0 1 0 (20 + delta) (5 + delta)
---      -- corner 0 0 1 (5 + delta) (25 + delta)
-  
--- -- corner r g b x y = do color  (Color3  r g b)
--- --                       vertex (Vertex2 x y)
--- --27263183
-
-
-
 
 
