@@ -13,12 +13,12 @@ type Address = [SubFace]
 
 
 
-class OfDim a where
-  getDim :: a -> Int
+-- class ofdim a where
+--   getdim :: a -> int
 
 
-class OfDim a => Xxx a where
-  xMap :: Floating b => ([b] -> [b]) -> ([b] -> [b]) -> a -> a
+-- class ofdim a => xxx a where
+--   xmap :: floating b => ([b] -> [b]) -> ([b] -> [b]) -> a -> a
 
 -- cmp :: (a -> b) -> Cub () a -> Cub () b
 -- cmp f = fmap f

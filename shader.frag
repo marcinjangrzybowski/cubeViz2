@@ -5,7 +5,9 @@ out vec4 fColor;
 in vec2 MM0;
 in vec2 MM1;
 in vec2 MM2;
+in vec2 MM3;
 
+in vec2 vCtrl;
 in vec4 vPos;
 
 in vec4 vCol;
@@ -40,8 +42,13 @@ main()
 
    float mask;
 
-   mask = PointInTriangle( vPos.xy , MM0 , MM1 , MM2)  ? (1.0) : 0.0;  
-
+   if(vCtrl.y == 0.0){
+      mask = 1.0;
+   }else{
+      mask = (PointInTriangle( vPos.xy , MM0 , MM1 , MM2)
+              ||  PointInTriangle( vPos.xy , MM1 , MM2 , MM3)) ? (1.0) : 0.0;  
+   }
+   
    fColor = vec4(
       vCol.rgb
      , mask);

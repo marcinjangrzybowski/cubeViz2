@@ -7,7 +7,16 @@ import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
 
+import Drawing.Base
+import Drawing.Example
+
+import Data.List
+
+import Data.Maybe
+
 data Descriptor = Descriptor VertexArrayObject ArrayIndex NumArrayIndices
+
+
 
 
 
@@ -16,33 +25,62 @@ data Descriptor = Descriptor VertexArrayObject ArrayIndex NumArrayIndices
 bufferOffset :: Integral a => a -> Ptr b
 bufferOffset = plusPtr nullPtr . fromIntegral
 
-mask0 = [
-        Vertex2 (-1.0) (-0.05),  -- Triangle 1
-        -- Vertex2   0.1 0.0 ,
-        Vertex2   1.0  ( 0.05),
-        Vertex2 (0.05)   1.0 ]
-
-mask1 = [
-        Vertex2 (1.0) (1.0),  -- Triangle 1
-        -- Vertex2   0.1 0.0 ,
-        Vertex2   1.0  ( 0.05),
-        Vertex2 (0.05)   1.0 ]
-
 brownish = [Vertex2 0.2 0.2 , Vertex2 0.9 1.0];
 
-initResources :: IO Descriptor
-initResources = do
+
+asTuples :: [a] -> Maybe (a , a)
+asTuples [x , y] = Just (x , y)
+asTuples _ = Nothing
+
+
+mmHelp :: Maybe a -> (a -> Maybe b) -> Maybe (Maybe b)
+mmHelp Nothing _ = Just Nothing
+mmHelp (Just a) f =
+  case (f a) of
+    Nothing -> Nothing
+    Just b -> Just (Just b) 
+
+
+quad2tris [x00 , x01 , x10 , x11] = [x00 , x01 , x10 , x11 , x10 , x01]
+quad2tris _ = []
+
+drawing2vertex :: DrawingGL -> IO [Vertex2 GLfloat]
+drawing2vertex drw =
+  return (concat $ map shpVertexes $ drawingSplitBase drw)
+
+  where
+    
+    shpVertexes ((2 , l ) , mbm , ((Rgba r g b a) : _)) =
+      fromMaybe []
+        (do tl <- quad2tris <$> (sequence $ (map asTuples l))
+            mbm2 <- mmHelp mbm (sequence . map asTuples . snd)
+            
+            let color = [Vertex2 r g , Vertex2 b a]
+                mask =
+                  case mbm2 of
+                    Just mTpls -> (Vertex2 0 1) : (map (uncurry Vertex2) mTpls)  
+                    Nothing -> (Vertex2 0 0) : replicate 4 (Vertex2 0 0)
+              
+                tailData = mask ++ color
+
+                verts = map ((:[]) . uncurry Vertex2) tl
+            return (intercalate tailData (verts ++ [[]]) )
+         )
+
+    shpVertexes _ = []
+
+initResources :: DrawingGL -> IO Descriptor
+initResources dgl = do
   triangles <- genObjectName
   bindVertexArrayObject $= Just triangles
 
-  let vertices = [
-        Vertex2 (-0.90) (-0.90)] ++ mask0  ++ brownish  -- Triangle 1
-        ++ [Vertex2   0.85  (-0.90)] ++  mask0 ++ brownish
-        ++ [Vertex2 (-0.90)   0.85 ] ++  mask0  ++ brownish
-        ++ [Vertex2   0.90  (-0.85)] ++  mask0  ++ brownish -- Triangle 2
-        ++ [Vertex2   0.90    0.90 ] ++  mask0  ++ brownish
-        ++ [Vertex2 (-0.85)   0.90 ] ++ mask0 ++ brownish :: [Vertex2 GLfloat]
-      numVertices = (length vertices)
+
+
+  vertices <- drawing2vertex dgl
+  putStr (show $ length vertices)
+  -- let vertices = [
+     
+  let numVertices = (length vertices)
 
       -- maskAttr = concat $ replicate numVertices mask0
   
@@ -60,14 +98,24 @@ initResources = do
   let firstIndex = 0
       vPosition = AttribLocation 0
 
-  -- m0AttrLoc <- get $ attribLocation program "M0"
-  -- m1AttrLoc <- get $ attribLocation program "M1"
-  -- putStrLn (show m0AttrLoc)  
-  -- putStrLn (show m1AttrLoc)
+
+  let ofst = (6 * 2 * 4 + 4 * 4 )
   
   vertexAttribPointer vPosition $=
-    (ToFloat, VertexArrayDescriptor 2 Float (4 * 2 * 4 + 4 * 4 ) (bufferOffset firstIndex))
+    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset firstIndex))
   vertexAttribArray vPosition $= Enabled
+
+  ctrlBuffer <- genObjectName
+  bindBuffer ArrayBuffer $= Just ctrlBuffer
+  withArray vertices $ \ptr -> do
+    let size = fromIntegral (numVertices * sizeOf (head vertices))
+    bufferData ArrayBuffer $= (size, ptr, StaticDraw)
+
+  let ctrlPosition = AttribLocation 1
+  
+  vertexAttribPointer ctrlPosition $=
+    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 2 * 4 * 1)))
+  vertexAttribArray ctrlPosition $= Enabled
 
 
   m0Buffer <- genObjectName
@@ -76,15 +124,10 @@ initResources = do
     let size = fromIntegral (numVertices * sizeOf (head vertices))
     bufferData ArrayBuffer $= (size, ptr, StaticDraw)
 
-  let m0Position = AttribLocation 1
-
-  -- m0AttrLoc <- get $ attribLocation program "M0"
-  -- m1AttrLoc <- get $ attribLocation program "M1"
-  -- putStrLn (show m0AttrLoc)  
-  -- putStrLn (show m1AttrLoc)
+  let m0Position = AttribLocation 2
   
   vertexAttribPointer m0Position $=
-    (ToFloat, VertexArrayDescriptor 2 Float (4 * 2 * 4 + 4 * 4 ) (bufferOffset (firstIndex + 2 * 4)))
+    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 2 * 4 * 2)))
   vertexAttribArray m0Position $= Enabled
 
 
@@ -94,15 +137,10 @@ initResources = do
     let size = fromIntegral (numVertices * sizeOf (head vertices))
     bufferData ArrayBuffer $= (size, ptr, StaticDraw)
 
-  let m1Position = AttribLocation 2
-
-  -- m0AttrLoc <- get $ attribLocation program "M0"
-  -- m1AttrLoc <- get $ attribLocation program "M1"
-  -- putStrLn (show m0AttrLoc)  
-  -- putStrLn (show m1AttrLoc)
+  let m1Position = AttribLocation 3
   
   vertexAttribPointer m1Position $=
-    (ToFloat, VertexArrayDescriptor 2 Float (4 * 2 * 4 + 4 * 4 ) (bufferOffset (firstIndex + 2 * 4 * 2)))
+    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 2 * 4 * 3)))
   vertexAttribArray m1Position $= Enabled
 
 
@@ -112,16 +150,24 @@ initResources = do
     let size = fromIntegral (numVertices * sizeOf (head vertices))
     bufferData ArrayBuffer $= (size, ptr, StaticDraw)
 
-  let m2Position = AttribLocation 3
-
-  -- m0AttrLoc <- get $ attribLocation program "M0"
-  -- m1AttrLoc <- get $ attribLocation program "M1"
-  -- putStrLn (show m0AttrLoc)  
-  -- putStrLn (show m1AttrLoc)
+  let m2Position = AttribLocation 4
   
   vertexAttribPointer m2Position $=
-    (ToFloat, VertexArrayDescriptor 2 Float (4 * 2 * 4 + 4 * 4 ) (bufferOffset (firstIndex + 2 * 4 * 3)))
+    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 2 * 4 * 4)))
   vertexAttribArray m2Position $= Enabled
+
+  m3Buffer <- genObjectName
+  bindBuffer ArrayBuffer $= Just m3Buffer
+  withArray vertices $ \ptr -> do
+    let size = fromIntegral (numVertices * sizeOf (head vertices))
+    bufferData ArrayBuffer $= (size, ptr, StaticDraw)
+
+  let m3Position = AttribLocation 5
+  
+  vertexAttribPointer m3Position $=
+    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 2 * 4 * 5)))
+  vertexAttribArray m3Position $= Enabled
+
 
   colorBuffer <- genObjectName
   bindBuffer ArrayBuffer $= Just colorBuffer
@@ -129,15 +175,10 @@ initResources = do
     let size = fromIntegral (numVertices * sizeOf (head vertices))
     bufferData ArrayBuffer $= (size, ptr, StaticDraw)
 
-  let colorPosition = AttribLocation 4
-
-  -- m0AttrLoc <- get $ attribLocation program "M0"
-  -- m1AttrLoc <- get $ attribLocation program "M1"
-  -- putStrLn (show m0AttrLoc)  
-  -- putStrLn (show m1AttrLoc)
+  let colorPosition = AttribLocation 6
   
   vertexAttribPointer colorPosition $=
-    (ToFloat, VertexArrayDescriptor 4 Float (4 * 2 * 4 + 4 * 4 ) (bufferOffset (firstIndex + 2 * 4 * 4)))
+    (ToFloat, VertexArrayDescriptor 4 Float ofst (bufferOffset (firstIndex + 2 * 4 * 6)))
   vertexAttribArray colorPosition $= Enabled
 
 
@@ -176,7 +217,7 @@ main = do
    -- GLFW.setWindowSizeCallback win (Just resizeWindow)
    GLFW.setKeyCallback win (Just keyPressed)
    GLFW.setWindowCloseCallback win (Just shutdown)
-   descriptor <- initResources
+   descriptor <- initResources square1
    onDisplay win descriptor
    GLFW.destroyWindow win
    GLFW.terminate

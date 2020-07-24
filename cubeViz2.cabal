@@ -100,24 +100,29 @@ executable show
   -- .hs or .lhs file containing the Main module.
   main-is:             Show.hs
 
-  -- Modules included in this executable, other than Main.
-  -- other-modules:
+  -- -- -- Modules included in this executable, other than Main.
+  other-modules:   Drawing.Example
+                 , Drawing.Base
+                 , Abstract
+                 , Syntax
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       OpenGL >= 3.0.3.0
+  build-depends:       GLFW-b
+                     , OpenGL >= 3.0.3.0
                      , StateVar >= 1.1.1.1
                      , array >= 0.5.3.0
                      , base >=4.12 && <4.13
                      , bytestring >= 0.10.8.2
                      , colour
                      , containers >= 0.6.0.1
-                     , GLFW-b
+                     , extra >= 1.7.3
+                     , split >= 0.2.3.4
                      
   -- Directories containing source files.
-  hs-source-dirs:      
+  hs-source-dirs: . , Drawing
 
   -- Base language which the package is written in.
   default-language:    Haskell2010

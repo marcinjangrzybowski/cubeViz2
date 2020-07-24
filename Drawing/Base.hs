@@ -33,6 +33,24 @@ data MetaColor a = MShape [a] | SShape [a] | Mask
 type DrawingGL = Drawing (MetaColor Color)
 
 
+drawingSplitBase :: Drawing (MetaColor a) -> [ (Prll , Maybe Prll , [a])  ] 
+drawingSplitBase = drawingSplitStep Nothing
+  where
+
+    drawingSplitStep :: Maybe Prll -> Drawing (MetaColor a) -> [ (Prll , Maybe Prll , [a])  ] 
+    drawingSplitStep m (Drawing ls) = 
+      case ls of
+        [] -> []
+        ((p , x) : xs) ->
+          case (m , x)  of
+             (Just mp , MShape a) ->
+                 ( p , Just mp , a ) : drawingSplitStep (Just mp) (Drawing xs)
+             (_ , SShape a) ->
+                 ( p , Nothing , a ) : drawingSplitStep Nothing (Drawing xs)
+             (_ , Mask ) -> drawingSplitStep (Just p) (Drawing xs)
+             (_ , _) -> drawingSplitStep Nothing (Drawing xs)
+    
+         
 -- pointR = 1    
 
 
@@ -42,8 +60,7 @@ type DrawingGL = Drawing (MetaColor Color)
 --         [Pt x , Pt y] -> Just (Circle (x , y) pointR)
 --         [Seg x0 x1 , Seg y0 y1] -> Just (Rect ( x0 , y0 ) ( x1 - x0) (y1 - y0) )
 --         [Seg x0 x1 , Pt y] -> Just (Path ( x0 , y ) [ LineTo ( x1 , y ) ])
---         [Pt x , Seg y0 y1] -> Just (Path ( x , y0 ) [ LineTo ( x , y1 ) ])     
---         _ -> Nothing             
+--         [Pt x , Seg y0 y1] -> Just (Path ( x , y0 ) [ LineTo ( x , y1 ) ])     --         _ -> Nothing             
     
 -- toRenderable : Shp MetaColor -> Maybe (Renderable , Int)
 -- toRenderable ( (n , l) , a ) =
@@ -104,12 +121,9 @@ metaTint = fmap . const
 --     |> Tuple.mapFirst
 --     |> List.map   
                  
--- mapCoordsAsL : (List (Float) -> List (Float)) -> Drawing a -> Drawing a
--- mapCoordsAsL f = 
---       List.map ( f)     
---     |> Tuple.mapSecond
---     |> Tuple.mapFirst
---     |> List.map          
+mapCoords :: ([Float] -> [Float]) -> Drawing a -> Drawing a
+mapCoords f (Drawing l) =
+   Drawing (map (first (second (map f))) l)
            
 -- pxScale : (Int , Int) -> Drawing a -> Drawing a
 -- pxScale (w , h) =
@@ -135,8 +149,8 @@ metaTint = fmap . const
 --     )
 
 
--- combineDrawings : List (Drawing a) -> Drawing a
--- combineDrawings = List.concat
+combineDrawings :: [Drawing a] -> Drawing a
+combineDrawings = Drawing . concat . (map (\(Drawing x) -> x))
 
 
                   
@@ -237,8 +251,10 @@ unitHyCube n =
 --              )    
 -- -- subPrll : SubFace -> Prll -> Prll         
 
--- prllDim : Prll -> Int
--- prllDim = Tuple.second >> List.head >> Maybe.map (List.length) >> Maybe.withDefault 0
+prllDim :: Prll -> Int
+prllDim = length . head . snd
+
+  -- Tuple.second >> List.head >> Maybe.map (List.length) >> Maybe.withDefault 0
 
 -- getDrawingDim : Drawing a -> Maybe Int
 -- getDrawingDim = List.head >> Maybe.map (Tuple.first >> prllDim) 
@@ -304,9 +320,13 @@ unitHyCube n =
 -- mapColor = Tuple.mapFirst >> Tuple.mapSecond >>  Maybe.map >> mapDrawingData            
 
 
--- translate : List (Float) -> Drawing a -> Drawing a
+
+
+translate ::  [ Float ] -> Drawing a -> Drawing a
+translate vec = mapCoords (zipWith (+) vec)
+
 -- translate vec =
 --     mapCoordsAsL (\cl -> zip (cl , vec) |> List.map (\(x , delta)-> x + delta ))
 
--- scale : Float -> Drawing a -> Drawing a
--- scale factor = mapCoordsAsL (List.map (\x-> x * factor ))
+scale :: Float -> Drawing a -> Drawing a
+scale factor = mapCoords (map (*factor)) 
