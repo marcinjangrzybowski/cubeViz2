@@ -2,6 +2,8 @@ import Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
 import Control.Monad
 import System.Exit ( exitWith, ExitCode(..) )
+import System.IO  
+
 import LoadShaders
 import Foreign.Marshal.Array
 import Foreign.Ptr
@@ -13,6 +15,11 @@ import Drawing.Example
 import Data.List
 
 import Data.Maybe
+
+import Syntax
+import InteractiveParse
+
+import DrawExpr
 
 data Descriptor = Descriptor VertexArrayObject ArrayIndex NumArrayIndices
 
@@ -207,9 +214,8 @@ shutdown win = do
   _ <- exitWith ExitSuccess
   return ()
 
-
-main :: IO ()
-main = do
+mainOld :: IO ()
+mainOld = do
    GLFW.init
    GLFW.defaultWindowHints
    Just win <- GLFW.createWindow 640 480 "Haskel OpenGL Tutorial 02" Nothing Nothing
@@ -221,6 +227,23 @@ main = do
    onDisplay win descriptor
    GLFW.destroyWindow win
    GLFW.terminate
+
+showTerm :: SessionState -> IO ()
+showTerm = undefined
+
+mainShowTerm :: String -> IO ()
+mainShowTerm fname =
+  do let list = []
+     handle <- openFile fname ReadMode
+     contents <- hGetContents handle
+     let parseResult = parseInteractive contents
+     -- putstr $ either id (intercalate "\n" . map (uncurry (++) . second parr)) parseresult
+     either putStr showTerm parseResult
+     hClose handle   
+
+
+main :: IO ()
+main = mainShowTerm "data/input-to-viz/penta-rhs"
 
 
 onDisplay :: Window -> Descriptor -> IO ()

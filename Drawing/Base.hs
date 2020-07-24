@@ -254,11 +254,13 @@ unitHyCube n =
 prllDim :: Prll -> Int
 prllDim = length . head . snd
 
+
+
   -- Tuple.second >> List.head >> Maybe.map (List.length) >> Maybe.withDefault 0
 
--- getDrawingDim : Drawing a -> Maybe Int
--- getDrawingDim = List.head >> Maybe.map (Tuple.first >> prllDim) 
-                
+getDrawingDim :: Drawing a -> Maybe Int
+getDrawingDim (Drawing ((p , _) : _)) = Just (prllDim p)
+getDrawingDim (Drawing _) = Nothing              
 -- drawFaces : Prll -> (Face -> a) -> Drawing a 
 -- drawFaces prl f = pairFrom ((swap facePrll) prl)  f
 --                   |> (tabulateFaces (prllDim prl))

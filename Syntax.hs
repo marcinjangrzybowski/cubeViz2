@@ -30,6 +30,13 @@ type SubFace = Map.Map Int Bool
 
 type FExpr = Set.Set SubFace
 
+type Face = (Int , Bool)
+
+toFace :: SubFace -> Maybe Face
+toFace sf =
+  case (Map.toList sf) of
+    [ x ] -> Just x
+    _ -> Nothing
 
 -- minMB :: (Maybe Bool) -> (Maybe Bool) -> (Maybe Bool)
 -- minMB Nothing _ = Nothing 
@@ -127,6 +134,8 @@ data Expr =
   | Var VarIndex [IExpr]
   | ILam String Expr
   deriving (Eq , Show)
+
+data CellExpr = CellExpr VarIndex [IExpr] 
 
 data BType = BType Int
   deriving (Eq , Show)

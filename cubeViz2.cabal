@@ -105,6 +105,8 @@ executable show
                  , Drawing.Base
                  , Abstract
                  , Syntax
+                 , InteractiveParse
+                 , DrawExpr
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
@@ -119,7 +121,12 @@ executable show
                      , colour
                      , containers >= 0.6.0.1
                      , extra >= 1.7.3
+                     , parsec >= 3.1.13.0
+                     , parsec >= 3.1.13.0
+                     , raw-strings-qq >= 1.1
                      , split >= 0.2.3.4
+                     , text >= 1.2.3.1
+                     , text >= 1.2.3.1
                      
   -- Directories containing source files.
   hs-source-dirs: . , Drawing
