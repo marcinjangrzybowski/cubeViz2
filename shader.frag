@@ -51,5 +51,5 @@ main()
    
    fColor = vec4(
       vCol.rgb
-     , mask);
+     , mask * 0.4);
 }

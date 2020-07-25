@@ -19,6 +19,8 @@ import Data.Maybe
 import Syntax
 import InteractiveParse
 
+import Data.Bifunctor
+
 import DrawExpr
 
 data Descriptor = Descriptor VertexArrayObject ArrayIndex NumArrayIndices
@@ -193,14 +195,16 @@ initResources dgl = do
   return $ Descriptor triangles firstIndex (fromIntegral numVertices)
 
 
--- resizeWindow :: GLFW.WindowSizeCallback
--- resizeWindow win w h =
---     do
---       GL.viewport   $= (GL.Position 0 0, GL.Size (fromIntegral w) (fromIntegral h))
---       GL.matrixMode $= GL.Projection
---       GL.loadIdentity
---       GL.ortho2D 0 (realToFrac w) (realToFrac h) 0
-
+resizeWindow :: GLFW.WindowSizeCallback
+resizeWindow win w h =
+    do
+      GL.viewport   $= (GL.Position 0 0, GL.Size (fromIntegral w) (fromIntegral h))
+      GL.matrixMode $= GL.Projection
+      GL.loadIdentity
+--       let ww = (realToFrac w)
+--           hh = (realToFrac h)
+-- --      GL.ortho2D (- (ww/2)) (ww/2) (hh/2) (- (hh/2))
+      -- GL.ortho2D (- (ww/2)) (ww/2) (hh/2) (- (hh/2))
 
 keyPressed :: GLFW.KeyCallback 
 keyPressed win GLFW.Key'Escape _ GLFW.KeyState'Pressed _ = shutdown win
@@ -214,22 +218,38 @@ shutdown win = do
   _ <- exitWith ExitSuccess
   return ()
 
-mainOld :: IO ()
-mainOld = do
-   GLFW.init
-   GLFW.defaultWindowHints
-   Just win <- GLFW.createWindow 640 480 "Haskel OpenGL Tutorial 02" Nothing Nothing
-   GLFW.makeContextCurrent (Just win)
-   -- GLFW.setWindowSizeCallback win (Just resizeWindow)
-   GLFW.setKeyCallback win (Just keyPressed)
-   GLFW.setWindowCloseCallback win (Just shutdown)
-   descriptor <- initResources square1
-   onDisplay win descriptor
-   GLFW.destroyWindow win
-   GLFW.terminate
+-- mainOld :: IO ()
+-- mainOld = do
+--    GLFW.init
+--    GLFW.defaultWindowHints
+--    Just win <- GLFW.createWindow 640 480 "Haskel OpenGL Tutorial 02" Nothing Nothing
+--    GLFW.makeContextCurrent (Just win)
+--    -- GLFW.setWindowSizeCallback win (Just resizeWindow)
+--    GLFW.setKeyCallback win (Just keyPressed)
+--    GLFW.setWindowCloseCallback win (Just shutdown)
+--    descriptor <- initResources square1
+--    onDisplay win descriptor
+--    GLFW.destroyWindow win
+--    GLFW.terminate
+
+showDrawing :: DrawingGL -> IO ()
+showDrawing drw =
+  do
+     GLFW.init
+     GLFW.defaultWindowHints
+     Just win <- GLFW.createWindow 640 480 "Haskel OpenGL Tutorial 02" Nothing Nothing
+     GLFW.makeContextCurrent (Just win)
+     GLFW.setWindowSizeCallback win (Just resizeWindow)
+     GLFW.setKeyCallback win (Just keyPressed)
+     GLFW.setWindowCloseCallback win (Just shutdown)
+     descriptor <- initResources drw
+     onDisplay win descriptor
+     GLFW.destroyWindow win
+     GLFW.terminate
 
 showTerm :: SessionState -> IO ()
-showTerm = undefined
+showTerm ss =
+   either putStr showDrawing $ drawExpr $ ssEnvExpr $ ss
 
 mainShowTerm :: String -> IO ()
 mainShowTerm fname =
@@ -237,13 +257,13 @@ mainShowTerm fname =
      handle <- openFile fname ReadMode
      contents <- hGetContents handle
      let parseResult = parseInteractive contents
-     -- putstr $ either id (intercalate "\n" . map (uncurry (++) . second parr)) parseresult
+     putStr $ either id (show) parseResult
      either putStr showTerm parseResult
      hClose handle   
 
 
 main :: IO ()
-main = mainShowTerm "data/input-to-viz/penta-rhs"
+main = mainShowTerm "data/input-to-viz/penta-lhs"
 
 
 onDisplay :: Window -> Descriptor -> IO ()

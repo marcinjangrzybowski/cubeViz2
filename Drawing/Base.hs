@@ -4,11 +4,17 @@ module Drawing.Base where
 import Data.Bifunctor
 
 -- import Data.Colour
+import Data.Maybe
+
+import Data.List
+
+-- import Data.Floating.Classes
 
 
 type NPoint = [ Float ]
 
 data Seg = Pt Float | Seg Float Float
+
 
 type Prll = ( Int , [[ Float ]] )      
                     -- Int=k means number means dimension of paraelogram (not ambient space!)
@@ -332,3 +338,43 @@ translate vec = mapCoords (zipWith (+) vec)
 
 scale :: Float -> Drawing a -> Drawing a
 scale factor = mapCoords (map (*factor)) 
+
+
+mapInd :: (a -> Int -> b) -> [a] -> [b]
+mapInd f l = zipWith f l [0..]
+
+
+
+mod1 :: Float -> Float
+mod1 x = x - fromIntegral (floor x)
+
+hsv :: Float -> Float -> Float -> Color
+hsv h s v = case hi of
+    0 -> Rgba v t p 1.0
+    1 -> Rgba q v p 1.0
+    2 -> Rgba p v t 1.0
+    3 -> Rgba p q v 1.0
+    4 -> Rgba t p v 1.0
+    5 -> Rgba v p q 1.0
+ where
+  hi = floor (h/60) `mod` 6
+  f = mod1 (h/60)
+  p = v*(1-s)
+  q = v*(1-f*s)
+  t = v*(1-(1-f)*s)
+
+phiNumber :: Float
+phiNumber = 1.618033988
+
+nthColor :: Int -> Color
+nthColor i = hsv (phiNumber * fromIntegral i * 360.0) 0.5 0.5
+
+debugRainbow :: Drawing (MetaColor a) -> DrawingGL
+debugRainbow (Drawing l) = 
+   Drawing ( mapInd g $ mapMaybe f l)
+
+   where      
+     f (p , SShape a) = Just (p , SShape [()]) 
+     f (p , _ ) = Nothing
+
+     g (p , _) i = (p , SShape [ (nthColor i) ])

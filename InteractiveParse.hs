@@ -49,7 +49,7 @@ rawSections x =
 
 data SessionState = SessionState (Env , Context) [(Expr , Expr)] BType Expr
 
-ssExpr (SessionState _ _ _ e) = e
+ssEnvExpr (SessionState ee _ _ e) = (ee , e)
 
 instance Show SessionState where
    show (SessionState (env , ctx) bndrs bType e) =

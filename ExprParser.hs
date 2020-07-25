@@ -60,8 +60,15 @@ notAbs :: Parsec String Context z -> Parsec String Context z
 notAbs x = string "λ _ →" *> space  *> x
 
 faceAbs :: FExpr -> Parsec String Context z -> Parsec String Context z
-faceAbs ie x = string "λ _ →" *> space  *> x
-
+faceAbs ie x =
+  do string "λ _ →"
+     space
+     -- ctx <- getState
+     -- setState $ addSFConstraintToContext ctx undefined
+     y <- x
+     -- setState ctx 
+     return y
+     
 abstr :: Parsec String Context z -> Parsec String Context (Maybe String , z)
 abstr p =
   do spaces
@@ -175,13 +182,23 @@ partialPrimPOr x =
      p2 <- partialArg ia2
      (either unexpected return (primPOr x ia1 ia2 p1 p2))
 
-partial0 :: IExpr -> Parsec String Context Partial
-partial0 x = 
-     spaces *>
-     ((partialPrimPOr x)       
-            <|> (partialConst x <$> faceAbs (toSubFace x) expr0))
-     
 
+everyP :: [ Parsec String b c ] -> Parsec String b [ c ]
+everyP [] = return []
+everyP (x : xs) =
+  do ys <- lookAhead $ try $ (everyP xs)
+     y <- x
+     eof
+     return (y : ys)
+    
+-- testXX :: Parsec String () [String]
+-- testXX = everyP [string "a b a" , (concat <$> many ((string "a") <|> (string " "))) , string "a a a" ]
+
+partial0 :: IExpr -> Parsec String Context Partial
+partial0 x =
+      do spaces
+         ((partialPrimPOr x) <|> (partialConst x <$> faceAbs (toSubFace x) expr0))
+      
 partialArg :: IExpr -> Parsec String Context Partial
 partialArg x = spaces *> between (char '(') (spaces *> char ')') (partial0 x)
 

@@ -37,6 +37,6 @@ main()
 
    vCtrl = Ctrl;
    
-   gl_Position = vPosition;
+   gl_Position = vec4(2.0 , 2.0 , 1.0 , 1.0) * (vPosition - vec4(0.5 , 0.5 , 0.0 , 0.0));
    
 }

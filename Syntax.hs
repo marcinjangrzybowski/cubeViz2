@@ -15,6 +15,7 @@ import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
 import Data.Bifunctor
 import Data.List.Split
+import Data.Maybe
 
 -- data IExpr =
 --    Min IExpr IExpr |
@@ -32,11 +33,17 @@ type FExpr = Set.Set SubFace
 
 type Face = (Int , Bool)
 
+sfDim :: SubFace -> Int
+sfDim = length . Map.keys
+  
 toFace :: SubFace -> Maybe Face
 toFace sf =
   case (Map.toList sf) of
     [ x ] -> Just x
     _ -> Nothing
+
+faceToSubFace :: Face -> SubFace
+faceToSubFace x = Map.fromList [x]
 
 -- minMB :: (Maybe Bool) -> (Maybe Bool) -> (Maybe Bool)
 -- minMB Nothing _ = Nothing 
@@ -123,6 +130,10 @@ primPOr ei ei1 ei2 pa1 pa2 =
 data VarIndex = VarIndex Int
   deriving (Eq , Show)
 
+data DimIndex = DimIndex Int
+  deriving (Eq , Show)
+
+
 varIndex :: Context -> Int -> Maybe VarIndex
 varIndex (Context vs _) i =
   if (i < length vs)
@@ -172,14 +183,59 @@ addVarToContext (Context t d) tm name = Context ((name , tm) : t) d
 addDimToContext :: Context -> String -> Context
 addDimToContext (Context t d) name = Context t ((name , Nothing) : d)
 
+
+mapAtMany :: [(Int , a -> a )] -> [a] -> [a]
+mapAtMany [] x = x
+mapAtMany _ [] = []
+mapAtMany ((0 , y) : ys) (x : xs) = y x : (mapAtMany (map (first (flip (-) 1)) ys) xs)
+mapAtMany ys (x : xs) = x : (mapAtMany (map (first (flip (-) 1)) ys) xs)
+
+-- addConstraintToContext :: Context -> DimIndex -> Bool -> Context
+-- addConstraintToContext (Context t d) (DimIndex i) b =
+--    undefined
+-- --Context t ((name , Nothing) : d)
+
+addSFConstraintToContext :: SubFace -> Context ->  Context
+addSFConstraintToContext sf (Context t d) =
+   Context t
+    $ reverse $ mapAtMany (map (second (second . const . Just )) (Map.toList sf)) $ reverse d
+
 lookupLevel :: Env -> String -> Maybe Int
 lookupLevel (Env ls _) x = ((length ls - 1)-) <$> elemIndex x (ls)
 
 lookupBType :: Env -> String -> Maybe BType
 lookupBType (Env  _ dts) x = (BType . ((length dts - 1)-)) <$> elemIndex x (map fst dts) 
 
+unConstrainedDimsOnly :: Context -> [String]
+unConstrainedDimsOnly (Context _ l) = map fst $ filter (isNothing . snd) $ l 
+
+
+toDimI :: Context -> Int -> Int
+toDimI (Context _ l) i = i - length (take i (filter isJust (map snd (reverse l))))
+
+countTrueBeforeNFalse :: [Bool] -> Int -> Int 
+countTrueBeforeNFalse = h
+  where
+    h [] _ = 0
+    h (True : xs) k = 1 + h xs k
+    h (False : xs) 0 = 0
+    h (False : xs) k = h xs (k - 1)
+    
+
+fromDimI :: Context -> Int -> Int
+fromDimI (Context _ l) i = i + countTrueBeforeNFalse (map  (isJust . snd) (reverse l)) i
+  
+-- lookupDim :: Context -> String -> Maybe Int
+-- lookupDim c x =
+--    let l = unConstrainedDimsOnly c
+--    in ((length l - 1)-) <$> elemIndex x l
+
 lookupDim :: Context -> String -> Maybe Int
-lookupDim (Context _ l) x = ((length l - 1)-) <$> elemIndex x (map fst l)
+lookupDim (Context _ l0) x =
+   let l = map fst l0 
+   in ((length l - 1)-) <$> elemIndex x l
+
+
 
 indexS :: Int -> [ a ] -> Maybe a
 indexS k l = if (k < length l) then Just (l !! k) else Nothing
