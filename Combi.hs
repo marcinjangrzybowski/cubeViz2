@@ -14,6 +14,8 @@ module Combi where
 
 import Data.List
 
+import Data.Foldable
+
 import qualified Data.Set as Set
 
 import qualified Data.Map as Map
@@ -100,3 +102,7 @@ instance ListInterpretable Piece (Bool , Int) where
   fromListLI = Bf.bimap fromListLI fromListLI . unzip
 
 
+data FromLI a c = FromLI Int (a -> c)
+
+instance (ListInterpretable a b) => Foldable (FromLI a) where 
+  foldMap f (FromLI n g) = foldMap f $ (map g $ genAllLI n)
