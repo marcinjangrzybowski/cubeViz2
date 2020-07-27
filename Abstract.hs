@@ -15,6 +15,7 @@ import Data.Traversable
 
 import Control.Applicative
 
+import Combi
 
 import qualified Data.Map as Map
 
@@ -70,14 +71,6 @@ foldFaces f (Hcomp _ _ pa a) =
         mapMaybe (\( sf , x) -> fmap (,x) $ toFace sf )
       $ Map.toList pa)
 
-class OfDim a where
-  getDim :: a -> Int
-
-  checkDim :: Int -> a -> Maybe a
-  checkDim i a =
-    if (getDim a == i)
-    then Just a
-    else Nothing
 
 instance OfDim ((Env , Context) , Expr) where
   getDim = uncurry $ uncurry $ getExprDim
