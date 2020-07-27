@@ -38,14 +38,16 @@ factorial n =
     5 -> 120
     _ -> n * (factorial (n - 1))
 
-data Permutation = Permutation (Map.Map Int Int)
+newtype Permutation = Permutation (Map.Map Int Int)
+  deriving (Ord , Eq)
 
 instance Show Permutation where
   show (Permutation x) = show $ toList x
 
-data Permutation2 = Permutation2 [Int]
+newtype Permutation2 = Permutation2 [Int]
 
 data Subset = Subset Int (Set.Set Int)
+  deriving (Ord , Eq)
 
 data SubFace = SubFace Int (Map.Map Int Bool)
   deriving (Eq , Ord)
@@ -72,7 +74,7 @@ forget :: a -> Never a
 forget _ = Never
 
 
-class ListInterpretable a b | a -> b where
+class Ord a => ListInterpretable a b | a -> b where
   cardLI :: Never a -> Int -> Int
   enumerate :: Int -> Int -> a
   unemerate :: a -> Int
@@ -218,13 +220,50 @@ instance ListInterpretable Piece (Bool , Int) where
 
 data FromLI a c = FromLI Int (a -> c)
 
+toListFLI :: ListInterpretable a b =>  FromLI a c -> [c]
+toListFLI (FromLI n g) = (map g $ genAllLI n)
+
+toMapFLI :: ListInterpretable a b =>  FromLI a c -> Map.Map a c
+toMapFLI (FromLI n g) = Map.fromList $ map (\x -> (x , g x) ) $ genAllLI n
+
+fromMapFLI :: ListInterpretable a b => Int -> Map.Map a c -> FromLI a (Maybe c)
+fromMapFLI n = FromLI n . flip Map.lookup
+
+fromMapFLIUnsafe :: ListInterpretable a b => Int -> Map.Map a c -> FromLI a c
+fromMapFLIUnsafe n = fmap fromJust . fromMapFLI n
+
 instance Functor (FromLI a) where
   fmap f (FromLI n g) = FromLI n (f . g)  
 
+instance (Show c , ListInterpretable a b) => (Show (FromLI a c)) where
+  show x = concat . map show $ toList x
+  
 instance (ListInterpretable a b) => Foldable (FromLI a) where 
-  foldMap f (FromLI n g) = foldMap f $ (map g $ genAllLI n)
+  foldMap f = foldMap f . toListFLI
+
+instance (ListInterpretable a b) => Traversable (FromLI a) where 
+  traverse f x@(FromLI n g) = fmap (fromMapFLIUnsafe n) $ (traverse f $ toMapFLI x)
 
 
 
 
 --  zana 32a
+
+traverseMapLI :: (Applicative f , ListInterpretable a b)  =>
+         ( a -> v -> f w) -> FromLI a v -> f (FromLI a w) 
+traverseMapLI f x@(FromLI n g) = fmap (fromMapFLIUnsafe n) $ traverseMap f $ toMapFLI x
+
+traverseMap :: (Ord k , Applicative f) =>
+         ( k -> v -> f w) -> Map.Map k v -> f (Map.Map k w) 
+traverseMap f x =
+   Map.fromList <$> ((traverse ff) $ Map.toList x)  
+
+   where
+     ff (k , v) = ((,) k) <$> f k v
+
+
+
+traverseMapAndKeys :: (Ord k , Ord l , Applicative f) =>
+         ( (k , v) -> f (l , w)) -> Map.Map k v -> f (Map.Map l w) 
+traverseMapAndKeys f x =
+   Map.fromList <$> ((traverse f) $ Map.toList x)  

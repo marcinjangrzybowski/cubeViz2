@@ -15,14 +15,13 @@ import Data.Traversable
 
 import Control.Applicative
 
-import Combi
 
 import qualified Data.Map as Map
 
-data Cub t a = Cub t a | Hcomp t Name (Map.Map SubFace (Cub t a)) (Cub t a)
+data Cub t a = Cub t a | Hcomp t Name (Map.Map SubFace2 (Cub t a)) (Cub t a)
   deriving Show
 
-type Address = [SubFace]
+type Address = [SubFace2]
 
 
 
@@ -71,6 +70,14 @@ foldFaces f (Hcomp _ _ pa a) =
         mapMaybe (\( sf , x) -> fmap (,x) $ toFace sf )
       $ Map.toList pa)
 
+class OfDim a where
+  getDim :: a -> Int
+
+  checkDim :: Int -> a -> Maybe a
+  checkDim i a =
+    if (getDim a == i)
+    then Just a
+    else Nothing
 
 instance OfDim ((Env , Context) , Expr) where
   getDim = uncurry $ uncurry $ getExprDim
@@ -113,6 +120,6 @@ allFaces n = concat $ map (\x -> [(x , False) , (x , True)]) (take n [0,1..])
 
 makeGrid :: Int -> Int -> Cub () ()
 makeGrid dim 0 = Cub () ()
-makeGrid dim depth = undefined
-  -- let prev = (makeGrid dim (depth - 1))
-  -- in Hcomp () "z" (Map.fromList $ map (flip (,) prev) (map faceToSubFace (allFaces dim)) ) prev 
+makeGrid dim depth =
+  let prev = (makeGrid dim (depth - 1))
+  in Hcomp () "z" (Map.fromList $ map (flip (,) prev) (map faceToSubFace2 (allFaces dim)) ) prev 
