@@ -113,6 +113,6 @@ allFaces n = concat $ map (\x -> [(x , False) , (x , True)]) (take n [0,1..])
 
 makeGrid :: Int -> Int -> Cub () ()
 makeGrid dim 0 = Cub () ()
-makeGrid dim depth =
-  let prev = (makeGrid dim (depth - 1))
-  in Hcomp () "z" (Map.fromList $ map (flip (,) prev) (map faceToSubFace (allFaces dim)) ) prev 
+makeGrid dim depth = undefined
+  -- let prev = (makeGrid dim (depth - 1))
+  -- in Hcomp () "z" (Map.fromList $ map (flip (,) prev) (map faceToSubFace (allFaces dim)) ) prev 

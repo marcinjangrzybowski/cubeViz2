@@ -17,6 +17,8 @@ import Data.Bifunctor
 import Data.List.Split
 import Data.Maybe
 
+import Combi
+
 -- data IExpr =
 --    Min IExpr IExpr |
 --    Max IExpr IExpr |
@@ -27,23 +29,23 @@ import Data.Maybe
 
 type IExpr = Set.Set ( Set.Set (Int , Bool))
 
-type SubFace = Map.Map Int Bool
+type SubFace2 = Map.Map Int Bool
 
-type FExpr = Set.Set SubFace
+type FExpr = Set.Set SubFace2
 
 type Face = (Int , Bool)
 
-sfDim :: SubFace -> Int
+sfDim :: SubFace2 -> Int
 sfDim = length . Map.keys
   
-toFace :: SubFace -> Maybe Face
+toFace :: SubFace2 -> Maybe Face
 toFace sf =
   case (Map.toList sf) of
     [ x ] -> Just x
     _ -> Nothing
 
-faceToSubFace :: Face -> SubFace
-faceToSubFace x = Map.fromList [x]
+faceToSubFace2 :: Face -> SubFace2
+faceToSubFace2 x = Map.fromList [x]
 
 -- minMB :: (Maybe Bool) -> (Maybe Bool) -> (Maybe Bool)
 -- minMB Nothing _ = Nothing 
@@ -104,19 +106,19 @@ iFromL = Set.fromList . (map Set.fromList)
 --          h1 (y : ys) = foldr Min y ys
     
 
-toSubFace :: IExpr -> FExpr
-toSubFace =
+toSubFace2 :: IExpr -> FExpr
+toSubFace2 =
    Set.map (Map.fromList . Set.toList . (uncurry Set.union))
    . (Set.filter ((Set.null . (uncurry Set.intersection) . (bimap (Set.map fst) (Set.map fst))) ))
    . (Set.map (Set.partition snd))
 
-type Partial = Map.Map SubFace Expr
+type Partial = Map.Map SubFace2 Expr
 
 partialEmpty :: Partial
 partialEmpty = Map.empty
 
 partialConst :: IExpr -> Expr -> Partial
-partialConst i e = Map.fromSet (\_ -> e) (toSubFace i)
+partialConst i e = Map.fromSet (\_ -> e) (toSubFace2 i)
   
 primPOr :: IExpr -> IExpr -> IExpr -> Partial -> Partial -> Either String Partial
 primPOr ei ei1 ei2 pa1 pa2 =
@@ -195,7 +197,7 @@ mapAtMany ys (x : xs) = x : (mapAtMany (map (first (flip (-) 1)) ys) xs)
 --    undefined
 -- --Context t ((name , Nothing) : d)
 
-addSFConstraintToContext :: SubFace -> Context ->  Context
+addSFConstraintToContext :: SubFace2 -> Context ->  Context
 addSFConstraintToContext sf (Context t d) =
    Context t
     $ reverse $ mapAtMany (map (second (second . const . Just )) (Map.toList sf)) $ reverse d
@@ -310,7 +312,7 @@ instance Codelike Expr where
         hc <- getVarSymbol c h
         return (hc ++ " " ++ (intercalate " " (map parr l)))
   
-instance Codelike SubFace where
+instance Codelike SubFace2 where
   toCode c f =
     do l <- traverse (toCode c) (Map.toList f)
        return (intercalate " ∧ " l) 

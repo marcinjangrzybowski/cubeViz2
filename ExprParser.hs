@@ -197,7 +197,8 @@ everyP (x : xs) =
 partial0 :: IExpr -> Parsec String Context Partial
 partial0 x =
       do spaces
-         ((partialPrimPOr x) <|> (partialConst x <$> faceAbs (toSubFace x) expr0))
+         -- ctx <- getState
+         ((partialPrimPOr x) <|> (partialConst x <$> faceAbs (toSubFace2 x) expr0))
       
 partialArg :: IExpr -> Parsec String Context Partial
 partialArg x = spaces *> between (char '(') (spaces *> char ')') (partial0 x)
