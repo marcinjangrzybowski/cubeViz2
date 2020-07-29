@@ -1,3 +1,5 @@
+module Show where
+
 import Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
 import Control.Monad
@@ -59,7 +61,7 @@ drawing2vertex drw =
 
   where
     
-    shpVertexes ((2 , l ) , mbm , ((Rgba r g b a) : _)) =
+    shpVertexes ((2 , l ) , mbm , ((Rgba r g b a))) =
       fromMaybe []
         (do tl <- quad2tris <$> (sequence $ (map asTuples l))
             mbm2 <- mmHelp mbm (sequence . map asTuples . snd)
@@ -100,8 +102,8 @@ initResources dgl = do
     bufferData ArrayBuffer $= (size, ptr, StaticDraw)
 
   program <- loadShaders [
-     ShaderInfo VertexShader (FileSource "shader.vert"),
-     ShaderInfo FragmentShader (FileSource "shader.frag")]
+     ShaderInfo VertexShader (FileSource "data/shaders/shader.vert"),
+     ShaderInfo FragmentShader (FileSource "data/shaders/shader.frag")]
   currentProgram $= Just program
 
   let firstIndex = 0

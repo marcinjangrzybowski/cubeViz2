@@ -23,8 +23,14 @@ type Prll = ( Int , [[ Float ]] )
                     
 type Shp a = (Prll , a)
 
-    
-data Drawing a = Drawing [(Shp a)]
+toMask :: Shp (MetaColor a) -> Maybe (Shp (MetaColor b))
+toMask (p , Mask) = Just (p , Mask)
+toMask _ = Nothing
+
+masked :: Prll -> Drawing a -> Drawing (MetaColor a)
+masked p (Drawing l) = Drawing ((p , Mask) : map (second MShape) l)  
+           
+newtype Drawing a = Drawing [(Shp a)]
   deriving Functor
 
 data Color = Rgba Float Float Float Float
@@ -33,17 +39,17 @@ data Color = Rgba Float Float Float Float
 
 -- type DStyle a = (Color , [ Settings ])
     
-data MetaColor a = MShape [a] | SShape [a] | Mask
+data MetaColor a = MShape a | SShape a | Mask
    deriving Functor
 
 type DrawingGL = Drawing (MetaColor Color)
 
 
-drawingSplitBase :: Drawing (MetaColor a) -> [ (Prll , Maybe Prll , [a])  ] 
+drawingSplitBase :: Drawing (MetaColor a) -> [ (Prll , Maybe Prll , a)  ] 
 drawingSplitBase = drawingSplitStep Nothing
   where
 
-    drawingSplitStep :: Maybe Prll -> Drawing (MetaColor a) -> [ (Prll , Maybe Prll , [a])  ] 
+    drawingSplitStep :: Maybe Prll -> Drawing (MetaColor a) -> [ (Prll , Maybe Prll , a)  ] 
     drawingSplitStep m (Drawing ls) = 
       case ls of
         [] -> []
@@ -367,7 +373,12 @@ phiNumber :: Float
 phiNumber = 1.618033988
 
 nthColor :: Int -> Color
-nthColor i = hsv (phiNumber * fromIntegral i * 360.0) 0.5 0.5
+nthColor i = hsv (phiNumber * fromIntegral i * 360.0) 1.0 0.5
+
+
+extractMasks :: Drawing (MetaColor a) -> Drawing (MetaColor ())
+extractMasks (Drawing l) = 
+  Drawing $ map (second (const (SShape ())))  $ catMaybes $ map toMask l  
 
 debugRainbow :: Drawing (MetaColor a) -> DrawingGL
 debugRainbow (Drawing l) = 
@@ -377,4 +388,4 @@ debugRainbow (Drawing l) =
      f (p , SShape a) = Just (p , SShape [()]) 
      f (p , _ ) = Nothing
 
-     g (p , _) i = (p , SShape [ (nthColor i) ])
+     g (p , _) i = (p , SShape (nthColor i))

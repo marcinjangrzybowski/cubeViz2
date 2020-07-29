@@ -1,0 +1,61 @@
+name:                cubeViz2
+version:             0.1.0.0
+github:              "githubuser/cubeViz2"
+license:             BSD3
+author:              "Author name here"
+maintainer:          "example@example.com"
+copyright:           "2020 Author name here"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/githubuser/cubeViz2#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- containers
+- bytestring
+- OpenGL
+- GLFW-b
+- extra
+- split
+- raw-strings-qq
+- parsec
+- text
+
+# extra-deps:
+# - GLFW-0.5.2.5@sha256:fa54e997076a6b415c43100830e9b6ab6827c8766aef80e66d598de9b2400b93,3312
+
+
+library:
+  source-dirs: src
+
+executables:
+  cubeViz2-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - cubeViz2
+
+tests:
+  cubeViz2-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - cubeViz2

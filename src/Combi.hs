@@ -49,12 +49,32 @@ newtype Permutation2 = Permutation2 [Int]
 data Subset = Subset Int (Set.Set Int)
   deriving (Ord , Eq)
 
+data Face = Face Int (Int , Bool)
+  deriving (Ord , Eq)
+
+instance Show Face where
+  show (Face _ x) = show x
+
+
+
+
 data SubFace = SubFace Int (Map.Map Int Bool)
   deriving (Eq , Ord)
 
+toFace :: SubFace -> Maybe Face
+toFace (SubFace n sfm) =
+  case (Map.toList sfm) of
+    [ x ] -> Just (Face n x)
+    _ -> Nothing
+
+
+fullSF :: Int -> SubFace 
+fullSF = flip SubFace (Map.empty)
 
 sf2map :: SubFace -> Map.Map Int Bool
 sf2map (SubFace _ x) = x
+
+
 
 data Never a = Never
 
@@ -95,10 +115,22 @@ class Ord a => ListInterpretable a b | a -> b where
   checkUnEn na n = map unemerate ((genAllLIHelp na n)) == range (cardLI (na) n)
 
   cardLi :: a -> Int
-  cardLi a = cardLI (forget a) $ sizeLI a 
+  cardLi a = cardLI (forget a) $ sizeLI a
+
+  mapOnAllLI :: (a -> d -> c) -> FromLI a d -> [c]
+  mapOnAllLI g (FromLI n f) = map (\x -> g x (f x)) (genAllLI n)
     
-instance (ListInterpretable a b) => OfDim a where
+instance OfDim (SubFace) where
   getDim = sizeLI
+
+instance OfDim (Subset) where
+  getDim = sizeLI
+
+instance OfDim (Permutation) where
+  getDim = sizeLI  
+
+-- instance OfDim (Face) where
+--   getDim = sizeLI
   
 mapListIndexed :: (Int -> a -> b) -> [a] -> [b]
 mapListIndexed f = map (uncurry f) . zip [0..]
@@ -218,6 +250,25 @@ instance ListInterpretable Piece (Bool , Int) where
   fromListLI = Bf.bimap fromListLI fromListLI . unzip
 
 
+
+instance ListInterpretable Face (Maybe Bool) where
+
+  cardLI _ n = 2 * n 
+
+  genAllLI n = map (Face n) $ concat $ map (\i -> [(i,False) , (i,True)]) $ range n
+
+  enumerate n i = Face n $ Bf.second ((==) 1) $ divMod i 2
+
+  unemerate (Face _ (k , b)) = k*2 + (bool 0 1 b) 
+      
+  toListLI (Face n (i,b)) = map ( bool Nothing (Just b) . ((==) i) ) $ range n
+
+  fromListLI l =
+    let i = fromJust $ findIndex (isJust) l
+    in (Face (length l) (i , head $ catMaybes l))
+
+  
+
 data FromLI a c = FromLI Int (a -> c)
 
 toListFLI :: ListInterpretable a b =>  FromLI a c -> [c]
@@ -244,11 +295,6 @@ instance (ListInterpretable a b) => Foldable (FromLI a) where
 instance (ListInterpretable a b) => Traversable (FromLI a) where 
   traverse f x@(FromLI n g) = fmap (fromMapFLIUnsafe n) $ (traverse f $ toMapFLI x)
 
-
-
-
---  zana 32a
-
 traverseMapLI :: (Applicative f , ListInterpretable a b)  =>
          ( a -> v -> f w) -> FromLI a v -> f (FromLI a w) 
 traverseMapLI f x@(FromLI n g) = fmap (fromMapFLIUnsafe n) $ traverseMap f $ toMapFLI x
@@ -267,3 +313,4 @@ traverseMapAndKeys :: (Ord k , Ord l , Applicative f) =>
          ( (k , v) -> f (l , w)) -> Map.Map k v -> f (Map.Map l w) 
 traverseMapAndKeys f x =
    Map.fromList <$> ((traverse f) $ Map.toList x)  
+

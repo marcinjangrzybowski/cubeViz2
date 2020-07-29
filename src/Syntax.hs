@@ -33,18 +33,18 @@ type SubFace2 = Map.Map Int Bool
 
 type FExpr = Set.Set SubFace2
 
-type Face = (Int , Bool)
+type Face2 = (Int , Bool)
 
 sfDim :: SubFace2 -> Int
 sfDim = length . Map.keys
   
-toFace :: SubFace2 -> Maybe Face
-toFace sf =
+toFace2 :: SubFace2 -> Maybe Face2
+toFace2 sf =
   case (Map.toList sf) of
     [ x ] -> Just x
     _ -> Nothing
 
-faceToSubFace2 :: Face -> SubFace2
+faceToSubFace2 :: Face2 -> SubFace2
 faceToSubFace2 x = Map.fromList [x]
 
 -- minMB :: (Maybe Bool) -> (Maybe Bool) -> (Maybe Bool)
