@@ -220,26 +220,12 @@ shutdown win = do
   _ <- exitWith ExitSuccess
   return ()
 
--- mainOld :: IO ()
--- mainOld = do
---    GLFW.init
---    GLFW.defaultWindowHints
---    Just win <- GLFW.createWindow 640 480 "Haskel OpenGL Tutorial 02" Nothing Nothing
---    GLFW.makeContextCurrent (Just win)
---    -- GLFW.setWindowSizeCallback win (Just resizeWindow)
---    GLFW.setKeyCallback win (Just keyPressed)
---    GLFW.setWindowCloseCallback win (Just shutdown)
---    descriptor <- initResources square1
---    onDisplay win descriptor
---    GLFW.destroyWindow win
---    GLFW.terminate
-
 showDrawing :: DrawingGL -> IO ()
 showDrawing drw =
   do
      GLFW.init
      GLFW.defaultWindowHints
-     Just win <- GLFW.createWindow 640 480 "Haskel OpenGL Tutorial 02" Nothing Nothing
+     Just win <- GLFW.createWindow 640 480 "CubeViz2" Nothing Nothing
      GLFW.makeContextCurrent (Just win)
      GLFW.setWindowSizeCallback win (Just resizeWindow)
      GLFW.setKeyCallback win (Just keyPressed)
