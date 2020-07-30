@@ -69,7 +69,7 @@ drawing2vertex drw =
             let color = [Vertex2 r g , Vertex2 b a]
                 mask =
                   case mbm2 of
-                    Just mTpls -> (Vertex2 0 1) : (map (uncurry Vertex2) mTpls)  
+                    Just mTpls -> (Vertex2 0 1) : ((uncurry Vertex2) (head mTpls)) : (map (uncurry Vertex2) mTpls)  
                     Nothing -> (Vertex2 0 0) : replicate 4 (Vertex2 0 0)
               
                 tailData = mask ++ color

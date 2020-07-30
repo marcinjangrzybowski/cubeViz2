@@ -148,7 +148,9 @@ data Expr =
   | ILam String Expr
   deriving (Eq , Show)
 
-data CellExpr = CellExpr VarIndex [IExpr] 
+data CellExpr = CellExpr VarIndex [IExpr]
+
+data PieceExpr = PieceExpr VarIndex [(Int , Bool)] 
 
 data BType = BType Int
   deriving (Eq , Show)

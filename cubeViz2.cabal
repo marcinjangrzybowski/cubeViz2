@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9dd1a6fc84c68c4ec67ac9bc82cc6bf170ee190d838690084bd15029ca9cd4ad
+-- hash: a097fbe0c9a5cd0138eae7aa140b888e71b8c9d13e401318e232e234a8360d3a
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -40,6 +40,7 @@ library
       InteractiveParseTests
       Lib
       LoadShaders
+      PiecesEval
       Show
       Syntax
   other-modules:
@@ -55,6 +56,7 @@ library
     , extra
     , parsec
     , raw-strings-qq
+    , sort
     , split
     , text
   default-language: Haskell2010
@@ -76,6 +78,7 @@ executable cubeViz2-exe
     , extra
     , parsec
     , raw-strings-qq
+    , sort
     , split
     , text
   default-language: Haskell2010
@@ -98,6 +101,7 @@ test-suite cubeViz2-test
     , extra
     , parsec
     , raw-strings-qq
+    , sort
     , split
     , text
   default-language: Haskell2010

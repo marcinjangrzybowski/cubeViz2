@@ -86,9 +86,14 @@ drawCellSquareMask _ _ _ _ =
   Right $ Drawing [ ( unitHyCube 2  , Mask  ) ]
 
 
+
+type CellExprPainter a = ((Env , Context) , Expr) -> CellExpr -> Drawing a
+
 drawCellDefault ::  CellPainter
 drawCellDefault n eee@(ee@(env , ctx) ,  expr) adr ce = 
-  Right $ combinePieces (FromLI (getDim eee) (const (Drawing [])))
+  Right $ combinePieces (FromLI (getDim eee) (
+           \pc -> Drawing [ ( unitHyCube 2  ,  (nthColor (unemerate pc) )  ) ]
+                                             ))
 -- TODO dimension of eee
 
 
@@ -97,7 +102,7 @@ mkDrawExpr drawCell =
           toCub
       >>> cubMap 2 drawCell []
       >>> fmap (collectDrawings)
-      >>> fmap (debugRainbow . extractMasks)
+      -- >>> fmap (debugRainbow . extractMasks)
 
 
 drawExpr :: ((Env , Context) , Expr) -> Either String DrawingGL 

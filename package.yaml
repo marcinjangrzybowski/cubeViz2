@@ -30,10 +30,7 @@ dependencies:
 - raw-strings-qq
 - parsec
 - text
-
-# extra-deps:
-# - GLFW-0.5.2.5@sha256:fa54e997076a6b415c43100830e9b6ab6827c8766aef80e66d598de9b2400b93,3312
-
+- sort
 
 library:
   source-dirs: src
