@@ -16,7 +16,7 @@ type NPoint = [ Float ]
 data Seg = Pt Float | Seg Float Float
 
 
-type Prll = ( Int , [[ Float ]] )      
+type Prll = ( Int , [[ Float ]] )     
                     -- Int=k means number means dimension of paraelogram (not ambient space!)
                     -- length of list on first level is eequal to 2 ^ k
                     -- dimension of ambient space must by consistent with context it is equal to length of lists on second level 
@@ -188,7 +188,9 @@ ptZero = (0 , [[]] )
          
 segOne :: Prll
 segOne =  (1 , [[0] , [1]] )
-         
+
+
+          
 unitHyCube :: Int -> Prll
 unitHyCube 0 = ptZero
 unitHyCube 1 = segOne

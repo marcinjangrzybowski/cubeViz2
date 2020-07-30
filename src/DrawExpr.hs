@@ -17,6 +17,9 @@ import Combi
 import FloatTools
 
 import Data.Bool
+import Data.List
+
+import Data.Tuple.Extra
 
 defaultCompPar = 0.3      
 
@@ -53,12 +56,23 @@ type CellPainter =
        (Int -> ((Env , Context) , Expr) -> Address -> CellExpr -> Either String DrawingGL)   
 
 
+-- nThSimplexInNCube :: Piece -> Prll
+-- nThSimplexInNCube = undefined 
+
 pieceMask :: Piece -> Prll
 pieceMask (su , pm) =
-    -- (2 , [[0,0] , [0,0] , [1,0] , [0 , 1]]) 
-   fst $ head $ (\(Drawing l) -> l)
-  $ translate (map (bool 0.0 0.5) (toListLI su)) $ scale 0.5
-  $ Drawing [ (unitHyCube (getDim su) , ())]
+  let crnr = toListLI su
+      n = length crnr
+      ptCrnr = map (bool 0.0 1.0) $ crnr
+  in (n , ptCrnr : snd (mapAccumL
+        (  (fmap dupe) . (flip $ updateAt 0.5)             
+            ) ptCrnr
+          (toListLI pm)))
+        
+  --   -- (2 , [[0,0] , [0,0] , [1,0] , [0 , 1]]) 
+  --  fst $ head $ (\(Drawing l) -> l)
+  -- $ translate (map (bool 0.0 0.5) (toListLI su)) $ scale 0.5
+  -- $ Drawing [ (unitHyCube (getDim su) , ())]
 
 combinePieces :: FromLI Piece (Drawing a) -> Drawing (MetaColor a)
 combinePieces = combineDrawings . mapOnAllLI (\pc -> masked (pieceMask pc)) 

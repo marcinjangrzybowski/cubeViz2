@@ -146,6 +146,12 @@ listPermute2 :: Permutation2 -> [a] -> [a]
 listPermute2 (Permutation2 pm2) = foldr (uncurry listInsert) [] . zip pm2
 
 
+updateAt :: a -> Int -> [a] ->   [a]
+updateAt _ _ [] = []
+updateAt a 0 (_ : xs) = a : xs
+updateAt a k (x : xs) = x : updateAt a (k - 1) xs 
+
+
 
 instance ListInterpretable Permutation Int where
   cardLI _ = factorial 
