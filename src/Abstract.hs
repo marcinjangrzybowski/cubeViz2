@@ -34,6 +34,9 @@ instance Bifunctor Cub where
 instance OfDim ((Env , Context) , Expr) where
   getDim ((_ , c) , _) = length $ unConstrainedDimsOnly c
 
+instance OfDim (Env , Context) where
+  getDim (_ , c) = length $ unConstrainedDimsOnly c
+
 instance OfDim (Drawing a) where
   getDim = fromMaybe 0 . getDrawingDim
 

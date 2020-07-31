@@ -29,6 +29,19 @@ import Combi
 
 type IExpr = Set.Set ( Set.Set (Int , Bool))
 
+
+
+
+setSetElim :: b -> b -> ([[a]] -> b) -> (Set.Set (Set.Set a)) -> b
+setSetElim em emSing f s =
+  case Set.toList s of
+    [] -> em
+    x : xs ->
+      case Set.toList x of
+        [] -> emSing
+        _ -> f $ (map Set.toList (x : xs))
+      
+
 type SubFace2 = Map.Map Int Bool
 
 type FExpr = Set.Set SubFace2
@@ -149,6 +162,9 @@ data Expr =
   deriving (Eq , Show)
 
 data CellExpr = CellExpr VarIndex [IExpr]
+
+-- NNF - not normal form
+data PieceExprNNF = PieceExprNNF VarIndex ([Either Bool (Int , Bool)])
 
 data PieceExpr = PieceExpr VarIndex [(Int , Bool)] 
 
