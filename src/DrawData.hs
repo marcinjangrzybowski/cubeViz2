@@ -41,4 +41,4 @@ mkDContext (env , Context l _) =
            -> (Int , ((Map.Map Int Int) , (Map.Map Int Inside))) 
     f (_ , CType _ []) (k , (m1 , m2)) =
          let (nm1 , j) = mapIncr 0 m1
-         in (k + 1 , ( nm1 , Map.insert k (0 , const (j , _) ) m2))
+         in (k + 1 , ( nm1 , Map.insert k (0 , const (j , undefined) ) m2))

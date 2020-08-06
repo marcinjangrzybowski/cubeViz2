@@ -1,3 +1,6 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
+
 module DrawExpr where
 
 import Abstract
@@ -21,6 +24,10 @@ import Data.List
 
 import Data.Tuple.Extra
 
+import PiecesEval
+
+import Reorientable
+
 defaultCompPar = 0.3      
 
 hcompDrawings :: (Drawing a) -> (Map.Map Face (Drawing a)) -> Drawing a 
@@ -31,29 +38,34 @@ hcompDrawings bot sides =
      ) 
 
 
-collectDrawings :: Cub a DrawingGL -> DrawingGL
+collectDrawings :: Cub a (Drawing b) -> (Drawing b)
 collectDrawings = foldFaces hcompDrawings
 
 
 
-drawExpr0 :: ((Env , Context) , Expr) -> DrawingGL 
-drawExpr0 x =
-     debugRainbow $
-       collectDrawings
-     $ Bf.second
-       -- (const ())
-       (const (
-              translate [0.01 , 0.01] $
-              scale 0.98 $
-              Drawing [ ( unitHyCube 2  , SShape ( Rgba 0.0 1.0 1.0 1.0 )  ) ])  )
-       -- (makeGrid 2 3)
-       ((toCub x) :: (Cub ((Env , Context) , Expr) CellExpr))
+-- drawExpr0 :: ((Env , Context) , Expr) -> DrawingGL 
+-- drawExpr0 x =
+--      debugRainbow $
+--        collectDrawings
+--      $ Bf.second
+--        -- (const ())
+--        (const (
+--               translate [0.01 , 0.01] $
+--               scale 0.98 $
+--               Drawing [ ( unitHyCube 2  , SShape ( Rgba 0.0 1.0 1.0 1.0 )  ) ])  )
+--        -- (makeGrid 2 3)
+--        ((toCub x) :: (Cub ((Env , Context) , Expr) CellExpr))
 
 
 -- type Step1 = 
 
-type CellPainter = 
-       (Int -> ((Env , Context) , Expr) -> Address -> CellExpr -> Either String DrawingGL)   
+type CellPainter b = 
+       (Int -> ((Env , Context) , Expr) -> Address -> CellExpr -> Either String (Drawing (MetaColor b)))
+
+type CellPainterT = 
+       (Int -> ((Env , Context) , Expr) -> Address -> CellExpr -> Either String DrawingGL)
+
+       
 
 
 -- nThSimplexInNCube :: Piece -> Prll
@@ -77,34 +89,75 @@ pieceMask (su , pm) =
 combinePieces :: FromLI Piece (Drawing a) -> Drawing (MetaColor a)
 combinePieces = combineDrawings . mapOnAllLI (\pc -> masked (pieceMask pc)) 
 
-drawCellSquare ::  CellPainter
-drawCellSquare _ _ _ _ = 
-  Right $ Drawing [ ( unitHyCube 2  , SShape (Rgba 0.0 1.0 1.0 1.0 )  ) ]
+-- drawCellSquare ::  CellPainter
+-- drawCellSquare _ _ _ _ = 
+--   Right $ Drawing [ ( unitHyCube 2  , SShape (Rgba 0.0 1.0 1.0 1.0 )  ) ]
 
-drawCellSquareMask ::  CellPainter
-drawCellSquareMask _ _ _ _ = 
-  Right $ Drawing [ ( unitHyCube 2  , Mask  ) ]
+-- drawCellSquareMask ::  CellPainter
+-- drawCellSquareMask _ _ _ _ = 
+--   Right $ Drawing [ ( unitHyCube 2  , Mask  ) ]
+
+-- type CellExprPainter a = ((Env , Context) , Expr) -> 
 
 
+class Colorlike b => DrawingCtx a b where
+  fromCtx :: (Never b) -> (Env , Context) -> a
 
-type CellExprPainter a = ((Env , Context) , Expr) -> CellExpr -> Drawing a
+  drawGenericTerm :: ((Env , Context) , Expr) -> a -> Piece -> VarIndex -> Drawing b
+  
+  drawCellPiece :: ((Env , Context) , Expr) -> a -> Piece -> PieceExpr -> Drawing b  
+  drawCellPiece eee a pc (PieceExpr h t) = drawGenericTerm eee a pc h
 
-drawCellDefault ::  CellPainter
-drawCellDefault n eee@(ee@(env , ctx) ,  expr) adr ce = 
-  Right $ combinePieces (FromLI (getDim eee) (
-           \pc -> Drawing [ ( unitHyCube 2  ,  (nthColor (unemerate pc) )  ) ]
-                                             ))
+  cellPainter :: Never a -> a -> CellPainter b
+  cellPainter na dctx n eee@(ee@(env , ctx) ,  expr) adr ce = 
+    Right $
+     combinePieces (fromLIppK (drawCellPiece eee dctx) (piecesEval ee ce))
 -- TODO dimension of eee
 
+  mkDrawExpr :: Never a -> Never b -> ((Env , Context) , Expr) -> Either String (Drawing (MetaColor b))
+  mkDrawExpr na nb w@( envCtx , _ ) =
+      let  dctx = fromCtx nb envCtx
+      in
+     
+      (    toCub
+      >>> cubMap (getDim w) (cellPainter na dctx) []
+      >>> fmap (collectDrawings)) w
 
-mkDrawExpr :: CellPainter -> ((Env , Context) , Expr) -> Either String DrawingGL
-mkDrawExpr drawCell =
-          toCub
-      >>> cubMap 2 drawCell []
-      >>> fmap (collectDrawings)
-      -- >>> fmap (debugRainbow . extractMasks)
+instance DrawingCtx () () where    
+  fromCtx _ _ = ()
+  drawGenericTerm _ _ _ _ =
+     let rDrw = ()
+
+     in  Drawing [ ( unitHyCube 1  , ()  ) ]
+
+instance DrawingCtx () (Color) where    
+  fromCtx _ _ = ()
+  drawGenericTerm _ _ pc _ = Drawing [ ( unitHyCube 2  , nthColor (unemerate pc)   ) ]
+
+  
+  --Drawing [ ( unitHyCube 2  , ()  ) ]  
+
+-- instance DrawingCtx () () where    
+--   fromCtx _ = ()
+--   drawCellPiece _ _ _ = Drawing [ ( unitHyCube 2  , ()  ) ]  
 
 
-drawExpr :: ((Env , Context) , Expr) -> Either String DrawingGL 
-drawExpr = mkDrawExpr drawCellDefault
+-- drawCellDefault ::  CellPainterT
+-- drawCellDefault n eee@(ee@(env , ctx) ,  expr) adr ce = 
+--   Right $ combinePieces (FromLI (getDim eee) (
+--            \pc -> Drawing [ ( unitHyCube 2  ,  (nthColor (unemerate pc) )  ) ]
+--                                              ))
+-- -- TODO dimension of eee
+
+
+-- mkDrawExprT :: CellPainterT -> ((Env , Context) , Expr) -> Either String DrawingGL
+-- mkDrawExprT drawCell =
+--           toCub
+--       >>> cubMap 2 drawCell []
+--       >>> fmap (collectDrawings)
+--       -- >>> fmap (debugRainbow . extractMasks)
+
+
+
+drawExpr = mkDrawExpr (forget ()) (Never :: Never ())
           

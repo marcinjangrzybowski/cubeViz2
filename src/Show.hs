@@ -220,9 +220,10 @@ shutdown win = do
   _ <- exitWith ExitSuccess
   return ()
 
-showDrawing :: DrawingGL -> IO ()
-showDrawing drw =
+showDrawing :: Colorlike a => Drawing (MetaColor a) -> IO ()
+showDrawing drw0 =
   do
+     let drw = toDrawingGL drw0
      GLFW.init
      GLFW.defaultWindowHints
      Just win <- GLFW.createWindow 640 480 "CubeViz2" Nothing Nothing

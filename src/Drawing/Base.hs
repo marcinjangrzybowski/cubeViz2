@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
 module Drawing.Base where
 
@@ -44,6 +45,26 @@ data MetaColor a = MShape a | SShape a | Mask
 
 type DrawingGL = Drawing (MetaColor Color)
 
+class Colorlike a where
+  toColor :: a -> Color
+
+  toDrawingGL :: Drawing (MetaColor a) -> DrawingGL
+  toDrawingGL = fmap (fmap toColor)
+
+instance Colorlike Color where
+  toColor = id
+
+instance Colorlike (Color , b) where
+  toColor = fst
+
+instance Colorlike (b , Color) where
+  toColor = snd
+
+instance Colorlike [Color] where
+  toColor = head
+
+instance Colorlike () where
+  toColor _ = (Rgba 0.5 0.5 0.5 1.0 )
 
 drawingSplitBase :: Drawing (MetaColor a) -> [ (Prll , Maybe Prll , a)  ] 
 drawingSplitBase = drawingSplitStep Nothing

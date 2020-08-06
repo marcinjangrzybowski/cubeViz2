@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a097fbe0c9a5cd0138eae7aa140b888e71b8c9d13e401318e232e234a8360d3a
+-- hash: 4f233a20d4ca275ad9ede5803965cedaa441f955019a8d7e7bdf2693baa15744
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -30,6 +30,7 @@ library
       Abstract
       Combi
       ContextParser
+      DrawData
       DrawExpr
       Drawing.Base
       Drawing.Example
@@ -41,6 +42,7 @@ library
       Lib
       LoadShaders
       PiecesEval
+      Reorientable
       Show
       Syntax
   other-modules:

@@ -78,6 +78,8 @@ sf2map (SubFace _ x) = x
 
 data Never a = Never
 
+
+
 range k = take k [0,1..]
 
 
@@ -276,6 +278,9 @@ instance ListInterpretable Face (Maybe Bool) where
   
 
 data FromLI a c = FromLI Int (a -> c)
+
+fromLIppK :: (a -> c -> b) -> FromLI a c -> FromLI a b
+fromLIppK f (FromLI n g) = FromLI n (\x -> f x $ g x) 
 
 toListFLI :: ListInterpretable a b =>  FromLI a c -> [c]
 toListFLI (FromLI n g) = (map g $ genAllLI n)
