@@ -141,7 +141,9 @@ iExpr0 = do spaces
             return e
 
 iExpr :: Parsec String Context IExpr
-iExpr = iExpr0 <* spaces  <* eof
+iExpr = iExpr0
+         <* spaces
+         <* eof
 
 iExprArg :: Parsec String Context IExpr
 iExprArg = ((between (char '(') (spaces *> char ')') iExpr0) <|> iExprVar)
@@ -149,11 +151,11 @@ iExprArg = ((between (char '(') (spaces *> char ')') iExpr0) <|> iExprVar)
 var1 :: Parsec String Context Expr
 var1 =  do h <- varIdentifier
            many1 space
-           tl <- sepBy iExprArg (many1 space)
+           tl <- sepEndBy iExprArg (many1 space)
            return (Var h tl)
 
 var0 :: Parsec String Context Expr
-var0 = ((try var1) <|> (((flip Var) []) <$> (spaces *> varIdentifier)))
+var0 = spaces *>  ((try var1) <|> (((flip Var) []) <$> (varIdentifier)))
 
 var :: Parsec String Context Expr
 var = var0 <* spaces  <* eof
@@ -223,7 +225,7 @@ hcomp =
 
 
 expr0 :: Parsec String Context Expr
-expr0 = spaces *> ((hcomp) <|> var0 )
+expr0 = spaces *> ((try hcomp) <|> var0 )
 
 expr :: Parsec String Context Expr
 expr = expr0 <* spaces <* eof

@@ -11,11 +11,14 @@ import Data.List
 
 -- import Data.Floating.Classes
 
+import Combi
 
 type NPoint = [ Float ]
 
 data Seg = Pt Float | Seg Float Float
 
+
+-- TODO Prll should be for shapes, and mask must use simplexes
 
 type Prll = ( Int , [[ Float ]] )     
                     -- Int=k means number means dimension of paraelogram (not ambient space!)
@@ -200,9 +203,31 @@ combineDrawings = Drawing . concat . (map (\(Drawing x) -> x))
 
 -- embedPrll: Int -> (List (Float) -> Float) -> Prll -> Prll
 -- embedPrll k f = Tuple.mapSecond (List.map (\l -> listInsert k (f l) l))
-    
--- embed : Int -> (List (Float) -> Float) -> Drawing a -> Drawing a
--- embed k f = mapCoordsAsL (\l -> listInsert k (f l) l)  
+
+extrudePrll :: [Float] -> Prll -> Prll
+extrudePrll _ (_ , [] ) = error "extrude - bad Prll"
+extrudePrll v (k , xs@(x : _) ) =
+  if (length v == length x)
+  then (if (length v == k)
+        then error "extrude cannot be performed on Prll of codim=0"
+        else (k + 1 , xs ++ (fmap (zipWith (+) v) xs))
+       )
+  else error "extrude vector dimension do not match Prll"
+
+
+extrude :: [Float] -> Drawing a -> Drawing a
+extrude v (Drawing l) =
+  Drawing $
+    ( fmap (first $ extrudePrll v) l )
+           
+embed :: Int -> ([ Float ] -> Float) -> Drawing a -> Drawing a
+embed k f = mapCoords (\l -> listInsert k (f l) l)  
+
+addDim :: Int -> (Float,Float) -> Drawing a -> Drawing a
+addDim i (x0 , x1) d =
+  case (getDrawingDim d) of
+    Nothing -> undefined
+    Just n ->  extrude (listInsert i x1 $ replicate n 0) $ embed i (const x0) d
 
 ptZero :: Prll
 ptZero = (0 , [[]] )

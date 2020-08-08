@@ -45,7 +45,8 @@ iExprPE (su@(Subset _ suS) , pm@(Permutation pmm)) =
         z -> z
 
     g :: [[(Int,Bool)]] -> (Int , Bool)
-    g =  maximum . fmap minimum  
+    -- g = maximum . (fmap (minimum))
+    g =  maximumBy cmp . (fmap (minimumBy cmp))  
      
 
 -- reorientExpr :: CellExpr -> [ Either Bool (Int, Bool) ] -> PieceExpr

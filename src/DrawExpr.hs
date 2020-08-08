@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 
@@ -100,13 +101,21 @@ combinePieces = combineDrawings . mapOnAllLI (\pc -> masked (pieceMask pc))
 -- type CellExprPainter a = ((Env , Context) , Expr) -> 
 
 
-class Colorlike b => DrawingCtx a b where
-  fromCtx :: (Never b) -> (Env , Context) -> a
+class (Colorlike b , Diagonable d) => DrawingCtx a b d | a -> b d where
+  fromCtx :: (Env , Context) -> a
 
-  drawGenericTerm :: ((Env , Context) , Expr) -> a -> Piece -> VarIndex -> Drawing b
+  drawGenericTerm :: ((Env , Context) , Expr) -> a -> Piece -> VarIndex -> d
+
+  --Drawing b
+
+  drawD :: Never a -> d -> Drawing b
+  
   
   drawCellPiece :: ((Env , Context) , Expr) -> a -> Piece -> PieceExpr -> Drawing b  
-  drawCellPiece eee a pc (PieceExpr h t) = drawGenericTerm eee a pc h
+  drawCellPiece eee@((_ , ctx) , _) a pc (PieceExpr h t) =
+     let t2 = fmap (Bf.first $ toDimI ctx) t
+     in    
+     drawD (forget a) $ remapTL (getDim eee) t2 $ drawGenericTerm eee a pc h
 
   cellPainter :: Never a -> a -> CellPainter b
   cellPainter na dctx n eee@(ee@(env , ctx) ,  expr) adr ce = 
@@ -114,26 +123,29 @@ class Colorlike b => DrawingCtx a b where
      combinePieces (fromLIppK (drawCellPiece eee dctx) (piecesEval ee ce))
 -- TODO dimension of eee
 
-  mkDrawExpr :: Never a -> Never b -> ((Env , Context) , Expr) -> Either String (Drawing (MetaColor b))
-  mkDrawExpr na nb w@( envCtx , _ ) =
-      let  dctx = fromCtx nb envCtx
+  mkDrawExpr :: Never a  -> ((Env , Context) , Expr) -> Either String (Drawing (MetaColor b))
+  mkDrawExpr na w@( envCtx , _ ) =
+      let  dctx = fromCtx envCtx
       in
      
       (    toCub
       >>> cubMap (getDim w) (cellPainter na dctx) []
       >>> fmap (collectDrawings)) w
 
-instance DrawingCtx () () where    
-  fromCtx _ _ = ()
-  drawGenericTerm _ _ _ _ =
-     let rDrw = ()
+-- instance DrawingCtx () () where    
+--   fromCtx _ _ = ()
+--   drawGenericTerm _ _ _ _ =
+--      let rDrw = ()
 
-     in  Drawing [ ( unitHyCube 1  , ()  ) ]
+--      in  Drawing [ ( unitHyCube 1  , ()  ) ]
 
-instance DrawingCtx () (Color) where    
-  fromCtx _ _ = ()
-  drawGenericTerm _ _ pc _ = Drawing [ ( unitHyCube 2  , nthColor (unemerate pc)   ) ]
-
+instance DrawingCtx () (Color) ((Int , Color) , [Int]) where    
+  fromCtx _ = ()
+  drawGenericTerm ((ee , ctx) , _) _ pc vi =
+    ((getCTyDim ee ctx $ getVarType ctx vi , nthColor (unemerate pc)) ,  [])
+  drawD _ ( (k , cl) , dg ) =
+     let d0 = translate (replicate k 0.2)  $ scale 0.6 $ Drawing [ ( unitHyCube (k)  , cl   ) ]
+     in foldl (flip $ (flip addDim) (0 , 1.0)) d0 dg
   
   --Drawing [ ( unitHyCube 2  , ()  ) ]  
 
@@ -159,5 +171,5 @@ instance DrawingCtx () (Color) where
 
 
 
-drawExpr = mkDrawExpr (forget ()) (Never :: Never ())
+drawExpr = mkDrawExpr (forget ())
           

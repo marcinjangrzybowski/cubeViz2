@@ -227,9 +227,9 @@ iExprParsingTests =
   [ok (c , "j")
   ,ok (c , "(j)")
   ,ok (c , "j ∨ k")
-  ,ok (c , "j ∧ k ∧ l")
-  ,ok (c , "j ∨ k ∧ l")
-  ,ok (c , "j ∨ k ∨ l")
+  ,ok (c , "j ∧ k ∧ l ")
+  ,ok (c , "j ∨ k   ∧ l ")
+  ,ok (c , "j ∨ k  ∨ l")
   ,ok (c , "j ∧    k ∨ ~ l")
   ,ok (c , "( j ∨ ( j     ∨ (i ∧ ~ (~       k) )))")
   ,ok (c , "~ (~ (( j ∨ ~ (i ∧ k))))")
@@ -355,7 +355,11 @@ exprParsingTests =
             [ "p", "A", "r", "ℓ", "q","s","w", "x","y","z","w","v"] 
   in
   [
-    ok (c ,"p")
+    ok (c ,"p ")
+  , ok (c ,"p i")
+  , ok (c ,"p i j ")
+  , ok (c ,"p i (i ∨ j) ")
+  , ok (c ,"p (i ∨ j) i")
   , bad (c ,"primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → x) (λ _ → v)")
   , bad (c , [r|hcomp {ℓ} {A} {~ j ∨ j ∨ k}
       (primPOr {ℓ} (~ j) (j ∨ k) {λ _ → A} (λ _ → q k)
@@ -363,7 +367,7 @@ exprParsingTests =
       (q (j ∨ k))|])
   , ok (c , [r|hcomp {ℓ} {A} {~ j ∨ j ∨ k}
       (λ k₁ → primPOr {ℓ} (~ j) (j ∨ k) {λ _ → A} (λ _ → x ) (λ _ → v))
-      (q (j ∨ k))|])
+      (q (j ∨ k)) |])
   , ok (c , [r|hcomp {ℓ} {A} {~ j ∨ j ∨ k}
       (λ k₁ →
          primPOr {ℓ} (~ j) (j ∨ k) {λ _ → A} (λ _ → q k)
@@ -390,9 +394,9 @@ exprParsingTests =
             hcomp {ℓ} {A} {(~ i ∨ ~ k) ∨ i ∧ k}
             (λ j₁ →
                primPOr {ℓ} (~ i ∨ ~ k) (i ∧ k) {λ _ → A} (λ _ → y) (λ _ → r j₁))
-            (q (i ∧ k)))
+            (q (i ∧ k) ) )
          (λ _ → p j)))
-     (p j)|])
+     (p j) |])
     , bad (c , [r|
     hcomp {ℓ} {A} {~ j ∨ j ∨ ~ i}
      (λ k →

@@ -253,6 +253,7 @@ mainShowTerm fname =
 
 main :: IO ()
 main = mainShowTerm "data/input-to-viz/penta-lhs"
+-- main = mainShowTerm "data/input-to-viz/corner-max"
 
 
 onDisplay :: Window -> Descriptor -> IO ()
