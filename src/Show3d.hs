@@ -1,8 +1,9 @@
-module Show where
+module Show3d where
 
 import Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
 import Control.Monad
+-- import Control.Monad.Trans
 import System.Exit ( exitWith, ExitCode(..) )
 import System.IO  
 import System.Environment
@@ -44,6 +45,9 @@ asTuples :: [a] -> Maybe (a , a)
 asTuples [x , y] = Just (x , y)
 asTuples _ = Nothing
 
+asTruples :: [a] -> Maybe (a , a , a)
+asTruples [x , y , z] = Just (x , y , z)
+asTruples _ = Nothing
 
 mmHelp :: Maybe a -> (a -> Maybe b) -> Maybe (Maybe b)
 mmHelp Nothing _ = Just Nothing
@@ -56,28 +60,35 @@ mmHelp (Just a) f =
 quad2tris [x00 , x01 , x10 , x11] = [x00 , x01 , x10 , x11 , x10 , x01]
 quad2tris _ = []
 
+oct2tris [x000 , x001 , x010 , x011 , x100 , x101 , x110 , x111 ] = []
+   -- [x00 , x01 , x10 , x11 , x10 , x01]
+oct2tris _ = []
+
+
 drawing2vertex :: DrawingGL -> IO [Vertex2 GLfloat]
 drawing2vertex drw =
   return (concat $ map shpVertexes $ drawingSplitBase drw)
 
   where
     
-    shpVertexes ((2 , l ) , mbm , ((Rgba r g b a))) =
-      fromMaybe []
-        (do tl <- quad2tris <$> (sequence $ (map asTuples l))
-            mbm2 <- mmHelp mbm (sequence . map asTuples . snd)
+    shpVertexes ((3 , l ) , Nothing , ((Rgba r g b a))) =
+        do tl <- oct2tris <$> (sequence $ (map asTuples l))
+           return undefined
+      -- fromMaybe []
+      --   (do tl <- quad2tris <$> (sequence $ (map asTuples l))
+      --       mbm2 <- mmHelp mbm (sequence . map asTuples . snd)
             
-            let color = [Vertex2 r g , Vertex2 b a]
-                mask =
-                  case mbm2 of
-                    Just mTpls -> (Vertex2 0 1) : ((uncurry Vertex2) (head mTpls)) : (map (uncurry Vertex2) mTpls)  
-                    Nothing -> (Vertex2 0 0) : replicate 4 (Vertex2 0 0)
+      --       let color = [Vertex2 r g , Vertex2 b a]
+      --           mask =
+      --             case mbm2 of
+      --               Just mTpls -> (Vertex2 0 1) : ((uncurry Vertex2) (head mTpls)) : (map (uncurry Vertex2) mTpls)  
+      --               Nothing -> (Vertex2 0 0) : replicate 4 (Vertex2 0 0)
               
-                tailData = mask ++ color
+      --           tailData = mask ++ color
 
-                verts = map ((:[]) . uncurry Vertex2) tl
-            return (intercalate tailData (verts ++ [[]]) )
-         )
+      --           verts = map ((:[]) . uncurry Vertex2) tl
+      --       return (intercalate tailData (verts ++ [[]]) )
+      --    )
 
     shpVertexes _ = []
 
@@ -103,18 +114,18 @@ initResources dgl = do
     bufferData ArrayBuffer $= (size, ptr, StaticDraw)
 
   program <- loadShaders [
-     ShaderInfo VertexShader (FileSource "data/shaders/shader.vert"),
-     ShaderInfo FragmentShader (FileSource "data/shaders/shader.frag")]
+     ShaderInfo VertexShader (FileSource "data/shaders/shader3d.vert"),
+     ShaderInfo FragmentShader (FileSource "data/shaders/shader3d.frag")]
   currentProgram $= Just program
 
   let firstIndex = 0
       vPosition = AttribLocation 0
 
 
-  let ofst = (6 * 2 * 4 + 4 * 4 )
+  let ofst = (1 * 3 * 4 + 5 * 2 * 4 + 4 * 4 )
   
   vertexAttribPointer vPosition $=
-    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset firstIndex))
+    (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset firstIndex))
   vertexAttribArray vPosition $= Enabled
 
   ctrlBuffer <- genObjectName
@@ -126,7 +137,7 @@ initResources dgl = do
   let ctrlPosition = AttribLocation 1
   
   vertexAttribPointer ctrlPosition $=
-    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 2 * 4 * 1)))
+    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 0)))
   vertexAttribArray ctrlPosition $= Enabled
 
 
@@ -139,7 +150,7 @@ initResources dgl = do
   let m0Position = AttribLocation 2
   
   vertexAttribPointer m0Position $=
-    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 2 * 4 * 2)))
+    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 1)))
   vertexAttribArray m0Position $= Enabled
 
 
@@ -152,7 +163,7 @@ initResources dgl = do
   let m1Position = AttribLocation 3
   
   vertexAttribPointer m1Position $=
-    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 2 * 4 * 3)))
+    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 2)))
   vertexAttribArray m1Position $= Enabled
 
 
@@ -165,7 +176,7 @@ initResources dgl = do
   let m2Position = AttribLocation 4
   
   vertexAttribPointer m2Position $=
-    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 2 * 4 * 4)))
+    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 3)))
   vertexAttribArray m2Position $= Enabled
 
   m3Buffer <- genObjectName
@@ -177,7 +188,7 @@ initResources dgl = do
   let m3Position = AttribLocation 5
   
   vertexAttribPointer m3Position $=
-    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 2 * 4 * 5)))
+    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 4)))
   vertexAttribArray m3Position $= Enabled
 
 
@@ -190,7 +201,7 @@ initResources dgl = do
   let colorPosition = AttribLocation 6
   
   vertexAttribPointer colorPosition $=
-    (ToFloat, VertexArrayDescriptor 4 Float ofst (bufferOffset (firstIndex + 2 * 4 * 6)))
+    (ToFloat, VertexArrayDescriptor 4 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 5)))
   vertexAttribArray colorPosition $= Enabled
 
 
@@ -202,8 +213,7 @@ resizeWindow :: GLFW.WindowSizeCallback
 resizeWindow win w h =
     do
       GL.viewport   $= (GL.Position 0 0, GL.Size (fromIntegral w) (fromIntegral h))
-      GL.matrixMode $= GL.Projection
-      GL.loadIdentity
+
 --       let ww = (realToFrac w)
 --           hh = (realToFrac h)
 -- --      GL.ortho2D (- (ww/2)) (ww/2) (hh/2) (- (hh/2))
@@ -211,6 +221,7 @@ resizeWindow win w h =
 
 keyPressed :: GLFW.KeyCallback 
 keyPressed win GLFW.Key'Escape _ GLFW.KeyState'Pressed _ = shutdown win
+keyPressed win GLFW.Key'Right _ GLFW.KeyState'Pressed _ = putStr "xx"
 keyPressed _   _               _ _                     _ = return ()
 
 
@@ -220,6 +231,7 @@ shutdown win = do
   GLFW.terminate
   _ <- exitWith ExitSuccess
   return ()
+
 
 showDrawing :: Colorlike a => Drawing (MetaColor a) -> IO ()
 showDrawing drw0 =
@@ -237,7 +249,6 @@ showDrawing drw0 =
      GLFW.destroyWindow win
      GLFW.terminate
 
-
 showTerm :: SessionState -> IO ()
 showTerm ss =
    either putStr showDrawing $ drawExpr $ ssEnvExpr $ ss
@@ -253,12 +264,19 @@ mainShowTerm fname =
      hClose handle   
 
 
-main :: IO ()
--- main = mainShowTerm "data/input-to-viz/penta-lhs"
+-- main :: IO ()
+-- -- main = mainShowTerm "data/input-to-viz/penta-lhs"
+-- main =
+--   do args <- getArgs
+--      putStr (show args)
+--      mainShowTerm ("data/input-to-viz/" ++ head args)
+
+
+
+main  :: IO ()
 main =
   do args <- getArgs
-     putStr (show args)
-     mainShowTerm ("data/input-to-viz/" ++ head args)
+     showDrawing example3d
 
 
 
@@ -268,8 +286,11 @@ onDisplay win descriptor@(Descriptor triangles firstIndex numVertices) = do
   GL.clear [ColorBuffer]
   bindVertexArrayObject $= Just triangles
   blend $= Enabled
+  now <- GLFW.getTime
   blendFunc $= (SrcAlpha , OneMinusSrcAlpha)
   polygonSmooth $= Disabled
+  let vMat =  Vector3 30.0 0.0 (45.0 + 20.0 * sin (1.5 * (realToFrac $ fromJust now)))
+  uniform (UniformLocation 0 ) $= (vMat :: Vector3 GLfloat) 
   drawArrays Triangles firstIndex numVertices
   GLFW.swapBuffers win
   

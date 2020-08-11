@@ -41,7 +41,7 @@ iExprPE (su@(Subset _ suS) , pm@(Permutation pmm)) =
           yB = (xor (not (Set.member y suS)) yb)
       in
       case (compare xB yB) of
-        EQ -> negCompIf xB (compare (pmm ! x) (pmm ! y))
+        EQ -> negCompIf xB (compare (pmm ! y) (pmm ! x))
         z -> z
 
     g :: [[(Int,Bool)]] -> (Int , Bool)
@@ -69,4 +69,4 @@ pieceExprNormal _ (PieceExprNNF vi tl) =
       
 piecesEval :: (Env , Context) -> CellExpr -> FromLI Piece PieceExpr
 piecesEval ec@(e , c) ce =
-  FromLI (getDim ec) (pieceExprNormal ec . pieceEval ce )
+  FromLI (getDim ec) (pieceExprNormal ec . pieceEval (remapCE (toDimI c) ce) )

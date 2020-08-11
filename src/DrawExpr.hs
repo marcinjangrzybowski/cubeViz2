@@ -35,7 +35,16 @@ hcompDrawings :: (Drawing a) -> (Map.Map Face (Drawing a)) -> Drawing a
 hcompDrawings bot sides =
    combineDrawings
     ((mapCoords (map $ centerTransInv defaultCompPar) bot) :
-      (map snd $ Map.toList $ Map.mapWithKey (mapCoords . ambFnOnArr. (sideTransInv defaultCompPar True)) sides)
+      (map snd
+       $ Map.toList
+       $ Map.mapWithKey (
+          \fc@(Face n (i , b)) ->
+             
+              (mapCoords
+             $ ambFnOnArr
+             $ (sideTransInv defaultCompPar True) fc)
+             . transposeDrw i
+          ) sides)
      ) 
 
 
@@ -109,18 +118,24 @@ class (Colorlike b , Diagonable d) => DrawingCtx a b d | a -> b d where
   --Drawing b
 
   drawD :: Never a -> d -> Drawing b
-  
+
+  drawCellCommon :: ((Env , Context) , Expr) -> a -> CellExpr -> Drawing b
+  drawCellCommon _ _ _ = emptyDrawing
   
   drawCellPiece :: ((Env , Context) , Expr) -> a -> Piece -> PieceExpr -> Drawing b  
   drawCellPiece eee@((_ , ctx) , _) a pc (PieceExpr h t) =
-     let t2 = fmap (Bf.first $ toDimI ctx) t
-     in    
-     drawD (forget a) $ remapTL (getDim eee) t2 $ drawGenericTerm eee a pc h
+     -- let t2 = fmap (Bf.first $ toDimI ctx) t
+     -- in    
+     drawD (forget a) $ remapTL (getDim eee) t $ drawGenericTerm eee a pc h
 
   cellPainter :: Never a -> a -> CellPainter b
   cellPainter na dctx n eee@(ee@(env , ctx) ,  expr) adr ce = 
     Right $
-     combinePieces (fromLIppK (drawCellPiece eee dctx) (piecesEval ee ce))
+     combineDrawings $ [
+       unmasked (drawCellCommon eee dctx ce)
+       ,
+       (combinePieces (fromLIppK (drawCellPiece eee dctx) (piecesEval ee ce)))
+       ]
 -- TODO dimension of eee
 
   mkDrawExpr :: Never a  -> ((Env , Context) , Expr) -> Either String (Drawing (MetaColor b))
@@ -141,11 +156,20 @@ class (Colorlike b , Diagonable d) => DrawingCtx a b d | a -> b d where
 
 instance DrawingCtx () (Color) ((Int , Color) , [Int]) where    
   fromCtx _ = ()
+
+  drawCellCommon eee _ _ = Drawing [ ( unitHyCube (getDim eee)  , gray 0.3   ) ]
+
   drawGenericTerm ((ee , ctx) , _) _ pc vi =
-    ((getCTyDim ee ctx $ getVarType ctx vi , nthColor (unemerate pc)) ,  [])
+    ((getCTyDim ee ctx $ getVarType ctx vi ,
+        -- nthColor (unemerate pc)
+        gray 0.8
+     ) ,  [])
+
   drawD _ ( (k , cl) , dg ) =
      let d0 = translate (replicate k 0.2)  $ scale 0.6 $ Drawing [ ( unitHyCube (k)  , cl   ) ]
      in foldl (flip $ (flip addDim) (0 , 1.0)) d0 dg
+
+  
   
   --Drawing [ ( unitHyCube 2  , ()  ) ]  
 

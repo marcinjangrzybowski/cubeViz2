@@ -32,12 +32,18 @@ toMask (p , Mask) = Just (p , Mask)
 toMask _ = Nothing
 
 masked :: Prll -> Drawing a -> Drawing (MetaColor a)
-masked p (Drawing l) = Drawing ((p , Mask) : map (second MShape) l)  
+masked p (Drawing l) = Drawing ((p , Mask) : map (second MShape) l)
+
+unmasked :: Drawing a -> Drawing (MetaColor a)
+unmasked (Drawing l) = Drawing $ map (second SShape) l  
            
 newtype Drawing a = Drawing [(Shp a)]
   deriving Functor
 
 data Color = Rgba Float Float Float Float
+
+
+gray x = Rgba x x x 1.0 
 
 -- type Settings = ()
 
@@ -223,6 +229,10 @@ extrude v (Drawing l) =
 embed :: Int -> ([ Float ] -> Float) -> Drawing a -> Drawing a
 embed k f = mapCoords (\l -> listInsert k (f l) l)  
 
+
+transposeDrw :: Int -> Drawing a -> Drawing a
+transposeDrw k = mapCoords (\l -> listInsert k (last l) (init l)) 
+
 addDim :: Int -> (Float,Float) -> Drawing a -> Drawing a
 addDim i (x0 , x1) d =
   case (getDrawingDim d) of
@@ -334,8 +344,8 @@ getDrawingDim (Drawing _) = Nothing
 --        (embedPrll k (const 1) x) 
 --     ))                       
 
--- emptyDrawing : Drawing a    
--- emptyDrawing = []    
+emptyDrawing :: Drawing a    
+emptyDrawing = Drawing []    
     
 -- stripesFromList : (a , a) -> List Float -> Drawing a
 -- stripesFromList (a0, a1) =

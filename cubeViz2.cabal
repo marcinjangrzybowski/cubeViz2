@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4f233a20d4ca275ad9ede5803965cedaa441f955019a8d7e7bdf2693baa15744
+-- hash: cc03cc65a5d5a206399379b8897ef69adfa659edf7531d1223d974fdb039787e
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -44,6 +44,7 @@ library
       PiecesEval
       Reorientable
       Show
+      Show3d
       Syntax
   other-modules:
       Paths_cubeViz2
@@ -56,6 +57,7 @@ library
     , bytestring
     , containers
     , extra
+    , mtl
     , parsec
     , raw-strings-qq
     , sort
@@ -78,6 +80,7 @@ executable cubeViz2-exe
     , containers
     , cubeViz2
     , extra
+    , mtl
     , parsec
     , raw-strings-qq
     , sort
@@ -101,6 +104,7 @@ test-suite cubeViz2-test
     , containers
     , cubeViz2
     , extra
+    , mtl
     , parsec
     , raw-strings-qq
     , sort

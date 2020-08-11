@@ -31,6 +31,8 @@ type IExpr = Set.Set ( Set.Set (Int , Bool))
 
 
 
+remapIExpr :: (Int -> Int) -> IExpr -> IExpr
+remapIExpr f = Set.map (Set.map (first f)) 
 
 setSetElim :: b -> b -> ([[a]] -> b) -> (Set.Set (Set.Set a)) -> b
 setSetElim em emSing f s =
@@ -162,6 +164,10 @@ data Expr =
   deriving (Eq , Show)
 
 data CellExpr = CellExpr VarIndex [IExpr]
+
+
+remapCE :: (Int -> Int) -> CellExpr -> CellExpr
+remapCE f (CellExpr x y) = CellExpr x (map (remapIExpr f) y) 
 
 -- NNF - not normal form
 data PieceExprNNF = PieceExprNNF VarIndex ([Either Bool (Int , Bool)])
