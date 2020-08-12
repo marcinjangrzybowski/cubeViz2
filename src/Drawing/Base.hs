@@ -38,10 +38,10 @@ unmasked :: Drawing a -> Drawing (MetaColor a)
 unmasked (Drawing l) = Drawing $ map (second SShape) l  
            
 newtype Drawing a = Drawing [(Shp a)]
-  deriving Functor
+  deriving (Functor , Show)
 
 data Color = Rgba Float Float Float Float
-
+  deriving (Show)
 
 gray x = Rgba x x x 1.0 
 
@@ -50,7 +50,7 @@ gray x = Rgba x x x 1.0
 -- type DStyle a = (Color , [ Settings ])
     
 data MetaColor a = MShape a | SShape a | Mask
-   deriving Functor
+   deriving (Functor , Show)
 
 type DrawingGL = Drawing (MetaColor Color)
 

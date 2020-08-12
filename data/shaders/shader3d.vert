@@ -11,6 +11,8 @@ layout(location = 5) in vec2 M3;
 
 layout(location = 6) in vec4 Color;
 
+layout(location = 7) in vec3 Normal;
+
 out vec2 MM0;
 out vec2 MM1;
 out vec2 MM2;
@@ -21,6 +23,8 @@ out vec2 vCtrl;
 out vec4 vPos;
 
 out vec4 vCol;
+
+out vec3 vNor;
 
 layout(location = 0) uniform vec3 euler;
 
@@ -78,6 +82,8 @@ main()
 
    vCol = Color;
 
+   vNor = Normal;
+
    vPos = vPosition;
 
    MM0 = M0;
@@ -86,7 +92,33 @@ main()
    MM3 = M3;
 
    vCtrl = Ctrl;
-   
-   gl_Position = anglesToAxes(euler) * (vec4(2.0 , 2.0 , 1.0 , 1.0) * (vPosition - vec4(0.5 , 0.5 , 0.0 , 0.0)));
+
+   float n , r , t , f ;
+
+   mat4 frustum;
+
+   r = 1.0;
+   t = 1.0;
+
+   n = 0.1;
+
+   f = 3;
+
+   frustum =
+     mat4( n/r , 0.0 , 0.0 , 0.0
+         , 0.0 , n/t , 0.0 , 0.0
+	 , 0.0 , 0.0 , (-1.0 * (f + n)) /( f - n) , (-2.0 * f * n) /( f - n)
+	 , 0.0 , 0.0 , -1.0 , 0.0);
+
+   gl_Position =
+                 // frustum *
+                  (
+                  // vec4(0.0 , 0.0 ,  - 2.5 , 0.0)
+		   // +
+		   (
+		     vec4(1.0 , 1.0 , 0.1 , 1.0)  *
+		    ( anglesToAxes(euler) *
+		   (vec4(1.0 , 1.0 , 1.0 , 1.0) * ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
+		      - vec4(0.5 , 0.5 , 0.5 , 0.0)))))));
    
 }

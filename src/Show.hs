@@ -56,27 +56,34 @@ mmHelp (Just a) f =
 quad2tris [x00 , x01 , x10 , x11] = [x00 , x01 , x10 , x11 , x10 , x01]
 quad2tris _ = []
 
-drawing2vertex :: DrawingGL -> IO [Vertex2 GLfloat]
-drawing2vertex drw =
+drawing2vertex :: DrawingGL -> IO [GLfloat]
+drawing2vertex drw = 
   return (concat $ map shpVertexes $ drawingSplitBase drw)
 
   where
+
+    tpl2Arr (x , y) = [x , y]
     
     shpVertexes ((2 , l ) , mbm , ((Rgba r g b a))) =
       fromMaybe []
         (do tl <- quad2tris <$> (sequence $ (map asTuples l))
             mbm2 <- mmHelp mbm (sequence . map asTuples . snd)
             
-            let color = [Vertex2 r g , Vertex2 b a]
+            let color = [r , g , b , a]
                 mask =
                   case mbm2 of
-                    Just mTpls -> (Vertex2 0 1) : ((uncurry Vertex2) (head mTpls)) : (map (uncurry Vertex2) mTpls)  
-                    Nothing -> (Vertex2 0 0) : replicate 4 (Vertex2 0 0)
-              
+                    Just mTpls -> [0 , 1] ++ (concat $ (tpl2Arr (head mTpls)) : (map tpl2Arr mTpls))  
+                    Nothing -> [0 , 0] ++ replicate 8 0
+
+                tailData :: [GLfloat]
                 tailData = mask ++ color
 
-                verts = map ((:[]) . uncurry Vertex2) tl
-            return (intercalate tailData (verts ++ [[]]) )
+                verts :: [[GLfloat]]
+                verts = map (tpl2Arr) tl
+
+                pitl :: [GLfloat]
+                pitl = (intercalate tailData (verts ++ [[]]) )
+            return pitl
          )
 
     shpVertexes _ = []

@@ -12,6 +12,7 @@ in vec4 vPos;
 
 in vec4 vCol;
 
+in vec3 vNor;
 
 float sign3 (vec2 p1, vec2 p2, vec2 p3)
 {
@@ -48,8 +49,18 @@ main()
       mask = (PointInTriangle( vPos.xy , MM0 , MM1 , MM2)
               ||  PointInTriangle( vPos.xy , MM1 , MM2 , MM3)) ? (1.0) : 0.0;  
    }
+
+   vec3 lightDir = normalize(vec3(3.0 , 2.0 , 4.0));
+
+   float boost = 2.5 ;
+   float ambient = 0.4;
+
+   vec3 finalRGB = vCol.rgb * (ambient + boost * abs(dot(lightDir,vNor)));  
+   // abs(normalize(vNor));
    
+// vCol.rgb
+   mask = 1.0;
    fColor = vec4(
-      vCol.rgb
+      finalRGB   
      , mask);
 }

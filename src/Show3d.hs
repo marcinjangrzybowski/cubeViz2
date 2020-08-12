@@ -60,38 +60,76 @@ mmHelp (Just a) f =
 quad2tris [x00 , x01 , x10 , x11] = [x00 , x01 , x10 , x11 , x10 , x01]
 quad2tris _ = []
 
-oct2tris [x000 , x001 , x010 , x011 , x100 , x101 , x110 , x111 ] = []
-   -- [x00 , x01 , x10 , x11 , x10 , x01]
+
+oct2tris [x000 , x001 , x010 , x011 , x100 , x101 , x110 , x111 ] =
+  concat
+   [
+    quad2tris [x000 , x001 , x010 , x011]
+   ,quad2tris [x100 , x101 , x110 , x111]
+   ,quad2tris [x000 , x001 , x100 , x101]
+   ,quad2tris [x010 , x011 , x110 , x111]
+   ,quad2tris [x000 , x010 , x100 , x110]
+   ,quad2tris [x001 , x011 , x101 , x111]
+   ]
 oct2tris _ = []
 
+groupPer3 :: [a] -> [[a]]
+groupPer3 (x1 : x2 : x3 : xs) = [ x1 , x2 , x3 ] : (groupPer3 xs) 
+groupPer3 _ = []
 
-drawing2vertex :: DrawingGL -> IO [Vertex2 GLfloat]
+drawing2vertex :: DrawingGL -> IO [GLfloat]
 drawing2vertex drw =
-  return (concat $ map shpVertexes $ drawingSplitBase drw)
+  (do let flts = (concat $ map shpVertexes $ drawingSplitBase drw)
+      -- putStr $ show flts
+      return flts)
 
   where
-    
-    shpVertexes ((3 , l ) , Nothing , ((Rgba r g b a))) =
-        do tl <- oct2tris <$> (sequence $ (map asTuples l))
-           return undefined
-      -- fromMaybe []
-      --   (do tl <- quad2tris <$> (sequence $ (map asTuples l))
-      --       mbm2 <- mmHelp mbm (sequence . map asTuples . snd)
-            
-      --       let color = [Vertex2 r g , Vertex2 b a]
-      --           mask =
-      --             case mbm2 of
-      --               Just mTpls -> (Vertex2 0 1) : ((uncurry Vertex2) (head mTpls)) : (map (uncurry Vertex2) mTpls)  
-      --               Nothing -> (Vertex2 0 0) : replicate 4 (Vertex2 0 0)
-              
-      --           tailData = mask ++ color
 
-      --           verts = map ((:[]) . uncurry Vertex2) tl
-      --       return (intercalate tailData (verts ++ [[]]) )
-      --    )
+    tpl2Arr (x , y) = [x , y]
+    trpl2Arr (x , y , z) = [x , y , z]
+    
+    shpVertexes ((3 , l ) , mbm , ((Rgba r g b a))) =
+      fromMaybe []
+        (do tl <- oct2tris <$> (sequence $ (map asTruples l))
+            mbm2 <- mmHelp mbm (sequence . map asTuples . snd)
+            
+            let color = [r , g , b , a]
+                mask =
+                  case mbm2 of
+                    Just mTpls -> [0 , 1] ++ (concat $ (tpl2Arr (head mTpls)) : (map tpl2Arr mTpls))  
+                    Nothing -> [0 , 0] ++ replicate 8 0
+
+                tailData :: [GLfloat]
+                tailData = mask ++ color
+
+                verts :: [[GLfloat]]
+                verts = map (trpl2Arr) tl
+
+                triangles :: [[[GLfloat]]]
+                triangles = groupPer3 verts
+
+                calcNormal :: [[GLfloat]] -> [GLfloat] 
+                calcNormal [ v0 , v1 , v2 ] =
+                   let [ uX , uY , uZ ] = zipWith (-) v1 v0
+                       [ vX , vY , vZ ] = zipWith (-) v2 v0
+                   in [ uY * vZ - uZ * vY , uZ * vX - uX * vZ , uX * vY - uY * vX ]
+
+                pitl :: [GLfloat]
+                pitl =
+                  concat $
+                  (map (\t ->
+                          concat $ map (\pt -> pt ++ tailData ++ (calcNormal t)) t  )
+                   triangles)
+                
+                -- pitl :: [GLfloat]
+                -- pitl = (intercalate tailData (verts ++ [[]]) )
+
+            
+            return pitl
+         )
 
     shpVertexes _ = []
-
+    
 initResources :: DrawingGL -> IO Descriptor
 initResources dgl = do
   triangles <- genObjectName
@@ -122,7 +160,7 @@ initResources dgl = do
       vPosition = AttribLocation 0
 
 
-  let ofst = (1 * 3 * 4 + 5 * 2 * 4 + 4 * 4 )
+  let ofst = (2 * 3 * 4 + 5 * 2 * 4 + 1 * 4 * 4 )
   
   vertexAttribPointer vPosition $=
     (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset firstIndex))
@@ -204,6 +242,18 @@ initResources dgl = do
     (ToFloat, VertexArrayDescriptor 4 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 5)))
   vertexAttribArray colorPosition $= Enabled
 
+  normalBuffer <- genObjectName
+  bindBuffer ArrayBuffer $= Just normalBuffer
+  withArray vertices $ \ptr -> do
+    let size = fromIntegral (numVertices * sizeOf (head vertices))
+    bufferData ArrayBuffer $= (size, ptr, StaticDraw)
+
+  let normalPosition = AttribLocation 7
+  
+  vertexAttribPointer normalPosition $=
+    (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 5 + 4 * 4 * 1 )))
+  vertexAttribArray normalPosition $= Enabled
+
 
 
   return $ Descriptor triangles firstIndex (fromIntegral numVertices)
@@ -283,13 +333,16 @@ main =
 onDisplay :: Window -> Descriptor -> IO ()
 onDisplay win descriptor@(Descriptor triangles firstIndex numVertices) = do
   GL.clearColor $= Color4 1 1 1 1
-  GL.clear [ColorBuffer]
+  GL.clear [ColorBuffer , DepthBuffer]
   bindVertexArrayObject $= Just triangles
-  blend $= Enabled
+  blend $= Disabled
+  clearDepth $= 1
+  depthFunc $= Just Lequal
+  cullFace $= Nothing
   now <- GLFW.getTime
-  blendFunc $= (SrcAlpha , OneMinusSrcAlpha)
+  -- blendFunc $= (SrcAlpha , OneMinusSrcAlpha)
   polygonSmooth $= Disabled
-  let vMat =  Vector3 30.0 0.0 (45.0 + 20.0 * sin (1.5 * (realToFrac $ fromJust now)))
+  let vMat =  Vector3 45.0 0.0 (45.0 + 20.0 * sin (2.5 * (realToFrac $ fromJust now)))
   uniform (UniformLocation 0 ) $= (vMat :: Vector3 GLfloat) 
   drawArrays Triangles firstIndex numVertices
   GLFW.swapBuffers win
