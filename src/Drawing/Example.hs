@@ -46,3 +46,8 @@ example3d = combineDrawings $  [
              ,
              (translate [0.5 , 0.5 , 0 ] $ scale 0.4 (Drawing [ ( unitHyCube 3  , SShape ( Rgba 0.0 1.0 1.0 1.0 )  ) ]))
             ]
+
+-- example3d :: DrawingGL
+-- example3d = combineDrawings $  [
+--              ( (Drawing [ ( unitHyCube 3  , SShape ( Rgba 0.0 1.0 1.0 1.0 )  ) ]))
+--             ]

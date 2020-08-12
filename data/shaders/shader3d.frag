@@ -51,11 +51,12 @@ main()
    }
 
    vec3 lightDir = normalize(vec3(3.0 , 2.0 , 4.0));
+   vec3 normal = normalize(vNor);
 
-   float boost = 2.5 ;
+   float boost = 0.3 ;
    float ambient = 0.4;
 
-   vec3 finalRGB = vCol.rgb * (ambient + boost * abs(dot(lightDir,vNor)));  
+   vec3 finalRGB = vCol.rgb * (ambient + boost * abs(dot(lightDir,normal)));  
    // abs(normalize(vNor));
    
 // vCol.rgb
