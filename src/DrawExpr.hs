@@ -89,16 +89,21 @@ pieceMask (su , pm) =
   in (n , ptCrnr : snd (mapAccumL
         (  (fmap dupe) . (flip $ updateAt 0.5)             
             ) ptCrnr
-          (toListLI pm)))
+          (toListLI $ invPerm pm)))
         
   --   -- (2 , [[0,0] , [0,0] , [1,0] , [0 , 1]]) 
   --  fst $ head $ (\(Drawing l) -> l)
   -- $ translate (map (bool 0.0 0.5) (toListLI su)) $ scale 0.5
   -- $ Drawing [ (unitHyCube (getDim su) , ())]
 
-combinePieces :: FromLI Piece (Drawing a) -> Drawing (MetaColor a)
-combinePieces = combineDrawings . mapOnAllLI (\pc -> masked (pieceMask pc)) 
 
+-- fmap fst $ Data.List.filter (any (\x ->  Data.Set.size x > 2) . snd ) $ zip [0..] (Data.List.map ((fmap Data.Set.fromList) . transpose .snd . pieceMask) $ genAllLI 3)
+
+combinePieces :: FromLI Piece (Drawing a) -> Drawing (MetaColor a)
+combinePieces =
+   combineDrawings . mapOnAllLI (\pc -> masked (pieceMask pc)) 
+  -- combineDrawings . mapOnAllLI (\pc -> unmasked )
+  
 -- drawCellSquare ::  CellPainter
 -- drawCellSquare _ _ _ _ = 
 --   Right $ Drawing [ ( unitHyCube 2  , SShape (Rgba 0.0 1.0 1.0 1.0 )  ) ]
@@ -154,21 +159,40 @@ class (Colorlike b , Diagonable d) => DrawingCtx a b d | a -> b d where
 
 --      in  Drawing [ ( unitHyCube 1  , ()  ) ]
 
-instance DrawingCtx () (Color) ((Int , Color) , [Int]) where    
+instance DrawingCtx () (Color) (Maybe ((Int , Color) , [Int])) where    
   fromCtx _ = ()
 
-  drawCellCommon eee _ _ = Drawing [ ( unitHyCube (getDim eee)  , gray 0.3   ) ]
+  drawCellCommon eee _ _ = emptyDrawing
+      -- Drawing [ ( unitHyCube (getDim eee)  , gray 0.3   ) ]
 
   drawGenericTerm ((ee , ctx) , _) _ pc vi =
-    ((getCTyDim ee ctx $ getVarType ctx vi ,
-        -- nthColor (unemerate pc)
+    if True --(unemerate pc == 28) -- && unemerate pc < 30)
+    then Just ((getCTyDim ee ctx $ getVarType ctx vi ,
+          -- nthColor (unemerate pc)
         gray 0.8
-     ) ,  [])
+          ) ,  [])
+    else Nothing
 
-  drawD _ ( (k , cl) , dg ) =
-     let d0 = translate (replicate k 0.2)  $ scale 0.6 $ Drawing [ ( unitHyCube (k)  , cl   ) ]
-     in foldl (flip $ (flip addDim) (0 , 1.0)) d0 dg
+  drawD _ (Just ( (1 , cl) , dg )) =
+     let d0 = Drawing [
 
+          --  ( (1 , [[0.2],[0.3]])  , cl   )
+          -- , ( (1 , [[0.7],[0.8]])  , cl   )
+           
+
+           
+            -- ( (1 , [[0.2],[0.25]])  , cl   )
+           ( (1 , [[0.45],[0.55]])  , cl   )
+           -- ,( (1 , [[0.75],[0.8]])  , cl   )
+           ]
+     in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
+    
+  drawD _ (Just ( (k , cl) , dg )) =
+     let d0 = translate (replicate k 0.2)  $
+           scale 0.6 $ Drawing [ ( unitHyCube (k)  , cl   ) ]
+     in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
+     
+  drawD _ Nothing = emptyDrawing
   
   
   --Drawing [ ( unitHyCube 2  , ()  ) ]  

@@ -32,6 +32,7 @@ toMask (p , Mask) = Just (p , Mask)
 toMask _ = Nothing
 
 masked :: Prll -> Drawing a -> Drawing (MetaColor a)
+masked p (Drawing []) = Drawing []
 masked p (Drawing l) = Drawing ((p , Mask) : map (second MShape) l)
 
 unmasked :: Drawing a -> Drawing (MetaColor a)
@@ -237,7 +238,7 @@ addDim :: Int -> (Float,Float) -> Drawing a -> Drawing a
 addDim i (x0 , x1) d =
   case (getDrawingDim d) of
     Nothing -> undefined
-    Just n ->  extrude (listInsert i x1 $ replicate n 0) $ embed i (const x0) d
+    Just n ->  extrude (listInsert i (x1 - x0) $ replicate n 0) $ embed i (const x0) d
 
 ptZero :: Prll
 ptZero = (0 , [[]] )

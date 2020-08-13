@@ -49,7 +49,16 @@ instance OfDim [a] where
 instance Diagonable (a , [Int]) where
   -- remapD ds ( = undefined
   appDegen l (k , _) = (k , l)
-  
+  -- appNegs l (k , _) = (k , l)
+
+instance Diagonable (Maybe (a , [Int])) where
+  -- remapD ds ( = undefined
+  appDegen l (Just (k , _)) = Just (k , l)
+  appDegen l (Nothing) = Nothing
+
+  -- appNegs l (Just (k , _)) = Just (k , l)
+  -- appNegs l (Nothing) = Nothing
+
 -- instance Reorientable (Drawing b) where
 
 data DecomposedSubst =

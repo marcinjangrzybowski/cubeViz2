@@ -91,13 +91,13 @@ drawing2vertex drw =
     shpVertexes ((3 , l ) , mbm , ((Rgba r g b a))) =
       fromMaybe []
         (do tl <- oct2tris <$> (sequence $ (map asTruples l))
-            mbm2 <- mmHelp mbm (sequence . map asTuples . snd)
+            mbm2 <- mmHelp mbm (sequence . map asTruples . snd)
             
             let color = [r , g , b , a]
                 mask =
                   case mbm2 of
-                    Just mTpls -> [0 , 1] ++ (concat $ (tpl2Arr (head mTpls)) : (map tpl2Arr mTpls))  
-                    Nothing -> [0 , 0] ++ replicate 8 0
+                    Just mTpls -> [0 , 1] ++ (concat $ (map trpl2Arr mTpls))  
+                    Nothing -> [0 , 0] ++ replicate (4 * 3) 0
 
                 tailData :: [GLfloat]
                 tailData = mask ++ color
@@ -160,7 +160,7 @@ initResources dgl = do
       vPosition = AttribLocation 0
 
 
-  let ofst = (2 * 3 * 4 + 5 * 2 * 4 + 1 * 4 * 4 )
+  let ofst = (6 * 3 * 4 + 1 * 2 * 4 + 1 * 4 * 4 )
   
   vertexAttribPointer vPosition $=
     (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset firstIndex))
@@ -188,7 +188,7 @@ initResources dgl = do
   let m0Position = AttribLocation 2
   
   vertexAttribPointer m0Position $=
-    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 1)))
+    (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 1)))
   vertexAttribArray m0Position $= Enabled
 
 
@@ -201,7 +201,7 @@ initResources dgl = do
   let m1Position = AttribLocation 3
   
   vertexAttribPointer m1Position $=
-    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 2)))
+    (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2 + 2 * 4 * 1)))
   vertexAttribArray m1Position $= Enabled
 
 
@@ -214,7 +214,7 @@ initResources dgl = do
   let m2Position = AttribLocation 4
   
   vertexAttribPointer m2Position $=
-    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 3)))
+    (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset (firstIndex + 3 * 4 * 3 + 2 * 4 * 1)))
   vertexAttribArray m2Position $= Enabled
 
   m3Buffer <- genObjectName
@@ -226,7 +226,7 @@ initResources dgl = do
   let m3Position = AttribLocation 5
   
   vertexAttribPointer m3Position $=
-    (ToFloat, VertexArrayDescriptor 2 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 4)))
+    (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset (firstIndex + 3 * 4 * 4 + 2 * 4 * 1)))
   vertexAttribArray m3Position $= Enabled
 
 
@@ -239,7 +239,7 @@ initResources dgl = do
   let colorPosition = AttribLocation 6
   
   vertexAttribPointer colorPosition $=
-    (ToFloat, VertexArrayDescriptor 4 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 5)))
+    (ToFloat, VertexArrayDescriptor 4 Float ofst (bufferOffset (firstIndex + 3 * 4 * 5 + 2 * 4 * 1)))
   vertexAttribArray colorPosition $= Enabled
 
   normalBuffer <- genObjectName
@@ -251,7 +251,7 @@ initResources dgl = do
   let normalPosition = AttribLocation 7
   
   vertexAttribPointer normalPosition $=
-    (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 + 2 * 4 * 5 + 4 * 4 * 1 )))
+    (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset (firstIndex + 3 * 4 * 5 + 2 * 4 * 1 + 4 * 4 * 1 )))
   vertexAttribArray normalPosition $= Enabled
 
 
@@ -263,6 +263,7 @@ resizeWindow :: GLFW.WindowSizeCallback
 resizeWindow win w h =
     do
       GL.viewport   $= (GL.Position 0 0, GL.Size (fromIntegral w) (fromIntegral h))
+      uniform (UniformLocation 1 ) $= (Vector2 (fromIntegral w) (fromIntegral h) :: Vector2 GLfloat) 
 
 --       let ww = (realToFrac w)
 --           hh = (realToFrac h)
@@ -287,6 +288,9 @@ showDrawing :: Colorlike a => Drawing (MetaColor a) -> IO ()
 showDrawing drw0 =
   do
      let drw = toDrawingGL drw0
+         -- toPr :: Drawing () 
+         -- toPr = show ((fmap $ const ()) drw0)
+     -- putStr (show ((fmap $ const ()) drw0) )
      GLFW.init
      GLFW.defaultWindowHints
      Just win <- GLFW.createWindow 640 480 "CubeViz2" Nothing Nothing
@@ -314,19 +318,19 @@ mainShowTerm fname =
      hClose handle   
 
 
--- main :: IO ()
--- -- main = mainShowTerm "data/input-to-viz/penta-lhs"
--- main =
---   do args <- getArgs
---      putStr (show args)
---      mainShowTerm ("data/input-to-viz/" ++ head args)
-
-
-
-main  :: IO ()
+main :: IO ()
+-- main = mainShowTerm "data/input-to-viz/penta-lhs"
 main =
   do args <- getArgs
-     showDrawing example3d
+     putStr (show args)
+     mainShowTerm ("data/input-to-viz/" ++ head args)
+
+
+
+-- main  :: IO ()
+-- main =
+--   do args <- getArgs
+--      showDrawing example3d
 
 
 
@@ -340,10 +344,10 @@ onDisplay win descriptor@(Descriptor triangles firstIndex numVertices) = do
   depthFunc $= Just Lequal
   cullFace $= Nothing
   now <- GLFW.getTime
-  -- blendFunc $= (SrcAlpha , OneMinusSrcAlpha)
+  blendFunc $= (SrcAlpha , OneMinusSrcAlpha)
   polygonSmooth $= Disabled
-  let vMat =  Vector3 45.0 0.0 (45.0 + 20.0 * sin (2.5 * (realToFrac $ fromJust now)))
-  uniform (UniformLocation 0 ) $= (vMat :: Vector3 GLfloat) 
+  let vMat =  Vector3 75.0 0.0 (-35.0 + 1.0 * 40.0 * sin (0.7 * (realToFrac $ fromJust now)))
+  uniform (UniformLocation 0 ) $= (vMat :: Vector3 GLfloat)
   drawArrays Triangles firstIndex numVertices
   GLFW.swapBuffers win
   

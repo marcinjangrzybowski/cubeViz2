@@ -164,7 +164,7 @@ data Expr =
   deriving (Eq , Show)
 
 data CellExpr = CellExpr VarIndex [IExpr]
-
+  deriving Show
 
 remapCE :: (Int -> Int) -> CellExpr -> CellExpr
 remapCE f (CellExpr x y) = CellExpr x (map (remapIExpr f) y) 
@@ -173,6 +173,7 @@ remapCE f (CellExpr x y) = CellExpr x (map (remapIExpr f) y)
 data PieceExprNNF = PieceExprNNF VarIndex ([Either Bool (Int , Bool)])
 
 data PieceExpr = PieceExpr VarIndex [(Int , Bool)] 
+  deriving Show
 
 data BType = BType Int
   deriving (Eq , Show)
@@ -236,9 +237,18 @@ unConstrainedDimsOnly :: Context -> [String]
 unConstrainedDimsOnly (Context _ l) = map fst $ filter (isNothing . snd) $ l 
 
 
-toDimI :: Context -> Int -> Int
-toDimI (Context _ l) i = i - length (take i (filter isJust (map snd (reverse l))))
+(!!<) :: [a] -> Int -> a 
+l !!< i = l !! (length l - 1 - i)
 
+toDimI :: Context -> Int -> Int
+toDimI c@(Context _ l) i =
+  let ii = i - length (filter isJust (take i (map snd (reverse l))))
+
+  in 
+     case (l !!< i) of
+       (s , Just _) -> error $ "constrained dim: " ++ (show i) ++ " " ++ s 
+       (_ , Nothing) -> ii
+            
 countTrueBeforeNFalse :: [Bool] -> Int -> Int 
 countTrueBeforeNFalse = h
   where
@@ -249,8 +259,11 @@ countTrueBeforeNFalse = h
     
 
 fromDimI :: Context -> Int -> Int
-fromDimI (Context _ l) i = i + countTrueBeforeNFalse (map  (isJust . snd) (reverse l)) i
-  
+fromDimI c@(Context _ l) i =
+     if (i >= ctxDim c || i < 0)
+     then error "fromDimI fatal"
+     else i + countTrueBeforeNFalse (map  (isJust . snd) (reverse l)) i
+
 -- lookupDim :: Context -> String -> Maybe Int
 -- lookupDim c x =
 --    let l = unConstrainedDimsOnly c
@@ -411,3 +424,12 @@ mkHcomp env c (s , pa , e) =
   then Right (HComp s pa e)
   else Left "only 0-dimensional terms are allowed in center of hcomp"
 
+ctxDim = length . unConstrainedDimsOnly
+
+
+instance OfDim ((Env , Context) , Expr) where
+  getDim ((_ , c) , _) = ctxDim c
+
+
+instance OfDim (Env , Context) where
+  getDim (_ , c) = ctxDim c

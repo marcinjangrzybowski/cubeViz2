@@ -4,19 +4,19 @@ layout(location = 0) in vec4 vPosition;
 
 layout(location = 1) in vec2 Ctrl;
 
-layout(location = 2) in vec2 M0;
-layout(location = 3) in vec2 M1;
-layout(location = 4) in vec2 M2;
-layout(location = 5) in vec2 M3;
+layout(location = 2) in vec3 M0;
+layout(location = 3) in vec3 M1;
+layout(location = 4) in vec3 M2;
+layout(location = 5) in vec3 M3;
 
 layout(location = 6) in vec4 Color;
 
 layout(location = 7) in vec3 Normal;
 
-out vec2 MM0;
-out vec2 MM1;
-out vec2 MM2;
-out vec2 MM3;
+out vec3 MM0;
+out vec3 MM1;
+out vec3 MM2;
+out vec3 MM3;
 
 out vec2 vCtrl;
 
@@ -27,7 +27,7 @@ out vec4 vCol;
 out vec3 vNor;
 
 layout(location = 0) uniform vec3 euler;
-
+layout(location = 1) uniform vec2 screen;
 
 mat4 anglesToAxes(in vec3 angles)
 {
@@ -104,19 +104,20 @@ main()
 
    f = 3;
 
+   float scale = 1.3;
+
    frustum =
      mat4( n/r , 0.0 , 0.0 , 0.0
          , 0.0 , n/t , 0.0 , 0.0
 	 , 0.0 , 0.0 , (-1.0 * (f + n)) /( f - n) , (-2.0 * f * n) /( f - n)
 	 , 0.0 , 0.0 , -1.0 , 0.0);
 
+   float aspect = screen.x/screen.y * 0.75;
+
    gl_Position =
-                 // frustum *
                   (
-                  // vec4(0.0 , 0.0 ,  - 2.5 , 0.0)
-		   // +
 		   (
-		     vec4(1.0 , 1.0 , 0.1 , 1.0)  *
+		     vec4(scale/aspect , scale , 0.1 , 1.0)  *
 		    ( anglesToAxes(euler) *
 		   (vec4(1.0 , 1.0 , 1.0 , 1.0) * ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
 		      - vec4(0.5 , 0.5 , 0.5 , 0.0)))))));

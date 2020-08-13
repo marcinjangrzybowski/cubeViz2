@@ -20,6 +20,8 @@ import qualified Data.Set as Set
 
 import qualified Data.Map as Map
 
+import Data.Tuple
+
 import Data.Maybe
 
 import qualified Data.Bifunctor as Bf
@@ -96,6 +98,7 @@ forget :: a -> Never a
 forget _ = Never
 
 
+
 class Ord a => ListInterpretable a b | a -> b where
   cardLI :: Never a -> Int -> Int
   enumerate :: Int -> Int -> a
@@ -148,12 +151,14 @@ listPermute2 :: Permutation2 -> [a] -> [a]
 listPermute2 (Permutation2 pm2) = foldr (uncurry listInsert) [] . zip pm2
 
 
+
 updateAt :: a -> Int -> [a] ->   [a]
 updateAt _ _ [] = []
 updateAt a 0 (_ : xs) = a : xs
 updateAt a k (x : xs) = x : updateAt a (k - 1) xs 
 
-
+invPerm :: Permutation -> Permutation
+invPerm (Permutation m) = Permutation ( Map.fromList $ fmap swap $ Map.toList m) 
 
 instance ListInterpretable Permutation Int where
   cardLI _ = factorial 
@@ -324,4 +329,6 @@ traverseMapAndKeys :: (Ord k , Ord l , Applicative f) =>
          ( (k , v) -> f (l , w)) -> Map.Map k v -> f (Map.Map l w) 
 traverseMapAndKeys f x =
    Map.fromList <$> ((traverse f) $ Map.toList x)  
+
+
 
