@@ -346,7 +346,7 @@ onDisplay win descriptor@(Descriptor triangles firstIndex numVertices) = do
   now <- GLFW.getTime
   blendFunc $= (SrcAlpha , OneMinusSrcAlpha)
   polygonSmooth $= Disabled
-  let vMat =  Vector3 75.0 0.0 (-35.0 + 1.0 * 40.0 * sin (0.7 * (realToFrac $ fromJust now)))
+  let vMat =  Vector3 75.0 0.0 (-35.0 + 1.0 * 110.0 * sin (0.7 * (realToFrac $ fromJust now)))
   uniform (UniformLocation 0 ) $= (vMat :: Vector3 GLfloat)
   drawArrays Triangles firstIndex numVertices
   GLFW.swapBuffers win

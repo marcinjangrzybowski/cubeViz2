@@ -181,9 +181,9 @@ instance DrawingCtx () (Color) (Maybe ((Int , Color) , [Int])) where
            
 
            
-            -- ( (1 , [[0.2],[0.25]])  , cl   )
-           ( (1 , [[0.45],[0.55]])  , cl   )
-           -- ,( (1 , [[0.75],[0.8]])  , cl   )
+            ( (1 , [[0.2],[0.25]])  , cl   )
+           , ( (1 , [[0.45],[0.55]])  , cl   )
+           ,( (1 , [[0.75],[0.8]])  , cl   )
            ]
      in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
     
@@ -193,31 +193,87 @@ instance DrawingCtx () (Color) (Maybe ((Int , Color) , [Int])) where
      in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
      
   drawD _ Nothing = emptyDrawing
+
+data Stripes1 = Stripes1
+
+data Field1 = Field1
+
+instance DrawingCtx Stripes1 (Color) (Maybe (Either Color (Color , Color) , [Int])) where    
+  fromCtx _ = Stripes1
+
+  drawCellCommon eee _ _ = emptyDrawing
+      -- Drawing [ ( unitHyCube (getDim eee)  , gray 0.3   ) ]
+
+  drawGenericTerm ((ee , ctx) , _) _ pc vi@(VarIndex viK) =
+    let (CType _ l) = (getVarType ctx vi) in
+    case l of
+      [] -> Just (Left (nthColor viK)  , [])
+      [ (Var (VarIndex viK0) [] , Var (VarIndex viK1) []) ] ->
+          Just (Right ((nthColor viK0) , (nthColor viK1) ) , [])
+      _ -> error "this convention is not suitable for types of dim>1"
+    -- Just ((getCTyDim ee ctx $ getVarType ctx vi ,
+    --       -- nthColor (unemerate pc)
+    --     gray 0.8
+    --       ) ,  [])
+    
+
+  drawD _ (Just ( Right (c0 , c1)  , dg )) =
+     let d0 = Drawing [
+
+          --  ( (1 , [[0.2],[0.3]])  , cl   )
+          -- , ( (1 , [[0.7],[0.8]])  , cl   )
+           
+
+           
+            ( (1 , [[0.2],[0.25]])  , c0   )
+           -- , ( (1 , [[0.45],[0.55]])  , gray 0.5   )
+           ,( (1 , [[0.75],[0.8]])  , c1   )
+           ]
+     in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
+    
+  drawD _ (Just ( Left cl , dg )) =
+     let d0 = Drawing [ ( unitHyCube 0  , cl   ) ]
+     in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
+     
+  drawD _ Nothing = emptyDrawing
+
+instance DrawingCtx Field1 (Color) ((Either Color (Color , Color) , [Int])) where    
+  fromCtx _ = Field1
+
+  drawCellCommon eee _ _ = emptyDrawing
+      -- Drawing [ ( unitHyCube (getDim eee)  , gray 0.3   ) ]
+
+  drawGenericTerm ((ee , ctx) , _) _ pc vi@(VarIndex viK) =
+    let (CType _ l) = (getVarType ctx vi) in
+    case l of
+      [] -> (Left (nthColor viK)  , [])
+      [ (Var (VarIndex viK0) [] , Var (VarIndex viK1) []) ] ->
+           (Right ((nthColor viK0) , (nthColor viK1) ) , [])
+      _ -> error "this convention is not suitable for types of dim>1"
+    -- Just ((getCTyDim ee ctx $ getVarType ctx vi ,
+    --       -- nthColor (unemerate pc)
+    --     gray 0.8
+    --       ) ,  [])
+    
+
+  drawD _ ( ( Right (c0 , c1)  , dg0 )) =
+     let
+         k = length dg0
+         -- d0 = translate (replicate k 0.4)  $
+         --          scale 0.2 $ Drawing [ ( unitHyCube (k)  , gray 0.3   ) ]
+
+         d0 = grid k 6 (gray 0.4)
+
+         dg :: [Int]
+         dg = [ length $ takeWhile id $ zipWith (==) dg0 [0..]  ]
+     in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
+    
+  drawD _ (( Left cl , dg )) = emptyDrawing
+     -- let d0 = Drawing [ ( unitHyCube 0  , cl   ) ]
+     -- in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
+     
   
   
-  --Drawing [ ( unitHyCube 2  , ()  ) ]  
-
--- instance DrawingCtx () () where    
---   fromCtx _ = ()
---   drawCellPiece _ _ _ = Drawing [ ( unitHyCube 2  , ()  ) ]  
-
-
--- drawCellDefault ::  CellPainterT
--- drawCellDefault n eee@(ee@(env , ctx) ,  expr) adr ce = 
---   Right $ combinePieces (FromLI (getDim eee) (
---            \pc -> Drawing [ ( unitHyCube 2  ,  (nthColor (unemerate pc) )  ) ]
---                                              ))
--- -- TODO dimension of eee
-
-
--- mkDrawExprT :: CellPainterT -> ((Env , Context) , Expr) -> Either String DrawingGL
--- mkDrawExprT drawCell =
---           toCub
---       >>> cubMap 2 drawCell []
---       >>> fmap (collectDrawings)
---       -- >>> fmap (debugRainbow . extractMasks)
-
-
-
-drawExpr = mkDrawExpr (forget ())
+  
+drawExpr = mkDrawExpr (forget Stripes1)
           

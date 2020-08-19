@@ -237,8 +237,18 @@ transposeDrw k = mapCoords (\l -> listInsert k (last l) (init l))
 addDim :: Int -> (Float,Float) -> Drawing a -> Drawing a
 addDim i (x0 , x1) d =
   case (getDrawingDim d) of
-    Nothing -> undefined
+    Nothing -> emptyDrawing
     Just n ->  extrude (listInsert i (x1 - x0) $ replicate n 0) $ embed i (const x0) d
+
+addDimPRL :: Int -> (Float,Float) -> Prll -> Prll
+addDimPRL i x d =
+  case (addDim i x (Drawing [(d , ())])) of
+    Drawing [(d2 , _)] -> d2
+
+
+addDimL :: Int -> [(Float,Float)] -> Drawing a -> Drawing a
+addDimL i l d = combineDrawings $ fmap (flip (addDim i) d)  l 
+
 
 ptZero :: Prll
 ptZero = (0 , [[]] )
@@ -247,6 +257,15 @@ segOne :: Prll
 segOne =  (1 , [[0] , [1]] )
 
 
+grid :: Int -> Int -> a -> Drawing a
+grid 0 n a = Drawing [(ptZero , a)]
+grid k n a = addDimL 0 l $ grid (k - 1) n a
+  where
+    l :: [(Float,Float)]
+    l = map (\x -> (((fromIntegral x) / (fromIntegral n))
+                    , ((fromIntegral x) / (fromIntegral n))  + 0.02
+
+                    )) $ range n
           
 unitHyCube :: Int -> Prll
 unitHyCube 0 = ptZero

@@ -80,7 +80,7 @@ main()
    vec3 normal = normalize(vNor);
 
    float boost = 0.3 ;
-   float ambient = 0.4;
+   float ambient = 0.6;
 
    vec3 finalRGB = vCol.rgb * (ambient + boost * abs(dot(lightDir,normal)));  
    // abs(normalize(vNor));

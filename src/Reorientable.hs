@@ -46,12 +46,12 @@ class Diagonable a where
 instance OfDim [a] where
   getDim = length
   
-instance Diagonable (a , [Int]) where
-  -- remapD ds ( = undefined
-  appDegen l (k , _) = (k , l)
-  -- appNegs l (k , _) = (k , l)
+-- instance Diagonable (a , [Int]) where
+--   -- remapD ds ( = undefined
+--   appDegen l (k , _) = (k , l)
+--   -- appNegs l (k , _) = (k , l)
 
-instance Diagonable (Maybe (a , [Int])) where
+instance Diagonable (Maybe ((Int , Color) , [Int])) where
   -- remapD ds ( = undefined
   appDegen l (Just (k , _)) = Just (k , l)
   appDegen l (Nothing) = Nothing
@@ -61,6 +61,20 @@ instance Diagonable (Maybe (a , [Int])) where
 
 -- instance Reorientable (Drawing b) where
 
+instance Diagonable (Maybe (Either Color (Color , Color) , [Int])) where
+  appDegen l (Just (k , _)) = Just (k , l)
+  appDegen l (Nothing) = Nothing
+
+  appNegs ([ False ]) (Just ((Right (c0 , c1)) , y)) = (Just ((Right (c1 , c0)) , y))
+  appNegs _ x = x
+
+instance Diagonable (Either Color (Color , Color) , [Int]) where
+  appDegen l (k , _) = (k , l)
+  
+  appNegs ([ False ]) ((Right (c0 , c1)) , y) =  ((Right (c1 , c0)) , y)
+  appNegs _ x = x  
+
+  
 data DecomposedSubst =
    DecomposedSubst {
      missingDS :: [Int] ,
