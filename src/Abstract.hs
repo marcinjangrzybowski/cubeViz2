@@ -22,6 +22,11 @@ import qualified Data.Map as Map
 data Cub t a = Cub t a | Hcomp t Name (Map.Map SubFace (Cub t a)) (Cub t a)
   deriving Show
 
+
+
+
+
+
 type Address = [SubFace]
 
 
@@ -58,6 +63,12 @@ cubMap n f addr (Hcomp t name pa a) =
                  (\sf -> cubMap (n + 1 - getDim sf) f (sf : addr))
                  $ pa
       return (Hcomp t name sides bot) 
+
+foldSubFaces :: (a -> (Map.Map SubFace a) -> a) -> Cub t a -> a
+foldSubFaces f (Cub t a) = a
+foldSubFaces f (Hcomp _ _ pa a) =
+  f (foldSubFaces f a) $ (fmap (foldSubFaces f) pa)
+
 
 foldFaces :: (a -> (Map.Map Face a) -> a) -> Cub t a -> a
 foldFaces f (Cub t a) = a

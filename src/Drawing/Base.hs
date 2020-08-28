@@ -3,7 +3,7 @@
 module Drawing.Base where
 
 import Data.Bifunctor
-
+import Data.Tuple
 -- import Data.Colour
 import Data.Maybe
 
@@ -13,36 +13,87 @@ import Data.List
 
 import Combi
 
-type NPoint = [ Float ]
+-- type NPoint = [ Float ]
 
-data Seg = Pt Float | Seg Float Float
+-- data Seg = Pt Float | Seg Float Float
 
 
--- TODO Prll should be for shapes, and mask must use simplexes
+class InSpace a where
+  sMap :: ([Float] -> [Float]) -> a -> a
+
+
+instance {-# OVERLAPPING #-} InSpace [Float] where
+  sMap = id
+
+instance (InSpace b)  => InSpace [b] where
+  sMap = fmap . sMap
+
+
+
+-- instance Bi a => InSpace (a [ Float ]) where
+--   sMap = fmap   
 
 type Prll = ( Int , [[ Float ]] )     
                     -- Int=k means number means dimension of paraelogram (not ambient space!)
                     -- length of list on first level is eequal to 2 ^ k
                     -- dimension of ambient space must by consistent with context it is equal to length of lists on second level 
-                    
+
+type Smplx = ( Int , [[ Float ]] )     
+                    -- Int=k means number means dimension of simplex (not ambient space!)
+                    -- length of list on first level is eequal to (k + 1)
+                    -- dimension of ambient space must by consistent with context it is equal to length of lists on second level 
+
+instance (InSpace b)  => InSpace (Int , b) where
+  sMap = second . sMap
+
+
+
+type Mask = [ Smplx ] 
+
 type Shp a = (Prll , a)
+  -- deriving (Functor)
 
-toMask :: Shp (MetaColor a) -> Maybe (Shp (MetaColor b))
-toMask (p , Mask) = Just (p , Mask)
-toMask _ = Nothing
+instance InSpace (Shp a) where
+  sMap f = first (sMap f)
 
-masked :: Prll -> Drawing a -> Drawing (MetaColor a)
-masked p (Drawing []) = Drawing []
-masked p (Drawing l) = Drawing ((p , Mask) : map (second MShape) l)
 
-unmasked :: Drawing a -> Drawing (MetaColor a)
-unmasked (Drawing l) = Drawing $ map (second SShape) l  
-           
-newtype Drawing a = Drawing [(Shp a)]
-  deriving (Functor , Show)
+newtype Drawing a = Drawing [(Either (Shp a) (Mask , [(Shp a)])) ]
+  deriving (Show)
+
+instance InSpace (Drawing a) where
+  sMap q (Drawing l) = Drawing $ fmap (bimap (sMap q) (bimap (sMap q) (sMap q))) l 
+
+instance Functor Drawing where 
+  fmap f (Drawing l) = Drawing $ fmap (bimap (fmap f) (second $ fmap (fmap f))) l
+
 
 data Color = Rgba Float Float Float Float
   deriving (Show)
+            
+
+-- toMask :: Shp (MetaColor a) -> Maybe (Shp (MetaColor b))
+-- toMask (p , Mask) = Just (p , Mask)
+-- toMask _ = Nothing
+
+masked :: Mask -> [(Shp a)] -> Drawing a
+masked p l = Drawing [Right (p , l)] 
+
+unmasked :: [(Shp a)] -> Drawing a
+unmasked = Drawing . fmap Left 
+
+
+
+-- demask :: Drawing (MetaColor a) -> Drawing a
+-- demask (Drawing l) =
+--   Drawing $
+--     concat (map (\x ->
+--                    case x of
+--                      (_ , Mask) -> []
+--                      (s , MShape y) -> [(s , y)]
+--                      (s , SShape y) -> [(s , y)]
+--                    ) l)  
+
+           
 
 gray x = Rgba x x x 1.0 
 
@@ -50,16 +101,16 @@ gray x = Rgba x x x 1.0
 
 -- type DStyle a = (Color , [ Settings ])
     
-data MetaColor a = MShape a | SShape a | Mask
-   deriving (Functor , Show)
+-- data MetaColor a = MShape a | SShape a | Mask
+--    deriving (Functor , Show)
 
-type DrawingGL = Drawing (MetaColor Color)
+type DrawingGL = Drawing Color
 
 class Colorlike a where
   toColor :: a -> Color
 
-  toDrawingGL :: Drawing (MetaColor a) -> DrawingGL
-  toDrawingGL = fmap (fmap toColor)
+  toDrawingGL :: Drawing a -> DrawingGL
+  toDrawingGL = (fmap toColor)
 
 instance Colorlike Color where
   toColor = id
@@ -76,140 +127,43 @@ instance Colorlike [Color] where
 instance Colorlike () where
   toColor _ = (Rgba 0.5 0.5 0.5 1.0 )
 
-drawingSplitBase :: Drawing (MetaColor a) -> [ (Prll , Maybe Prll , a)  ] 
-drawingSplitBase = drawingSplitStep Nothing
-  where
+drawingSplitBase :: Drawing a -> [ (Prll , Maybe Smplx , a)  ] 
+drawingSplitBase = undefined
+--   where
 
-    drawingSplitStep :: Maybe Prll -> Drawing (MetaColor a) -> [ (Prll , Maybe Prll , a)  ] 
-    drawingSplitStep m (Drawing ls) = 
-      case ls of
-        [] -> []
-        ((p , x) : xs) ->
-          case (m , x)  of
-             (Just mp , MShape a) ->
-                 ( p , Just mp , a ) : drawingSplitStep (Just mp) (Drawing xs)
-             (_ , SShape a) ->
-                 ( p , Nothing , a ) : drawingSplitStep Nothing (Drawing xs)
-             (_ , Mask ) -> drawingSplitStep (Just p) (Drawing xs)
-             (_ , _) -> drawingSplitStep Nothing (Drawing xs)
+--     drawingSplitStep :: Maybe Prll -> Drawing (MetaColor a) -> [ (Prll , Maybe Prll , a)  ] 
+--     drawingSplitStep m (Drawing ls) = 
+--       case ls of
+--         [] -> []
+--         ((p , x) : xs) ->
+--           case (m , x)  of
+--              (Just mp , MShape a) ->
+--                  ( p , Just mp , a ) : drawingSplitStep (Just mp) (Drawing xs)
+--              (_ , SShape a) ->
+--                  ( p , Nothing , a ) : drawingSplitStep Nothing (Drawing xs)
+--              (_ , Mask ) -> drawingSplitStep (Just p) (Drawing xs)
+--              (_ , _) -> drawingSplitStep Nothing (Drawing xs)
     
-         
--- pointR = 1    
-
-
--- toShape :: [Seg] -> Maybe Shape
--- toShape l =
---     case l of
---         [Pt x , Pt y] -> Just (Circle (x , y) pointR)
---         [Seg x0 x1 , Seg y0 y1] -> Just (Rect ( x0 , y0 ) ( x1 - x0) (y1 - y0) )
---         [Seg x0 x1 , Pt y] -> Just (Path ( x0 , y ) [ LineTo ( x1 , y ) ])
---         [Pt x , Seg y0 y1] -> Just (Path ( x , y0 ) [ LineTo ( x , y1 ) ])     --         _ -> Nothing             
     
--- toRenderable : Shp MetaColor -> Maybe (Renderable , Int)
--- toRenderable ( (n , l) , a ) =
---     (case l of
---         [ [x , y] ] ->  Just ((circle (x , y) pointR , 0))
---         [ [x0 , y0] , [x1 , y1] ] -> Just ((path ( x0 , y0 ) [ lineTo ( x1 , y1 ) ]) , 1)
---         [ [x0 , y0] , [x1 , y1] ,  [x2 , y2] ,  [x3 , y3] ]
---              -> Just ((path ( x0 , y0 ) [ lineTo ( x1 , y1 )
---                                        , lineTo ( x3 , y3 )
---                                        , lineTo ( x2 , y2 ) ]), 2)
---         _ ->
---              -- let ww = log ("wrong dim draw: " ++ (String.fromInt n)) (l , a) in
---              Nothing   
---     )    
---     |> Maybe.map (Tuple.mapFirst (
---                   List.singleton
---                   >> (
---                       let op = choose (n == 1) fill stroke
---                       in
---                          a |> Maybe.map (\(b , c) ->
---                                         List.append [compositeOperationMode
---                                            (choose b
---                                             SourceOver DestinationOver)
---                                          , c |> Tuple.first |> op ]
---                                             (c |> Tuple.second)
---                                       ) 
---                          |> Maybe.withDefault ([compositeOperationMode DestinationOut
---                                                 , op Color.black])
---                          |> (List.append [lineWidth 1 ]) 
---                          |> shapes
-
-
---                        -- if n == 1
---                        -- then shapes [ stroke Color.black ] --(colFn a) ]
---                        -- else shapes [ fill (colFn a)  ]   
---                      )
---                  )) 
-               
--- toRenderableAll : Drawing MetaColor -> List Renderable    
--- toRenderableAll l =
---     let allR = List.filterMap (toRenderable) l in
---     List.concat [(List.filter (Tuple.second >> isEqual 2) allR)      
---                 ,(List.filter (Tuple.second >> isEqual 1) allR)
---                 ,(List.filter (Tuple.second >> isEqual 0) allR)]    
---     |> List.map (Tuple.first)                
-
-
 metaTint :: b -> Drawing a -> Drawing b                   
 metaTint = fmap . const                  
 
+-- ss :: ([Float] -> [Float]) -> Drawing a -> Drawing a
+-- ss = sMap
 
-
-
--- mapCoords : ((Int -> Float) -> (Int -> Float)) -> Drawing a -> Drawing a
--- mapCoords f = 
---       List.map ( ambFnOnArr f)     
---     |> Tuple.mapSecond
---     |> Tuple.mapFirst
---     |> List.map   
                  
 mapCoords :: ([Float] -> [Float]) -> Drawing a -> Drawing a
-mapCoords f (Drawing l) =
-   Drawing (map (first (second (map f))) l)
+mapCoords = sMap
+--    Drawing (map (first (second (map f))) l)
            
--- pxScale : (Int , Int) -> Drawing a -> Drawing a
--- pxScale (w , h) =
---     List.map (Tuple.mapFirst (Tuple.mapSecond ( List.map ( 
---                \(l) ->
---                    case l of
---                        [x , y] -> [x * (toFloat w) , y * (toFloat h)]
---                        _ -> l
---                               ))))
--- -- shapes [ fill (color) ]
--- --                                             [ rect (x * w , y * h) (w / frs) (h / frs) ]
-
-
--- segSplitIso : Iso (Seg) ((Float , Float) , Bool)      
--- segSplitIso =
---     ((\x -> case x of                     
---              Pt p -> ((p , p ) , False)
---              Seg p0 p1 -> ((p0 , p1 ) , True)) 
---       ,
---      ( \((pA , pB) , b) -> if b
---                            then (Seg pA pB)
---                            else (Pt pA)    )
---     )
 
 
 combineDrawings :: [Drawing a] -> Drawing a
 combineDrawings = Drawing . concat . (map (\(Drawing x) -> x))
 
 
-                  
--- combineDrawingsSafe : List (Drawing a) -> Result String (Drawing a)
--- combineDrawingsSafe = combineDrawings >>
---          (\l ->
---               if (l |> List.map (Tuple.first >> prllDim) |> allSame)
---               then (Ok l)
---               else (Err "cannot combine drawings of diferent dimensions")
---          )
-                  
--- -- shpSplitIso : Iso (List (Seg)) (List ((Float , Float) , Bool)      
--- -- shpSplitIso =
-
--- embedPrll: Int -> (List (Float) -> Float) -> Prll -> Prll
--- embedPrll k f = Tuple.mapSecond (List.map (\l -> listInsert k (f l) l))
+                 
+-- this increments dimension of Prll, but not ambient dimension!!
 
 extrudePrll :: [Float] -> Prll -> Prll
 extrudePrll _ (_ , [] ) = error "extrude - bad Prll"
@@ -222,11 +176,26 @@ extrudePrll v (k , xs@(x : _) ) =
   else error "extrude vector dimension do not match Prll"
 
 
-extrude :: [Float] -> Drawing a -> Drawing a
-extrude v (Drawing l) =
-  Drawing $
-    ( fmap (first $ extrudePrll v) l )
-           
+-- extrudeNotMeta :: [Float] -> Drawing a -> Drawing a
+-- extrudeNotMeta v (Drawing l) =
+--   Drawing $
+--     ( fmap (first $ extrudePrll v) l )
+
+-- extrude :: [Float] -> Drawing (MetaColor a) -> Drawing (MetaColor a)
+-- extrude v (Drawing l) =
+--   Drawing $
+--     ( fmap
+--       (\(p , c) ->
+--          case c of
+--            Mask -> undefined
+--            MShape a -> undefined
+--            SShape a -> (extrudePrll v p , SShape a)
+--              )
+--       l )
+
+versor :: Int -> Int -> [Float]
+versor n k = fmap (\i -> if i == k then 1.0 else 0.0) $ range n
+       
 embed :: Int -> ([ Float ] -> Float) -> Drawing a -> Drawing a
 embed k f = mapCoords (\l -> listInsert k (f l) l)  
 
@@ -234,236 +203,120 @@ embed k f = mapCoords (\l -> listInsert k (f l) l)
 transposeDrw :: Int -> Drawing a -> Drawing a
 transposeDrw k = mapCoords (\l -> listInsert k (last l) (init l)) 
 
-addDim :: Int -> (Float,Float) -> Drawing a -> Drawing a
-addDim i (x0 , x1) d =
-  case (getDrawingDim d) of
-    Nothing -> emptyDrawing
-    Just n ->  extrude (listInsert i (x1 - x0) $ replicate n 0) $ embed i (const x0) d
+-- addDim :: Int -> (Float,Float) -> Drawing a -> Drawing a
+-- addDim i (x0 , x1) d =
+--   case (getDrawingDim d) of
+--     Nothing -> emptyDrawing
+--     Just n ->  extrudeNotMeta (listInsert i (x1 - x0) $ replicate n 0) $ embed i (const x0) d
 
-addDimPRL :: Int -> (Float,Float) -> Prll -> Prll
-addDimPRL i x d =
-  case (addDim i x (Drawing [(d , ())])) of
-    Drawing [(d2 , _)] -> d2
-
-
-addDimL :: Int -> [(Float,Float)] -> Drawing a -> Drawing a
-addDimL i l d = combineDrawings $ fmap (flip (addDim i) d)  l 
+-- addDimPRL :: Int -> (Float,Float) -> Prll -> Prll
+-- addDimPRL i x d =
+--   case (addDim i x (Drawing [(d , ())])) of
+--     Drawing [(d2 , _)] -> d2
 
 
-ptZero :: Prll
-ptZero = (0 , [[]] )
+-- addDimL :: Int -> [(Float,Float)] -> Drawing a -> Drawing a
+-- addDimL i l d = combineDrawings $ fmap (flip (addDim i) d)  l 
+
+
+-- ptZero :: Prll
+-- ptZero = (0 , [[]] )
          
-segOne :: Prll
-segOne =  (1 , [[0] , [1]] )
+-- segOne :: Prll
+-- segOne =  (1 , [[0] , [1]] )
 
 
-grid :: Int -> Int -> a -> Drawing a
-grid 0 n a = Drawing [(ptZero , a)]
-grid k n a = addDimL 0 l $ grid (k - 1) n a
-  where
-    l :: [(Float,Float)]
-    l = map (\x -> (((fromIntegral x) / (fromIntegral n))
-                    , ((fromIntegral x) / (fromIntegral n))  + 0.02
+-- grid :: Int -> Int -> a -> Drawing a
+-- grid 0 n a = Drawing [(ptZero , a)]
+-- grid k n a = addDimL 0 l $ grid (k - 1) n a
+--   where
+--     l :: [(Float,Float)]
+--     l = map (\x -> (((fromIntegral x) / (fromIntegral n))
+--                     , ((fromIntegral x) / (fromIntegral n))  + 0.1
 
-                    )) $ range n
+--                     )) $ range n
           
-unitHyCube :: Int -> Prll
-unitHyCube 0 = ptZero
-unitHyCube 1 = segOne
-unitHyCube n =
-  let (_ , prev) = unitHyCube (n - 1)
-  in (n , (map (0:) prev) ++ (map (1:) prev))
+-- unitHyCube :: Int -> Prll
+-- unitHyCube 0 = ptZero
+-- unitHyCube 1 = segOne
+-- unitHyCube n =
+--   let (_ , prev) = unitHyCube (n - 1)
+--   in (n , (map (0:) prev) ++ (map (1:) prev))
 
-    -- (iter ( (\(k , x)  -> (k + 1
-    --               , concat [
-    --                      (List.map (listInsert 0 0.0) x)
-    --                    , (List.map (listInsert 0 1.0) x)
-    --                   ]))) ptZero)                
-
-
--- -- it not changes dim of ambient space!        
--- sidePrll : Bool -> Prll -> Prll
--- sidePrll b (n , l) =
---     if n == 0
---     then ptZero
---     else ( (n - 1)  , (choose b List.take List.drop) ( 2 ^ (n - 1)) l
---             )      
-
-
-        
--- -- it not changes dim of ambient space!
--- fillPrll : Int -> Prll -> Prll -> Prll
--- fillPrll k (n , p) = fillPrllUS (min k n) (n , p)
-
--- fillPrllUS : Int -> Prll -> Prll -> Prll
--- fillPrllUS k =
---     case k of
---            0 -> \(n , l1) -> \(_ , l2) ->
---                 (n + 1 , List.append l1 l2)
---            _  -> (\p0 -> \p1 -> 
---                fillPrll 0
---                (fillPrll (k - 1) (sidePrll False p0) (sidePrll False p1)) 
---                (fillPrll (k - 1) (sidePrll True p0) (sidePrll True p1))
---                )       
--- -- it not changes dim of ambient space!
-
--- extrudeDrawingBi : List Float -> Drawing a -> Drawing a
--- extrudeDrawingBi v drw =  
---   zip (translate (List.map (\x -> x * -1) v) drw , translate v drw)
---     |> List.map (\((s , a) , (ns , _)) ->
-
---              (fillPrll 0 s ns , a)
---                 )
-                   
--- extrudeDrawing : List Float -> Drawing a -> Drawing a
--- extrudeDrawing v drw =
---   let newFace = translate v drw
---   in zip (drw , newFace)
---     |> List.map (\((s , a) , (ns , _)) ->
-
---              (fillPrll 0 s ns , a)
---                 )
---     -- (Tuple.mapFirst             
---     -- (\x -> fillPrll k
---     --    (embedPrll k (const 0) x)
---     --    (embedPrll k (const 1) x) 
---     -- ))    
--- -- 
-
--- -- it not changes dim of ambient space!        
--- facePrll : Face -> Prll -> Prll                 
--- facePrll (i , b) =
---     case i of
---         0 -> sidePrll b
---         _ -> (\x -> fillPrll 0
---              (facePrll (i - 1 , b) (sidePrll False x) )
---              (facePrll (i - 1 , b) (sidePrll True x) )
---              )    
--- -- subPrll : SubFace -> Prll -> Prll         
-
-prllDim :: Prll -> Int
-prllDim = length . head . snd
+--     -- (iter ( (\(k , x)  -> (k + 1
+--     --               , concat [
+--     --                      (List.map (listInsert 0 0.0) x)
+--     --                    , (List.map (listInsert 0 1.0) x)
+--     --                   ]))) ptZero)                
 
 
 
-  -- Tuple.second >> List.head >> Maybe.map (List.length) >> Maybe.withDefault 0
+-- prllDim :: Prll -> Int
+-- prllDim = length . head . snd
 
-getDrawingDim :: Drawing a -> Maybe Int
-getDrawingDim (Drawing ((p , _) : _)) = Just (prllDim p)
-getDrawingDim (Drawing _) = Nothing              
--- drawFaces : Prll -> (Face -> a) -> Drawing a 
--- drawFaces prl f = pairFrom ((swap facePrll) prl)  f
---                   |> (tabulateFaces (prllDim prl))
---                   |> List.map (Tuple.second)
 
--- degenDrawing : Int -> Drawing a -> Drawing a
--- degenDrawing k = List.map
---     (Tuple.mapFirst             
---     (\x -> fillPrll k
---        (embedPrll k (const 0) x)
---        (embedPrll k (const 1) x) 
---     ))                       
 
-emptyDrawing :: Drawing a    
-emptyDrawing = Drawing []    
+--   -- Tuple.second >> List.head >> Maybe.map (List.length) >> Maybe.withDefault 0
+
+-- getDrawingDim :: Drawing a -> Maybe Int
+-- getDrawingDim (Drawing ((p , _) : _)) = Just (prllDim p)
+-- getDrawingDim (Drawing _) = Nothing              
+
+-- emptyDrawing :: Drawing a    
+-- emptyDrawing = Drawing []    
     
--- stripesFromList : (a , a) -> List Float -> Drawing a
--- stripesFromList (a0, a1) =
---     listTuples
---     >> List.indexedMap (\i -> \(xA , xB) -> ((1 , [[xA] , [xB]]) , choose (oddQ i) a0 a1))  
-
--- fromLSeg : List Seg -> Prll
--- fromLSeg = List.foldr (\s ->
---               case s of
---                   Pt x -> embedPrll 0 (const x)
---                   Seg x y -> \z -> fillPrll 0
---                            (embedPrll 0 (const x) z)
---                            (embedPrll 0 (const y) z)
---               ) ptZero             
-
--- spanPrll : Int -> Float -> Float -> Prll
--- spanPrll n x0 x1 = List.repeat n (Seg x0 x1) |> fromLSeg 
-
--- segmentsRange : Int -> Float -> Float -> List (Float,Float)
--- segmentsRange n x0 xN =
---     List.range 0 n  
---     |> List.map (\k -> interp x0 xN ((toFloat k) / (toFloat n)))
---     |> listTuples
-                     
--- unmasked : Drawing DStyle -> Drawing MetaColor
--- unmasked = mapDrawingData (Tuple.pair False >> Just)           
-
--- masked : Drawing a -> Drawing (DStyle) -> Drawing MetaColor
--- masked m x =
---       -- case getDrawingDim m of
---       --     Just 1 -> unmasked x
---       --     _ -> 
---              List.append
---              (mapDrawingData (const Nothing) m)
---              (mapDrawingData (Tuple.pair True >> Just) x)                     
-
--- setLightness : Float -> Color -> Color
--- setLightness lV = toHsla >> (\x -> {x | lightness = lV }) >> fromHsla
-
--- setSaturation : Float -> Color -> Color
--- setSaturation lV = toHsla >> (\x -> {x | saturation = lV }) >> fromHsla                            
-
--- mapColor : (Color -> Color) -> Drawing MetaColor -> Drawing MetaColor
--- mapColor = Tuple.mapFirst >> Tuple.mapSecond >>  Maybe.map >> mapDrawingData            
 
 
 
 
-translate ::  [ Float ] -> Drawing a -> Drawing a
-translate vec = mapCoords (zipWith (+) vec)
-
--- translate vec =
---     mapCoordsAsL (\cl -> zip (cl , vec) |> List.map (\(x , delta)-> x + delta ))
-
-scale :: Float -> Drawing a -> Drawing a
-scale factor = mapCoords (map (*factor)) 
+-- translate ::  [ Float ] -> Drawing a -> Drawing a
+-- translate vec = mapCoords (zipWith (+) vec)
 
 
-mapInd :: (a -> Int -> b) -> [a] -> [b]
-mapInd f l = zipWith f l [0..]
+-- scale :: Float -> Drawing a -> Drawing a
+-- scale factor = mapCoords (map (*factor)) 
+
+
+-- mapInd :: (a -> Int -> b) -> [a] -> [b]
+-- mapInd f l = zipWith f l [0..]
 
 
 
-mod1 :: Float -> Float
-mod1 x = x - fromIntegral (floor x)
+-- mod1 :: Float -> Float
+-- mod1 x = x - fromIntegral (floor x)
 
-hsv :: Float -> Float -> Float -> Color
-hsv h s v = case hi of
-    0 -> Rgba v t p 1.0
-    1 -> Rgba q v p 1.0
-    2 -> Rgba p v t 1.0
-    3 -> Rgba p q v 1.0
-    4 -> Rgba t p v 1.0
-    5 -> Rgba v p q 1.0
- where
-  hi = floor (h/60) `mod` 6
-  f = mod1 (h/60)
-  p = v*(1-s)
-  q = v*(1-f*s)
-  t = v*(1-(1-f)*s)
+-- hsv :: Float -> Float -> Float -> Color
+-- hsv h s v = case hi of
+--     0 -> Rgba v t p 1.0
+--     1 -> Rgba q v p 1.0
+--     2 -> Rgba p v t 1.0
+--     3 -> Rgba p q v 1.0
+--     4 -> Rgba t p v 1.0
+--     5 -> Rgba v p q 1.0
+--  where
+--   hi = floor (h/60) `mod` 6
+--   f = mod1 (h/60)
+--   p = v*(1-s)
+--   q = v*(1-f*s)
+--   t = v*(1-(1-f)*s)
 
-phiNumber :: Float
-phiNumber = 1.618033988
+-- phiNumber :: Float
+-- phiNumber = 1.618033988
 
-nthColor :: Int -> Color
-nthColor i = hsv (phiNumber * fromIntegral i * 360.0) 1.0 0.5
+-- nthColor :: Int -> Color
+-- nthColor i = hsv (phiNumber * fromIntegral i * 360.0) 1.0 0.5
 
 
-extractMasks :: Drawing (MetaColor a) -> Drawing (MetaColor ())
-extractMasks (Drawing l) = 
-  Drawing $ map (second (const (SShape ())))  $ catMaybes $ map toMask l  
+-- extractMasks :: Drawing (MetaColor a) -> Drawing (MetaColor ())
+-- extractMasks (Drawing l) = 
+--   Drawing $ map (second (const (SShape ())))  $ catMaybes $ map toMask l  
 
-debugRainbow :: Drawing (MetaColor a) -> DrawingGL
-debugRainbow (Drawing l) = 
-   Drawing ( mapInd g $ mapMaybe f l)
+-- debugRainbow :: Drawing (MetaColor a) -> DrawingGL
+-- debugRainbow (Drawing l) = 
+--    Drawing ( mapInd g $ mapMaybe f l)
 
-   where      
-     f (p , SShape a) = Just (p , SShape [()]) 
-     f (p , _ ) = Nothing
+--    where      
+--      f (p , SShape a) = Just (p , SShape [()]) 
+--      f (p , _ ) = Nothing
 
-     g (p , _) i = (p , SShape (nthColor i))
+--      g (p , _) i = (p , SShape (nthColor i))

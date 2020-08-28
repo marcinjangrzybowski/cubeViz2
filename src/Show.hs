@@ -232,6 +232,7 @@ showDrawing :: Colorlike a => Drawing (MetaColor a) -> IO ()
 showDrawing drw0 =
   do
      let drw = toDrawingGL drw0
+     -- putStr (show (fmap (const ()) drw0) )
      GLFW.init
      GLFW.defaultWindowHints
      Just win <- GLFW.createWindow 640 480 "CubeViz2" Nothing Nothing

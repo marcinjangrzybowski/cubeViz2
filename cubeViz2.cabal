@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cc03cc65a5d5a206399379b8897ef69adfa659edf7531d1223d974fdb039787e
+-- hash: 305a1ce1ed1a20a4c67b57883b31df68f57cd497619273bd6273066557d68872
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -42,6 +42,7 @@ library
       Lib
       LoadShaders
       PiecesEval
+      Proc
       Reorientable
       Show
       Show3d

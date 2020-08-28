@@ -17,6 +17,7 @@ import Data.Bifunctor
 import Data.List.Split
 import Data.Maybe
 
+
 import Combi
 
 -- data IExpr =
@@ -417,6 +418,21 @@ mkCType e c (bTy , faces) =
   then (Right (CType bTy faces))
   else (Left "faces of wrong dimension")
 
+
+getExprFace :: Face -> (Context , Expr) -> (Context , Expr)
+getExprFace fc@(Face _ fc2) (ctx , expr0) =
+  if (not ((getDim fc) == (length $ unConstrainedDimsOnly ctx)))
+  then error "face dimension not maching expresion"
+  else
+    let ctx2 = addSFConstraintToContext (faceToSubFace2 fc2) ctx
+        expr2 =
+          case expr0 of
+            HComp nm pa ex -> undefined
+            Var vi tl ->
+               let tl2 = undefined
+               in undefined
+            ILam _ _ -> error "apptempt to get face of lambda Expr" 
+    in (ctx2 , undefined)
 
 mkHcomp ::  Env -> Context -> (String , Partial , Expr) -> Either String Expr
 mkHcomp env c (s , pa , e) =

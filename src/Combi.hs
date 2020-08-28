@@ -63,6 +63,10 @@ instance Show Face where
 data SubFace = SubFace Int (Map.Map Int Bool)
   deriving (Eq , Ord)
 
+
+sfMissing :: SubFace -> Subset
+sfMissing (SubFace n m) = Subset n (Set.difference (Set.fromList (range n)) (Map.keysSet m))
+
 toFace :: SubFace -> Maybe Face
 toFace (SubFace n sfm) =
   case (Map.toList sfm) of
@@ -126,6 +130,9 @@ class Ord a => ListInterpretable a b | a -> b where
   mapOnAllLI g (FromLI n f) = map (\x -> g x (f x)) (genAllLI n)
     
 instance OfDim (SubFace) where
+  getDim = sizeLI
+
+instance OfDim (Face) where
   getDim = sizeLI
 
 instance OfDim (Subset) where
@@ -330,5 +337,24 @@ traverseMapAndKeys :: (Ord k , Ord l , Applicative f) =>
 traverseMapAndKeys f x =
    Map.fromList <$> ((traverse f) $ Map.toList x)  
 
+whereJust :: [Maybe a] -> [(Int, a)]
+whereJust = fmap fromJust . filter isJust . zipWith (\i -> fmap ((,) i) ) [0..]
 
 
+
+
+
+--- possible isoin  cubicla agda, by some quotient
+intoRuns :: [ Either a b ] -> [ Either [a] [b] ]
+intoRuns = foldr (flip f) []
+  where
+    f :: [ Either [a] [b] ] -> Either a b -> [ Either [a] [b] ] 
+    f [] z = pure $ (Bf.bimap pure pure) z
+    f (x : xs) z =
+      case (z , x) of
+        (Left zz , Left ys) -> (Left (zz : ys)) : xs 
+        (Right zz , Right ys) -> (Right (zz : ys)) : xs
+        _ ->  (Bf.bimap pure pure) z : (x : xs)
+
+fromRuns :: [ Either [b] [c] ] ->  [ Either b c ]
+fromRuns = concat . fmap (either (fmap Left) (fmap Right))

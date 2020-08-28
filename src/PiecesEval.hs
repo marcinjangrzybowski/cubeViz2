@@ -53,6 +53,7 @@ iExprPE (su@(Subset _ suS) , pm@(Permutation pmm)) =
     -- g = maximum . (fmap (minimum))
     g =  maximumBy cmp . (fmap (minimumBy cmp))  
      
+-- (fmap (iExprPE . enumerate 1) [0 , 1]) <$> [end True , end False ]
 
 -- reorientExpr :: CellExpr -> [ Either Bool (Int, Bool) ] -> PieceExpr
 -- reorientExpr = undefined

@@ -22,6 +22,7 @@ import FloatTools
 
 import Data.Bool
 import Data.List
+import qualified Data.Set as Set
 
 import Data.Tuple.Extra
 
@@ -31,8 +32,8 @@ import Reorientable
 
 defaultCompPar = 0.3      
 
-hcompDrawings :: (Drawing a) -> (Map.Map Face (Drawing a)) -> Drawing a 
-hcompDrawings bot sides =
+hcompDrawingsOnlyFaces :: (Drawing a) -> (Map.Map Face (Drawing a)) -> Drawing a 
+hcompDrawingsOnlyFaces bot sides =
    combineDrawings
     ((mapCoords (map $ centerTransInv defaultCompPar) bot) :
       (map snd
@@ -44,12 +45,48 @@ hcompDrawings bot sides =
              $ ambFnOnArr
              $ (sideTransInv defaultCompPar True) fc)
              . transposeDrw i
-          ) sides)
+          ) sides))
+
+
+subFaceTrans :: SubFace -> Drawing (MetaColor a) -> Drawing (MetaColor a)
+subFaceTrans sf@(SubFace n m) drw =
+  case (Map.toList m) of
+    [] -> emptyDrawing
+    -- _ : [] -> emptyDrawing 
+    (i , b)  : js ->
+      let augmentedWithMissingTail =
+             foldl (flip (\(i , b) -> embed (i - 1) (const $ if b then 1.0 else 0.0)))
+               (drw) js
+
+          transformed = (mapCoords
+             $ ambFnOnArr
+             $ (sideTransInv defaultCompPar True) (Face n (i , b)))
+             $ transposeDrw i (augmentedWithMissingTail)
+
+          extruded = 
+            foldl (flip
+               (\ (k , (i , b)) -> extrude (fmap ((*) (-0.1)) (versor n i)) ))
+              transformed (zip [0..] js)
+      in extruded
+
+hcompDrawings :: (Drawing (MetaColor a))
+     -> (Map.Map SubFace (Drawing (MetaColor a)))
+     -> Drawing (MetaColor a) 
+hcompDrawings bot sides =
+   combineDrawings
+    (
+      (mapCoords (map $ centerTransInv defaultCompPar) (bot)) :
+      (map snd
+       $ Map.toList
+       $ Map.mapWithKey subFaceTrans sides)
      ) 
+    
 
 
-collectDrawings :: Cub a (Drawing b) -> (Drawing b)
-collectDrawings = foldFaces hcompDrawings
+collectDrawings :: Cub a (Drawing (MetaColor b)) -> (Drawing (MetaColor b))
+collectDrawings =
+  -- foldSubFaces hcompDrawings
+  foldFaces hcompDrawingsOnlyFaces
 
 
 
@@ -227,7 +264,7 @@ instance DrawingCtx Stripes1 (Color) (Maybe (Either Color (Color , Color) , [Int
            
             ( (1 , [[0.2],[0.25]])  , c0   )
            -- , ( (1 , [[0.45],[0.55]])  , gray 0.5   )
-           ,( (1 , [[0.75],[0.8]])  , c1   )
+           ,( (1 , [[0.65],[0.7]])  , c1   )
            ]
      in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
     
@@ -262,7 +299,7 @@ instance DrawingCtx Field1 (Color) ((Either Color (Color , Color) , [Int])) wher
          -- d0 = translate (replicate k 0.4)  $
          --          scale 0.2 $ Drawing [ ( unitHyCube (k)  , gray 0.3   ) ]
 
-         d0 = grid k 6 (gray 0.4)
+         d0 = grid k 3 (gray 0.4)
 
          dg :: [Int]
          dg = [ length $ takeWhile id $ zipWith (==) dg0 [0..]  ]
