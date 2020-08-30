@@ -1,26 +1,8 @@
 #version 430 core
 
 layout(location = 0) in vec4 vPosition;
-
-layout(location = 1) in vec2 Ctrl;
-
-layout(location = 2) in vec3 M0;
-layout(location = 3) in vec3 M1;
-layout(location = 4) in vec3 M2;
-layout(location = 5) in vec3 M3;
-
-layout(location = 6) in vec4 Color;
-
-layout(location = 7) in vec3 Normal;
-
-out vec3 MM0;
-out vec3 MM1;
-out vec3 MM2;
-out vec3 MM3;
-
-out vec2 vCtrl;
-
-out vec4 vPos;
+layout(location = 1) in vec3 Normal;
+layout(location = 2) in vec4 Color;
 
 out vec4 vCol;
 
@@ -84,15 +66,6 @@ main()
 
    vNor = Normal;
 
-   vPos = vPosition;
-
-   MM0 = M0;
-   MM1 = M1;
-   MM2 = M2;
-   MM3 = M3;
-
-   vCtrl = Ctrl;
-
    float n , r , t , f ;
 
    mat4 frustum;
@@ -121,5 +94,6 @@ main()
 		    ( anglesToAxes(euler) *
 		   (vec4(1.0 , 1.0 , 1.0 , 1.0) * ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
 		      - vec4(0.5 , 0.5 , 0.5 , 0.0)))))));
-   
+
+   gl_PointSize = 5.0;
 }

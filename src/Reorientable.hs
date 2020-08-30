@@ -2,7 +2,7 @@
 module Reorientable where
 
 
-import Drawing.Base
+import Drawing.Color
 
 import Syntax
 

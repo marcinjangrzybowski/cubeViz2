@@ -7,7 +7,7 @@ module Abstract where
 
 import Syntax
 
-import Drawing.Base
+-- import Drawing.Base
 
 import Data.Maybe
 import Data.Bifunctor
@@ -37,8 +37,8 @@ instance Bifunctor Cub where
 
 
 
-instance OfDim (Drawing a) where
-  getDim = fromMaybe 0 . getDrawingDim
+-- instance OfDim (Drawing a) where
+--   getDim = fromMaybe 0 . getDrawingDim
 
 instance OfDim t => OfDim (Cub t a) where
   getDim (Cub t _) = getDim t 
