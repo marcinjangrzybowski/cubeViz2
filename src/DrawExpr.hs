@@ -210,13 +210,17 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
 -- XXXX
 
 
-instance DrawingCtx () () Int where    
+instance DrawingCtx () Color Int where    
   fromCtx _ = ()
   drawGenericTerm ((env , ctx) , e) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
   drawD _ 0 = FromLI 0 (const [])
   drawD _ 1 =
-    FromLI 1 (bool [([[0.2],[0.3]] , ())] [([[0.6],[0.7]] , ())] . fst . head . toListLI)
+    -- FromLI 1 (bool [([[0.2],[0.3]] , nthColor 1)] [([[0.6],[0.7]] , nthColor 2)] . fst . head . toListLI)
+
+    FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
+    -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
+
     -- FromLI 1 (bool [([[0.2]] , ()) , ([[0.3]] , ())]
     --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
     --            . fst . head . toListLI)
@@ -225,7 +229,8 @@ instance DrawingCtx () () Int where
   
   drawCellCommon ee@((env , ctx) , e) _ _ =
      let n = getDim ee
-     in translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
+     in fmap (Bf.second $ const $ gray 0.5)
+          $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
  
      -- let rDrw = ()
  

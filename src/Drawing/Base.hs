@@ -11,6 +11,8 @@ import Data.List
 import Data.Bool
 -- import Data.Floating.Classes
 
+import PiecesEval
+
 import Combi
 
 import Drawing.Color
@@ -31,6 +33,8 @@ class InSpace a where
   translate :: [Float] -> a -> a
   translate x = sMap (zipWith (+) x)
   
+  scaleOrigin :: Float -> [Float] -> a -> a
+  scaleOrigin s o = (translate o) . scale s  . (translate $ (map negate) o)
 
 instance {-# OVERLAPPING #-} InSpace [Float] where
   sMap = id
@@ -73,7 +77,8 @@ toRenderable ([[ x0 , y0 , z0 ]]) = Just $ Point (x0 , y0 , z0)
 toRenderable _ = Nothing
 
 
--- ignores when aproching unrenderable
+-- when aproching Simplex of too high dimension, recurenty takes skeletons until land on renderable symplexes
+
 toRenderableForce :: Smplx -> [Renderable]
 toRenderableForce l =
   maybe (explode l >>= toRenderableForce) pure $ (toRenderable l) 
@@ -137,32 +142,69 @@ extrude k (f0 , f1) =
 type ZDrawing a = FromLI Piece (Drawing a)
 
 
+     
+    
 -- dim is dimention of input,
 pieceHyperPlanes :: (Bool , Int) -> Piece -> ([Float] -> Float , [Float] -> Float)
-pieceHyperPlanes (b , j) pc@( crnr@(Subset dim _) , pmr) =
-   if b
-   then mapBoth ((.) (\x -> 1.0 - x)) hyperPlane
-   else hyperPlane
+pieceHyperPlanes (b , j0) pc0@( (Subset dim _) , _) = ( hyperPlanes !! j , hyperPlanes !! (j + 1) ) 
+
   where
-    crnrB = toListLI crnr 
+
+    pc = pc0
     
-    hyperPlanes :: [[Float] -> Float]
-    hyperPlanes =
+    hyperPlanes0 =
+       sortBy (pieceComp pc)
+       ((fmap (flip (,) False) (range dim)) ++ (fmap (flip (,) True) (range dim)))
+    
+    
+    hyperPlanes1 :: [[Float] -> Float]
+    hyperPlanes1 =
+       let (hF , hT) = halves $ fmap (\(k , bb) -> \pt -> evalNegFloat bb (pt !! k) )  hyperPlanes0
+       in
        [const 0]
          ++
-       (fmap (flip (!!)) $ (toListLI pmr))
+          hF
          ++
        [const 0.5]
+         ++
+         hT
+         ++
+       [const 1.0]
 
-    hyperPlane = ( hyperPlanes !! j , hyperPlanes !! (j + 1) ) 
+    hyperPlanes = 
+       if b then reverse hyperPlanes1 else hyperPlanes1
+
+    j = dim - j0
 
 degen :: Int -> ZDrawing a -> ZDrawing a
 degen k (FromLI n f) =
+
+   -- fmap (scaleRelToCenter 1.01)
+  
    (FromLI (n + 1)
      (\pc ->
-        let ((crnr , side) , pcPrj ) = projectSplit k pc              
+        let ((crnr , side) , pcPrj ) = projectSplit k ( pc)              
         in extrude k (pieceHyperPlanes (crnr , side) pcPrj) (f pcPrj) )
    )
+
+
+
+
+centerOf :: Smplx -> [Float]
+centerOf [] = error "illegal simplex"
+centerOf pts = map average $ transpose pts
+
+
+  
+scaleRelToCenter :: Float -> Drawing a -> Drawing a
+scaleRelToCenter f =
+  map $ first $
+    (\pts ->
+       let center = centerOf pts
+       in scaleOrigin f center pts
+     )
+
+
 
 degenAll :: [Int] -> ZDrawing a -> ZDrawing a
 degenAll ds x = foldl (flip degen) x ds

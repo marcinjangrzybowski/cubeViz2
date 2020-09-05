@@ -24,24 +24,10 @@ import qualified Data.Bifunctor as Bf
 
 import Debug.Trace
 
-xor :: Bool -> Bool -> Bool
-xor b False = b
-xor b True = not b
+import DataExtra
 
-negCompIf :: Bool -> Ordering -> Ordering
-negCompIf True LT = GT
-negCompIf True GT = LT
-negCompIf _ x = x
-
-
-iExprPE :: Piece -> IExpr -> Either Bool (Int , Bool)
-iExprPE (su@(Subset _ suS) , pm@(Permutation pmm)) =
-  setSetElim (Left False) (Left True)
-    (Right . g)
-  where
-    
-    cmp :: (Int , Bool) -> (Int , Bool) -> Ordering
-    cmp (x , xb) (y , yb) =
+pieceComp :: Piece -> (Int , Bool) -> (Int , Bool) -> Ordering
+pieceComp (su@(Subset _ suS) , pm@(Permutation pmm)) (x , xb) (y , yb) = 
       let xB = (xor (not (Set.member x suS)) xb)
           yB = (xor (not (Set.member y suS)) yb)
       in
@@ -49,6 +35,14 @@ iExprPE (su@(Subset _ suS) , pm@(Permutation pmm)) =
         EQ -> negCompIf xB (compare (pmm ! y) (pmm ! x))
         z -> z
 
+iExprPE :: Piece -> IExpr -> Either Bool (Int , Bool)
+iExprPE pc =
+  setSetElim (Left False) (Left True)
+    (Right . g)
+  where
+    
+    cmp = pieceComp pc
+    
     g :: [[(Int,Bool)]] -> (Int , Bool)
     -- g = maximum . (fmap (minimum))
     g =  maximumBy cmp . (fmap (minimumBy cmp))  

@@ -7,7 +7,7 @@ import Data.List
 tpl2arr (x , y) = [x , y]
 trpl2arr (x , y , z) = [x , y , z]
 
-range k = take k [0,1..]
+range k = take k [0..]
 
 
 explode :: [a] -> [[a]]
@@ -36,3 +36,25 @@ listPopAt k (x : xs) = second ((:) x) $ listPopAt (k - 1) ( xs)
 transposeTuples ((a , b) , (c , d)) = ((a , c) , (b , d))
 
 mapBoth f = bimap f f
+
+average :: (Real a , Fractional b) => [a] -> b
+average [] = error "attempt to took average of empty list"
+average xs = realToFrac (sum xs) / genericLength xs
+
+halves :: [a] -> ([a] , [a])
+halves l =
+  let hl = div (length l) 2 
+  in (take hl l , drop hl l) 
+
+evalNegFloat :: Bool -> Float -> Float
+evalNegFloat False x = (1 - x)
+evalNegFloat True x = x
+
+xor :: Bool -> Bool -> Bool
+xor b False = b
+xor b True = not b
+
+negCompIf :: Bool -> Ordering -> Ordering
+negCompIf True LT = GT
+negCompIf True GT = LT
+negCompIf _ x = x
