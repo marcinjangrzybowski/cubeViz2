@@ -28,6 +28,9 @@ import qualified Data.Bifunctor as Bf
 
 import Data.Bool
 
+import DataExtra
+
+import Data.Semigroup
 
 factorial :: Int -> Int
 factorial n = 
@@ -86,7 +89,6 @@ data Never a = Never
 
 
 
-range k = take k [0,1..]
 
 
 class OfDim a where
@@ -128,6 +130,12 @@ class Ord a => ListInterpretable a b | a -> b where
 
   mapOnAllLI :: (a -> d -> c) -> FromLI a d -> [c]
   mapOnAllLI g (FromLI n f) = map (\x -> g x (f x)) (genAllLI n)
+
+  project :: Int -> a -> a
+  project k = fromListLI . listRemove k . toListLI
+
+  projectSplit :: Int -> a -> (b , a)
+  projectSplit k a = Bf.second fromListLI (listPopAt k (toListLI a))
     
 instance OfDim (SubFace) where
   getDim = sizeLI
@@ -141,6 +149,9 @@ instance OfDim (Subset) where
 instance OfDim (Permutation) where
   getDim = sizeLI  
 
+instance OfDim (Piece) where
+  getDim = sizeLI  
+
 -- instance OfDim (Face) where
 --   getDim = sizeLI
   
@@ -149,14 +160,12 @@ mapListIndexed f = map (uncurry f) . zip [0..]
 
 
 
-listInsert :: Int -> a -> [a] -> [a]
-listInsert 0 a l = a : l
-listInsert _ a [] = [a]
-listInsert k a (x : xs) = x : listInsert (k - 1) a xs 
 
 listPermute2 :: Permutation2 -> [a] -> [a]
 listPermute2 (Permutation2 pm2) = foldr (uncurry listInsert) [] . zip pm2
 
+listPermute :: Permutation -> [a] -> [a]
+listPermute = (\ks -> \xs -> fmap ((!!) xs) ks) . toListLI
 
 
 updateAt :: a -> Int -> [a] ->   [a]
@@ -195,6 +204,12 @@ instance ListInterpretable Permutation Int where
 
   fromListLI = Permutation . Map.fromList . mapListIndexed (,)
 
+  
+  projectSplit k a =
+    let (j , l) = (listPopAt k (toListLI a))
+    in (j , fromListLI $ fmap (\x -> if x >= j then x - 1 else x) l)
+      
+  project k = snd . projectSplit k
 
 instance ListInterpretable Subset Bool where
   cardLI _ n = 2 ^ n 
@@ -251,7 +266,8 @@ instance Show Subset where
   show = concat . map (\b -> if b then "-" else "+") . toListLI
 
 
-type Piece = (Subset , Permutation)
+type Piece
+  = (Subset , Permutation)
 
 instance ListInterpretable Piece (Bool , Int) where  
   cardLI _ n = cardLI (Never :: (Never Subset)) n * cardLI (Never :: (Never Permutation)) n  
@@ -270,6 +286,9 @@ instance ListInterpretable Piece (Bool , Int) where
   fromListLI = Bf.bimap fromListLI fromListLI . unzip
 
 
+  project k = Bf.bimap (project k) (project k) 
+
+  projectSplit k = transposeTuples . Bf.bimap (projectSplit k) (projectSplit k)
 
 instance ListInterpretable Face (Maybe Bool) where
 
@@ -290,6 +309,23 @@ instance ListInterpretable Face (Maybe Bool) where
   
 
 data FromLI a c = FromLI Int (a -> c)
+
+instance (ListInterpretable a b , Semigroup c) => Semigroup (FromLI a c) where 
+ (<>) (FromLI i f) (FromLI j g) =
+    if i == j
+    then FromLI i (\x -> f x <> g x)
+    else error "unable to concatenate FromLI of diferent dimensions"
+
+
+evalLI :: (ListInterpretable a b , Monoid c) =>
+               FromLI a (FromLI a c) -> c 
+evalLI = foldl (<>) mempty . toListFLI . fromLIppK (\a -> \(FromLI _ f) -> f a)
+
+appLI :: (ListInterpretable a b) => a -> FromLI a c -> c
+appLI a (FromLI n f) =
+  if (sizeLI a == n)
+  then f a
+  else (error $ "argument of wrong dimension! " ++ (show (sizeLI a)) ++ " "  ++ (show n))
 
 fromLIppK :: (a -> c -> b) -> FromLI a c -> FromLI a b
 fromLIppK f (FromLI n g) = FromLI n (\x -> f x $ g x) 

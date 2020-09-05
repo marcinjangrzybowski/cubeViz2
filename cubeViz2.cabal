@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 961700b9d1ae4bd5f4153ec0e664f4eff9514c0b49634850635a1e1acc477f05
+-- hash: 3511f8f237bcdabeed81ddfed23acade0699a1b3b97e312201c537d73cf9a236
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -47,6 +47,7 @@ library
       PiecesEval
       Proc
       Reorientable
+      ShowExp
       Syntax
   other-modules:
       Paths_cubeViz2

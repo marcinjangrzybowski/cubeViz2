@@ -166,14 +166,14 @@ shutdown win = do
 onDisplay :: Window -> (Descriptor , Descriptor , Descriptor) -> IO ()
 onDisplay win dd@(ds0 , ds1 , ds2) = do
   GL.clearColor $= Color4 1 1 1 1
-  GLFW.swapInterval 0
+  -- GLFW.swapInterval 0
   GL.clear [ColorBuffer , DepthBuffer]
 
   blend $= Disabled
   vertexProgramPointSize $= Enabled
   clearDepth $= 1
   depthFunc $= Just Lequal
-  -- cullFace $= Nothing
+  cullFace $= Nothing
   lineWidth $= 2
   now <- GLFW.getTime
   -- blendFunc $= (SrcAlpha , OneMinusSrcAlpha)
@@ -218,7 +218,37 @@ render rs =
 
 
 
-test :: IO ()
-test =
+testRen :: IO ()
+testRen =
   do putStr "drawing test"
      render ex1ren
+
+
+testSf :: IO ()
+testSf =
+  do putStr "drawing test"
+     render (toRenderables ex2drw)
+
+testForce :: IO ()
+testForce =
+  do putStr "drawing test force"
+     render (toRenderablesForce ex2drw)
+
+
+testHycu :: IO ()
+testHycu =
+  do putStr "drawing test force"
+     render (toRenderables (D.scale 0.5 $ (unitHyCubeSkel 3 2)))
+
+
+test = testHycu
+
+data RenderMode = Raw
+
+renderAs :: (Colorlike a) => Drawing.GL.RenderMode -> Drawing a -> IO () 
+renderAs Raw dw = render (toRenderablesForce dw)
+  
+  
+
+
+

@@ -31,35 +31,35 @@ import PiecesEval
 
 import Reorientable
 
--- defaultCompPar = 0.3      
+defaultCompPar = 0.3      
 
--- hcompDrawingsOnlyFaces :: (Drawing a) -> (Map.Map Face (Drawing a)) -> Drawing a 
--- hcompDrawingsOnlyFaces bot sides =
---    combineDrawings
---     ((mapCoords (map $ centerTransInv defaultCompPar) bot) :
---       (map snd
---        $ Map.toList
---        $ Map.mapWithKey (
---           \fc@(Face n (i , b)) ->
+hcompDrawingsOnlyFaces :: (Drawing a) -> (Map.Map Face (Drawing a)) -> Drawing a 
+hcompDrawingsOnlyFaces bot sides =
+   concat
+    ((sMap (map $ centerTransInv defaultCompPar) bot) :
+      (map snd
+       $ Map.toList
+       $ Map.mapWithKey (
+          \fc@(Face n (i , b)) ->
              
---               (mapCoords
---              $ ambFnOnArr
---              $ (sideTransInv defaultCompPar True) fc)
---              . transposeDrw i
---           ) sides))
+              (sMap
+             $ ambFnOnArr
+             $ (sideTransInv defaultCompPar True) fc)
+             . transposeDrw i
+          ) sides))
 
 
--- subFaceTrans :: SubFace -> Drawing (MetaColor a) -> Drawing (MetaColor a)
+-- subFaceTrans :: SubFace -> Drawing a -> Drawing a
 -- subFaceTrans sf@(SubFace n m) drw =
 --   case (Map.toList m) of
---     [] -> emptyDrawing
+--     [] -> mempty
 --     -- _ : [] -> emptyDrawing 
 --     (i , b)  : js ->
 --       let augmentedWithMissingTail =
 --              foldl (flip (\(i , b) -> embed (i - 1) (const $ if b then 1.0 else 0.0)))
 --                (drw) js
 
---           transformed = (mapCoords
+--           transformed = (sMap
 --              $ ambFnOnArr
 --              $ (sideTransInv defaultCompPar True) (Face n (i , b)))
 --              $ transposeDrw i (augmentedWithMissingTail)
@@ -84,10 +84,10 @@ import Reorientable
     
 
 
--- collectDrawings :: Cub a (Drawing (MetaColor b)) -> (Drawing (MetaColor b))
--- collectDrawings =
---   -- foldSubFaces hcompDrawings
---   foldFaces hcompDrawingsOnlyFaces
+collectDrawings :: Cub a (Drawing b) -> (Drawing b)
+collectDrawings =
+  -- foldSubFaces hcompDrawings
+  foldFaces hcompDrawingsOnlyFaces
 
 
 
@@ -107,8 +107,8 @@ import Reorientable
 
 -- -- type Step1 = 
 
--- type CellPainter b = 
---        (Int -> ((Env , Context) , Expr) -> Address -> CellExpr -> Either String (Drawing (MetaColor b)))
+type CellPainter b = 
+       (Int -> ((Env , Context) , Expr) -> Address -> CellExpr -> Either String (Drawing b))
 
 -- type CellPainterT = 
 --        (Int -> ((Env , Context) , Expr) -> Address -> CellExpr -> Either String DrawingGL)
@@ -153,23 +153,38 @@ import Reorientable
 -- -- type CellExprPainter a = ((Env , Context) , Expr) -> 
 
 
--- class (Colorlike b , Diagonable d) => DrawingCtx a b d | a -> b d where
---   fromCtx :: (Env , Context) -> a
 
---   drawGenericTerm :: ((Env , Context) , Expr) -> a -> Piece -> VarIndex -> d
+class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
+  -- a is precomputed data, config, COMMON FOR ALL CELLS,
+  -- c is some abstract escriptoon
+  -- b is colorlike
 
---   --Drawing b
+  fromCtx :: (Env , Context) -> a
 
---   drawD :: Never a -> d -> Drawing b
 
---   drawCellCommon :: ((Env , Context) , Expr) -> a -> CellExpr -> Drawing b
---   drawCellCommon _ _ _ = emptyDrawing
+  -- HERE PIECE ARGUMENT IS ADDITIONAL!!!, for future application!
+  drawGenericTerm :: ((Env , Context) , Expr) -> a -> Piece -> VarIndex -> c
+
+  --Drawing b
+
+  drawD :: Never a -> c -> ZDrawing b
+
+  drawCellCommon :: ((Env , Context) , Expr) -> a -> CellExpr -> Drawing b
+  drawCellCommon _ _ _ = []
   
---   drawCellPiece :: ((Env , Context) , Expr) -> a -> Piece -> PieceExpr -> Drawing b  
---   drawCellPiece eee@((_ , ctx) , _) a pc (PieceExpr h t) =
---      -- let t2 = fmap (Bf.first $ toDimI ctx) t
---      -- in    
---      drawD (forget a) $ remapTL (getDim eee) t $ drawGenericTerm eee a pc h
+  drawCellPiece :: ((Env , Context) , Expr) -> a -> PieceExpr -> (Piece -> Drawing b)  
+  drawCellPiece eee@((_ , ctx) , _) a (PieceExpr h t) =     
+     (\pc -> appLI pc (remapTL (drawD (forget a)) (getDim eee) t $ drawGenericTerm eee a pc h))
+
+
+  cellPainter :: Never a -> a -> CellPainter b
+  cellPainter na dctx n eee@(ee@(env , ctx) ,  expr) adr ce =
+     let zz = fmap (FromLI n . (drawCellPiece eee dctx)) (piecesEval ee ce)
+     in Right $
+          drawCellCommon eee dctx ce
+            ++
+          (evalLI zz)
+            
 
 --   cellPainter :: Never a -> a -> CellPainter b
 --   cellPainter na dctx n eee@(ee@(env , ctx) ,  expr) adr ce = 
@@ -181,21 +196,41 @@ import Reorientable
 --        ]
 -- -- TODO dimension of eee
 
---   mkDrawExpr :: Never a  -> ((Env , Context) , Expr) -> Either String (Drawing (MetaColor b))
---   mkDrawExpr na w@( envCtx , _ ) =
---       let  dctx = fromCtx envCtx
---       in
+  mkDrawExpr :: Never a  -> ((Env , Context) , Expr) -> Either String (Drawing b)
+  mkDrawExpr na w@( envCtx , _ ) =
+      let  dctx = fromCtx envCtx
+      in
      
---       (    toCub
---       >>> cubMap (getDim w) (cellPainter na dctx) []
---       >>> fmap (collectDrawings)) w
+      (    toCub
+      >>> cubMap (getDim w) (cellPainter na dctx) []
+      >>> fmap (collectDrawings)) w
 
--- -- instance DrawingCtx () () where    
--- --   fromCtx _ _ = ()
--- --   drawGenericTerm _ _ _ _ =
--- --      let rDrw = ()
 
--- --      in  Drawing [ ( unitHyCube 1  , ()  ) ]
+
+-- XXXX
+
+
+instance DrawingCtx () () Int where    
+  fromCtx _ = ()
+  drawGenericTerm ((env , ctx) , e) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
+
+  drawD _ 0 = FromLI 0 (const [])
+  drawD _ 1 =
+    FromLI 1 (bool [([[0.2],[0.3]] , ())] [([[0.6],[0.7]] , ())] . fst . head . toListLI)
+    -- FromLI 1 (bool [([[0.2]] , ()) , ([[0.3]] , ())]
+    --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
+    --            . fst . head . toListLI)
+
+  drawD _ n = FromLI n (const [])
+  
+  drawCellCommon ee@((env , ctx) , e) _ _ =
+     let n = getDim ee
+     in translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
+ 
+     -- let rDrw = ()
+ 
+     -- in [ ( unitHyCube 1  , ()  ) ]
+ 
 
 -- instance DrawingCtx () (Color) (Maybe ((Int , Color) , [Int])) where    
 --   fromCtx _ = ()
@@ -311,7 +346,8 @@ import Reorientable
 --      -- in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
      
   
-  
+
+drawExpr = mkDrawExpr (forget ())
   
 -- drawExpr = mkDrawExpr (forget Stripes1)
           

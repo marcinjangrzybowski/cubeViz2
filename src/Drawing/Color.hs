@@ -21,22 +21,18 @@ data Color = Rgba Float Float Float Float
             
 gray x = Rgba x x x 1.0 
 
-color2arr (Rgba r g b a) = [r , g , b ,a] 
+color2arr (Rgba r g b a) = [r , g , b , a] 
 
 class Colorlike a where
   toColor :: a -> Color
 
-  toDrawingGL :: Functor b => b a -> b Color
-  toDrawingGL = fmap toColor
 
 instance Colorlike Color where
   toColor = id
 
-instance Colorlike (Color , b) where
-  toColor = fst
 
-instance Colorlike (b , Color) where
-  toColor = snd
+instance Colorlike a => Colorlike (b , a) where
+  toColor = toColor . snd
 
 instance Colorlike [Color] where
   toColor = head
