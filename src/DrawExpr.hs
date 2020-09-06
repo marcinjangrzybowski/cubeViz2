@@ -85,7 +85,7 @@ hcompDrawings bot sides =
     
 
 
-collectDrawings :: Cub a (Drawing b) -> (Drawing b)
+collectDrawings :: Cub (Drawing b) -> (Drawing b)
 collectDrawings =
   foldSubFaces hcompDrawings
   -- foldFaces hcompDrawingsOnlyFaces
@@ -105,48 +105,40 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
 
   fromCtx :: (Env , Context) -> a
 
+  -- IMPORTANT : (Env , Context) everywhere bellow is global! , cant be trustet with dimensions!! 
 
-  -- HERE PIECE ARGUMENT IS ADDITIONAL!!!, for future application!
-  drawGenericTerm :: a -> Piece -> VarIndex -> c
+  -- HERE PIECE ARGUMENT IS ADDITIONAL!!!, for some special application!
+  drawGenericTerm :: (Env , Context) -> a -> Piece -> VarIndex -> c
 
   --Drawing b
 
   drawD :: Never a -> c -> ZDrawing b
 
-  drawCellCommon :: a -> CellExpr -> Drawing b
-  drawCellCommon _ _ = []
+  drawCellCommon :: (Env , Context) -> a -> CellExpr -> Drawing b
+  drawCellCommon _ _ _ = []
   
-  drawCellPiece :: Int -> a -> PieceExpr -> (Piece -> Drawing b)  
-  drawCellPiece n a (PieceExpr h t) =     
-     (\pc -> appLI pc (remapTL (drawD (forget a)) n t $ drawGenericTerm a pc h))
+  drawCellPiece :: (Env , Context) -> Int -> a -> PieceExpr -> (Piece -> Drawing b)  
+  drawCellPiece ee n a (PieceExpr h t) =     
+     (\pc -> appLI pc (remapTL (drawD (forget a)) n t $ drawGenericTerm ee a pc h))
 
 
-  cellPainter :: Never a -> a -> CellPainter b
-  cellPainter na dctx n adr ce =
-     let zz = fmap (FromLI n . (drawCellPiece n dctx)) (piecesEval n ce)
+    -- 
+  cellPainter :: (Env , Context) -> Never a -> a -> CellPainter b
+  cellPainter ee na dctx n adr ce =
+     let zz = fmap (FromLI n . (drawCellPiece ee n dctx)) (piecesEval n ce)
      in Right $
-          drawCellCommon dctx ce
+          drawCellCommon ee dctx ce
             ++
           (evalLI zz)
             
 
---   cellPainter :: Never a -> a -> CellPainter b
---   cellPainter na dctx n eee@(ee@(env , ctx) ,  expr) adr ce = 
---     Right $
---      combineDrawings $ [
---        unmasked (drawCellCommon eee dctx ce)
---        ,
---        (combinePieces (fromLIppK (drawCellPiece eee dctx) (piecesEval ee ce)))
---        ]
--- -- TODO dimension of eee
-
   mkDrawExpr :: Never a  -> ((Env , Context) , Expr) -> Either String (Drawing b)
-  mkDrawExpr na w@( envCtx , _ ) =
+  mkDrawExpr na w@( envCtx , _ ) = 
       let  dctx = fromCtx envCtx
       in
      
-      (    toCub
-      >>> cubMap (getDim w) (undefined) []
+      ( toCub
+      >>> cubMap (cellPainter envCtx na dctx )  []
       >>> fmap (collectDrawings)) w
 
 
@@ -155,29 +147,29 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
 
 
 instance DrawingCtx () Color Int where    
-  -- fromCtx _ = ()
-  -- drawGenericTerm ((env , ctx) , e) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
+  fromCtx _ = ()
+  drawGenericTerm (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
-  -- drawD _ 0 = FromLI 0 (const [([[]]  , nthColor 4) ] )
-  -- drawD _ 1 =
-  --   -- FromLI 1 (bool [([[0.2],[0.3]] , nthColor 1)] [([[0.6],[0.7]] , nthColor 2)] . fst . head . toListLI)
+  drawD _ 0 = FromLI 0 (const [([[]]  , nthColor 4) ] )
+  drawD _ 1 =
+    -- FromLI 1 (bool [([[0.2],[0.3]] , nthColor 1)] [([[0.6],[0.7]] , nthColor 2)] . fst . head . toListLI)
 
-  --   FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
-  --   -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
+    FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
+    -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
 
-  --   -- FromLI 1 (bool [([[0.2]] , ()) , ([[0.3]] , ())]
-  --   --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
-  --   --            . fst . head . toListLI)
+    -- FromLI 1 (bool [([[0.2]] , ()) , ([[0.3]] , ())]
+    --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
+    --            . fst . head . toListLI)
 
-  -- drawD _ n = FromLI n (const [])
+  drawD _ n = FromLI n (const [])
   
-  -- drawCellCommon ee@((env , ctx) , e) _ _ =
-  --    let n = getDim ee
-  --    in
-  --      if n > 1
-  --      then  fmap (Bf.second $ const $ gray 0.5)
-  --              $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
-  --      else []
+  drawCellCommon ee@(env , ctx) _ _ =
+     let n = getDim ee
+     in
+       if n > 1
+       then  fmap (Bf.second $ const $ gray 0.5)
+               $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
+       else []
 
 
 

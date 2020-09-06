@@ -76,6 +76,8 @@ toFace (SubFace n sfm) =
     [ x ] -> Just (Face n x)
     _ -> Nothing
 
+toSubFace :: Face -> SubFace
+toSubFace (Face n fc) = SubFace n (Map.fromList [fc])
 
 fullSF :: Int -> SubFace 
 fullSF = flip SubFace (Map.empty)

@@ -87,21 +87,21 @@ class FromCub a c where
 
 
 instance ToCub ((Env , Context) , Expr) CellExpr where
-  toCub ee@((env , ct) , (HComp n pa e)) =
-       let ct2 = addDimToContext ct n
+  toCub ee@((env , ct) , (HComp nam pa e)) =
+       let ct2 = addDimToContext ct nam
            dim = getDim ee
            pa2 = Map.mapKeys (SubFace dim . Map.mapKeys (toDimI ct2)) $
                  Map.mapWithKey (\sf -> toCub . ((env , addSFConstraintToContext sf ct2),)) pa
            b   = (toCub ((env , ct) , e))
-       in (Hcomp ee n pa2 b)
+       in (Hcomp nam pa2 b)
 
-  toCub ee@((env , ct) , (Var vI tl)) = Cub ee (remapCE (toDimI ct) (CellExpr vI tl))  
-  toCub ee@((env , ct) , (ILam n x)) = toCub (first (second (flip addDimToContext n)) ee) 
+  toCub ee@((env , ct) , (Var vI tl)) = Cub (getDim ee) (remapCE (toDimI ct) (CellExpr vI tl))  
+  toCub ee@((env , ct) , (ILam nam x)) = toCub (first (second (flip addDimToContext nam)) ee) 
 
 
-
--- -- makeGrid :: Int -> Int -> Cub () ()
--- -- makeGrid dim 0 = Cub () ()
--- -- makeGrid dim depth =
--- --   let prev = (makeGrid dim (depth - 1))
--- --   in Hcomp () "z" (Map.fromList $ map (flip (,) prev) (map faceToSubFace2 (allFaces dim)) ) prev 
+-- UNTESTED IN ANY WAY
+makeGrid :: Int -> Int -> Cub ()
+makeGrid dim 0 = Cub 0 ()
+makeGrid dim depth =
+  let prev = (makeGrid dim (depth - 1))
+  in Hcomp "z" (Map.fromList $ map (flip (,) prev) (map toSubFace (genAllLI dim)) ) prev 
