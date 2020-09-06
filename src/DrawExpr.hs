@@ -93,7 +93,7 @@ collectDrawings =
 
 
 type CellPainter b = 
-       (Int -> ((Env , Context) , Expr) -> Address -> CellExpr -> Either String (Drawing b))
+       (Int -> Address -> CellExpr -> Either String (Drawing b))
 
 
 
@@ -107,25 +107,25 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
 
 
   -- HERE PIECE ARGUMENT IS ADDITIONAL!!!, for future application!
-  drawGenericTerm :: ((Env , Context) , Expr) -> a -> Piece -> VarIndex -> c
+  drawGenericTerm :: a -> Piece -> VarIndex -> c
 
   --Drawing b
 
   drawD :: Never a -> c -> ZDrawing b
 
-  drawCellCommon :: ((Env , Context) , Expr) -> a -> CellExpr -> Drawing b
-  drawCellCommon _ _ _ = []
+  drawCellCommon :: a -> CellExpr -> Drawing b
+  drawCellCommon _ _ = []
   
-  drawCellPiece :: ((Env , Context) , Expr) -> a -> PieceExpr -> (Piece -> Drawing b)  
-  drawCellPiece eee@((_ , ctx) , _) a (PieceExpr h t) =     
-     (\pc -> appLI pc (remapTL (drawD (forget a)) (getDim eee) t $ drawGenericTerm eee a pc h))
+  drawCellPiece :: Int -> a -> PieceExpr -> (Piece -> Drawing b)  
+  drawCellPiece n a (PieceExpr h t) =     
+     (\pc -> appLI pc (remapTL (drawD (forget a)) n t $ drawGenericTerm a pc h))
 
 
   cellPainter :: Never a -> a -> CellPainter b
-  cellPainter na dctx n eee@(ee@(env , ctx) ,  expr) adr ce =
-     let zz = fmap (FromLI n . (drawCellPiece eee dctx)) (piecesEval ee ce)
+  cellPainter na dctx n adr ce =
+     let zz = fmap (FromLI n . (drawCellPiece n dctx)) (piecesEval n ce)
      in Right $
-          drawCellCommon eee dctx ce
+          drawCellCommon dctx ce
             ++
           (evalLI zz)
             
@@ -146,7 +146,7 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
       in
      
       (    toCub
-      >>> cubMap (getDim w) (cellPainter na dctx) []
+      >>> cubMap (getDim w) (undefined) []
       >>> fmap (collectDrawings)) w
 
 
@@ -155,32 +155,33 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
 
 
 instance DrawingCtx () Color Int where    
-  fromCtx _ = ()
-  drawGenericTerm ((env , ctx) , e) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
+  -- fromCtx _ = ()
+  -- drawGenericTerm ((env , ctx) , e) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
-  drawD _ 0 = FromLI 0 (const [([[]]  , nthColor 4) ] )
-  drawD _ 1 =
-    -- FromLI 1 (bool [([[0.2],[0.3]] , nthColor 1)] [([[0.6],[0.7]] , nthColor 2)] . fst . head . toListLI)
+  -- drawD _ 0 = FromLI 0 (const [([[]]  , nthColor 4) ] )
+  -- drawD _ 1 =
+  --   -- FromLI 1 (bool [([[0.2],[0.3]] , nthColor 1)] [([[0.6],[0.7]] , nthColor 2)] . fst . head . toListLI)
 
-    FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
-    -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
+  --   FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
+  --   -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
 
-    -- FromLI 1 (bool [([[0.2]] , ()) , ([[0.3]] , ())]
-    --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
-    --            . fst . head . toListLI)
+  --   -- FromLI 1 (bool [([[0.2]] , ()) , ([[0.3]] , ())]
+  --   --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
+  --   --            . fst . head . toListLI)
 
-  drawD _ n = FromLI n (const [])
+  -- drawD _ n = FromLI n (const [])
   
-  drawCellCommon ee@((env , ctx) , e) _ _ =
-     let n = getDim ee
-     in
-       if n > 1
-       then  fmap (Bf.second $ const $ gray 0.5)
-               $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
-       else []
-     -- let rDrw = ()
- 
-     -- in [ ( unitHyCube 1  , ()  ) ]
+  -- drawCellCommon ee@((env , ctx) , e) _ _ =
+  --    let n = getDim ee
+  --    in
+  --      if n > 1
+  --      then  fmap (Bf.second $ const $ gray 0.5)
+  --              $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
+  --      else []
+
+
+
+--- XXXX  
  
 
 -- instance DrawingCtx () (Color) (Maybe ((Int , Color) , [Int])) where    

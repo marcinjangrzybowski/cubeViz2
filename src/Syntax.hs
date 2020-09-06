@@ -56,8 +56,8 @@ type FExpr = Set.Set SubFace2
 type Face2 = (Int , Bool)
 
 -- codim ?
-sfDim :: SubFace2 -> Int
-sfDim = length . Map.keys
+-- sfDim :: SubFace2 -> Int
+-- sfDim = length . Map.keys
 
 faceToFace2 :: Face -> Face2
 faceToFace2 (Face n f) = f
@@ -197,7 +197,10 @@ data Expr =
   | ILam String Expr
   deriving (Eq , Show)
 
--- here indexes are RAW
+-- here indexes are DIM INDEXES
+-- conversion happens in toCub in Abstract.hs
+-- TODO : wrap dim indexes into datatype to avoid confusion
+
 data CellExpr = CellExpr VarIndex [IExpr]
   deriving Show
 
@@ -208,8 +211,6 @@ remapCE f (CellExpr x y) = CellExpr x (map (remapIExpr f) y)
 data PieceExprNNF = PieceExprNNF VarIndex ([Either Bool (Int , Bool)])
 
 -- here indexes are DIM INDEXES
--- conversion happens in piecesEval
--- TODO : wrap dim indexes into datatype to avoid confusion
 
 data PieceExpr = PieceExpr VarIndex [(Int , Bool)] 
   deriving Show

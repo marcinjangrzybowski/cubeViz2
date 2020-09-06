@@ -83,7 +83,8 @@ fullSF = flip SubFace (Map.empty)
 sf2map :: SubFace -> Map.Map Int Bool
 sf2map (SubFace _ x) = x
 
-
+subFaceCodim :: SubFace -> Int
+subFaceCodim (SubFace _ m) = Map.size m
 
 data Never a = Never
 

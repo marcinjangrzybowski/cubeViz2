@@ -61,20 +61,20 @@ pieceEval (CellExpr vi tl) pc =
 -- handleFaceMaps :: (Env , Context) -> PieceExprNNF -> PieceExpr
 -- handleFaceMaps = undefined  
 
-pieceExprNormal :: (Env , Context) -> PieceExprNNF -> PieceExpr
-pieceExprNormal _ (PieceExprNNF vi tl) =
+pieceExprNormal :: PieceExprNNF -> PieceExpr
+pieceExprNormal (PieceExprNNF vi tl) =
     case (partitionEithers tl) of
       ([] , tl2) -> (PieceExpr vi tl2)  
       _ -> undefined
       
-piecesEval :: (Env , Context) -> CellExpr -> FromLI Piece PieceExpr
+piecesEval :: Int -> CellExpr -> FromLI Piece PieceExpr
 -- piecesEval ec@(e , c) ce | trace ("myfun " ++ show ce) False = undefined
-piecesEval ec@(e , c) ce =
-  FromLI (getDim ec) (f)
+piecesEval n ce =
+  FromLI n (f)
 
   where
     f :: Piece -> PieceExpr 
-    f = pieceExprNormal ec . pieceEval (remapCE (toDimI c) ce)
+    f = pieceExprNormal . pieceEval ce
 
     -- g :: PieceExpr -> PieceExpr
     -- -- g _ (PieceExpr i [(0 , True)]) = (PieceExpr i [(1 , True)])
