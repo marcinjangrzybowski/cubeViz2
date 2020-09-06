@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -66,18 +67,18 @@ foldFaces f (Hcomp _ pa a) =
 
 
 
-class OfDim a => Faceable a where
+-- class (OfDim a) => Faceable a b where
 
-  getFaceFCpriv :: Face -> a -> a
+--   getFaceFCpriv :: Face -> a -> b
 
-  getFaceFC :: Face -> a -> a
-  getFaceFC fc@(Face n bl) a | n /= getDim a = error "dim of face diferent than dim of Faceble arg"
-                             | otherwise = getFaceFCpriv fc a
+--   getFaceFC :: Face -> a -> b
+--   getFaceFC fc@(Face n bl) a | n /= getDim a = error "dim of face diferent than dim of Faceble arg"
+--                              | otherwise = getFaceFCpriv fc a
 
-instance (OfDim a , Faceable a) => Faceable (Cub a) where
+-- instance (OfDim a , Faceable a (Cub a)) => Faceable (Cub a) (Cub a) where
 
-  getFaceFCpriv fc (Cub n a) = Cub (n - 1) (getFaceFC fc a) 
-  getFaceFCpriv (Face n bl) (Hcomp m pa a) = undefined
+--   getFaceFCpriv fc (Cub n a) = (getFaceFC fc a) 
+--   getFaceFCpriv (Face n bl) (Hcomp m pa a) = undefined
   
 class OfDim a => ToCub a c where
   toCub :: a -> (Cub c)

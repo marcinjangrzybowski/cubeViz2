@@ -108,6 +108,7 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
   -- IMPORTANT : (Env , Context) everywhere bellow is global! , cant be trustet with dimensions!! 
 
   -- HERE PIECE ARGUMENT IS ADDITIONAL!!!, for some special application!
+  -- TODO :: Recover local context in cellPainter using Address
   drawGenericTerm :: (Env , Context) -> a -> Piece -> VarIndex -> c
 
   --Drawing b
@@ -122,7 +123,6 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
      (\pc -> appLI pc (remapTL (drawD (forget a)) n t $ drawGenericTerm ee a pc h))
 
 
-    -- 
   cellPainter :: (Env , Context) -> Never a -> a -> CellPainter b
   cellPainter ee na dctx n adr ce =
      let zz = fmap (FromLI n . (drawCellPiece ee n dctx)) (piecesEval n ce)
