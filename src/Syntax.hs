@@ -49,6 +49,7 @@ setSetElim em emSing f s =
         -- this branch is guaranted to not contain empty lists
       
 
+--this do not refere DimIndexes!
 type SubFace2 = Map.Map Int Bool
 
 type FExpr = Set.Set SubFace2
@@ -204,8 +205,16 @@ data Expr =
 data CellExpr = CellExpr VarIndex [IExpr]
   deriving Show
 
-remapCE :: (Int -> Int) -> CellExpr -> CellExpr
-remapCE f (CellExpr x y) = CellExpr x (map (remapIExpr f) y) 
+
+
+mkCellExpr :: (Env , Context) -> VarIndex -> [IExpr] -> (CellExpr , FromLI Face Expr)
+mkCellExpr (ee@(env , ctx)) vI tl =
+  ( CellExpr vI (map (remapIExpr (toDimI ctx)) tl) ,
+     FromLI (getDim ee) (getVarFace ctx vI tl)
+  )
+                                                                  
+-- remapCE :: (Int -> Int) -> CellExpr -> CellExpr
+-- remapCE f (CellExpr x y) = CellExpr x (map (remapIExpr f) y) 
 
 -- NNF - not normal form
 data PieceExprNNF = PieceExprNNF VarIndex ([Either Bool (Int , Bool)])
@@ -265,6 +274,9 @@ addSFConstraintToContext :: SubFace2 -> Context ->  Context
 addSFConstraintToContext sf (Context t d) =
    Context t
     $ reverse $ mapAtMany (map (second (second . const . Just )) (Map.toList sf)) $ reverse d
+
+addFaceConstraintToContext :: Face -> Context ->  Context
+addFaceConstraintToContext (Face _ (i , b)) ctx = addSFConstraintToContext (Map.fromList [(fromDimI ctx i , b)]) ctx
 
 lookupLevel :: Env -> String -> Maybe Int
 lookupLevel (Env ls _) x = ((length ls - 1)-) <$> elemIndex x (ls)
@@ -473,8 +485,19 @@ handleProjections ctx vi tl | onlyEnds == [] = Var vi tl
                             where onlyEnds = catMaybes (fmap endView tl)
 
 
+
+getVarFace :: Context -> VarIndex -> [IExpr] -> Face -> Expr
+getVarFace ctx vI tl fc@(Face _ fc2) = 
+  if (not ((getDim fc) == (length $ unConstrainedDimsOnly ctx)))
+  then error "face dimension not maching expresion"
+  else
+    let tl2 = map (getIExprFace fc ctx) tl
+    in (handleProjections ctx vI tl2)
+
+
 -- TODO : descirbe in details conventions of handling expressions in context and without context
 
+-- DANGER :: mixup of Face and Face2 here!!! , Face2 refers vars, Face refers indexes!!
 -- getExprFace :: Face -> (Context , Expr) -> (Context , Expr)
 -- getExprFace fc@(Face _ fc2) (ctx , expr0) =
 --   if (not ((getDim fc) == (length $ unConstrainedDimsOnly ctx)))

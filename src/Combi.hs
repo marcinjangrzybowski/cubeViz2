@@ -313,6 +313,9 @@ instance ListInterpretable Face (Maybe Bool) where
 
 data FromLI a c = FromLI Int (a -> c)
 
+instance OfDim (FromLI a c) where
+  getDim (FromLI n _) = n
+
 instance (ListInterpretable a b , Semigroup c) => Semigroup (FromLI a c) where 
  (<>) (FromLI i f) (FromLI j g) =
     if i == j
