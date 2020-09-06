@@ -23,13 +23,7 @@ data Cub t a = Cub t a | Hcomp t Name (Map.Map SubFace (Cub t a)) (Cub t a)
   deriving Show
 
 
-
-
-
-
 type Address = [SubFace]
-
-
 
 instance Bifunctor Cub where
   bimap f g (Cub t a) = Cub (f t) (g a)
@@ -77,6 +71,8 @@ foldFaces f (Hcomp _ _ pa a) =
      (fmap (foldFaces f) $ Map.fromList $
         mapMaybe (\( sf , x) -> fmap (,x) $ toFace sf )
       $ Map.toList pa)
+
+
 
 
 class OfDim a => ToCub a b c where

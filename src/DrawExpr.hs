@@ -49,108 +49,52 @@ hcompDrawingsOnlyFaces bot sides =
           ) sides))
 
 
--- subFaceTrans :: SubFace -> Drawing a -> Drawing a
--- subFaceTrans sf@(SubFace n m) drw =
---   case (Map.toList m) of
---     [] -> mempty
---     -- _ : [] -> emptyDrawing 
---     (i , b)  : js ->
---       let augmentedWithMissingTail =
---              foldl (flip (\(i , b) -> embed (i - 1) (const $ if b then 1.0 else 0.0)))
---                (drw) js
+subFaceTrans :: SubFace -> Drawing a -> Drawing a
+subFaceTrans sf@(SubFace n m) drw =
+  case (Map.toList m) of
+    [] -> mempty
+    -- _ : [] -> emptyDrawing 
+    (i , b)  : js ->
+      let augmentedWithMissingTail =
+             foldl (flip (\(i , b) -> embed (i - 1) (const $ if b then 1.0 else 0.0)))
+               (drw) js
 
---           transformed = (sMap
---              $ ambFnOnArr
---              $ (sideTransInv defaultCompPar True) (Face n (i , b)))
---              $ transposeDrw i (augmentedWithMissingTail)
+          transformed = (sMap
+             $ ambFnOnArr
+             $ (sideTransInv defaultCompPar True) (Face n (i , b)))
+             $ transposeDrw i (augmentedWithMissingTail)
 
---           extruded = 
---             foldl (flip
---                (\ (k , (i , b)) -> extrude (fmap ((*) (-0.1)) (versor n i)) ))
---               transformed (zip [0..] js)
---       in extruded
+          -- extruded :: Drawing a
+          -- extruded = undefined 
+          --   -- foldl (flip
+          --   --    (\ (k , (i , b)) -> extrude (fmap ((*) (-0.1)) (versor n i)) ))
+          --   --   transformed (zip [0..] js)
+      in transformed
 
--- hcompDrawings :: (Drawing (MetaColor a))
---      -> (Map.Map SubFace (Drawing (MetaColor a)))
---      -> Drawing (MetaColor a) 
--- hcompDrawings bot sides =
---    combineDrawings
---     (
---       (mapCoords (map $ centerTransInv defaultCompPar) (bot)) :
---       (map snd
---        $ Map.toList
---        $ Map.mapWithKey subFaceTrans sides)
---      ) 
+hcompDrawings :: (Drawing a)
+     -> (Map.Map SubFace (Drawing a))
+     -> Drawing a 
+hcompDrawings bot sides =
+   concat
+    (
+      (sMap (map $ centerTransInv defaultCompPar) (bot)) :
+      (map snd
+       $ Map.toList
+       $ Map.mapWithKey subFaceTrans sides)
+     ) 
     
 
 
 collectDrawings :: Cub a (Drawing b) -> (Drawing b)
 collectDrawings =
-  -- foldSubFaces hcompDrawings
-  foldFaces hcompDrawingsOnlyFaces
+  foldSubFaces hcompDrawings
+  -- foldFaces hcompDrawingsOnlyFaces
 
 
-
--- -- drawExpr0 :: ((Env , Context) , Expr) -> DrawingGL 
--- -- drawExpr0 x =
--- --      debugRainbow $
--- --        collectDrawings
--- --      $ Bf.second
--- --        -- (const ())
--- --        (const (
--- --               translate [0.01 , 0.01] $
--- --               scale 0.98 $
--- --               Drawing [ ( unitHyCube 2  , SShape ( Rgba 0.0 1.0 1.0 1.0 )  ) ])  )
--- --        -- (makeGrid 2 3)
--- --        ((toCub x) :: (Cub ((Env , Context) , Expr) CellExpr))
-
-
--- -- type Step1 = 
 
 type CellPainter b = 
        (Int -> ((Env , Context) , Expr) -> Address -> CellExpr -> Either String (Drawing b))
 
--- type CellPainterT = 
---        (Int -> ((Env , Context) , Expr) -> Address -> CellExpr -> Either String DrawingGL)
-
-       
-
-
--- -- nThSimplexInNCube :: Piece -> Prll
--- -- nThSimplexInNCube = undefined 
-
--- pieceMask :: Piece -> Prll
--- pieceMask (su , pm) =
---   let crnr = toListLI su
---       n = length crnr
---       ptCrnr = map (bool 0.0 1.0) $ crnr
---   in (n , ptCrnr : snd (mapAccumL
---         (  (fmap dupe) . (flip $ updateAt 0.5)             
---             ) ptCrnr
---           (toListLI $ invPerm pm)))
-        
---   --   -- (2 , [[0,0] , [0,0] , [1,0] , [0 , 1]]) 
---   --  fst $ head $ (\(Drawing l) -> l)
---   -- $ translate (map (bool 0.0 0.5) (toListLI su)) $ scale 0.5
---   -- $ Drawing [ (unitHyCube (getDim su) , ())]
-
-
--- -- fmap fst $ Data.List.filter (any (\x ->  Data.Set.size x > 2) . snd ) $ zip [0..] (Data.List.map ((fmap Data.Set.fromList) . transpose .snd . pieceMask) $ genAllLI 3)
-
--- combinePieces :: FromLI Piece (Drawing a) -> Drawing (MetaColor a)
--- combinePieces =
---    combineDrawings . mapOnAllLI (\pc -> masked (pieceMask pc)) 
---   -- combineDrawings . mapOnAllLI (\pc -> unmasked )
-  
--- -- drawCellSquare ::  CellPainter
--- -- drawCellSquare _ _ _ _ = 
--- --   Right $ Drawing [ ( unitHyCube 2  , SShape (Rgba 0.0 1.0 1.0 1.0 )  ) ]
-
--- -- drawCellSquareMask ::  CellPainter
--- -- drawCellSquareMask _ _ _ _ = 
--- --   Right $ Drawing [ ( unitHyCube 2  , Mask  ) ]
-
--- -- type CellExprPainter a = ((Env , Context) , Expr) -> 
 
 
 
@@ -214,7 +158,7 @@ instance DrawingCtx () Color Int where
   fromCtx _ = ()
   drawGenericTerm ((env , ctx) , e) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
-  drawD _ 0 = FromLI 0 (const [])
+  drawD _ 0 = FromLI 0 (const [([[]]  , nthColor 4) ] )
   drawD _ 1 =
     -- FromLI 1 (bool [([[0.2],[0.3]] , nthColor 1)] [([[0.6],[0.7]] , nthColor 2)] . fst . head . toListLI)
 
@@ -229,9 +173,11 @@ instance DrawingCtx () Color Int where
   
   drawCellCommon ee@((env , ctx) , e) _ _ =
      let n = getDim ee
-     in fmap (Bf.second $ const $ gray 0.5)
-          $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
- 
+     in
+       if n > 1
+       then  fmap (Bf.second $ const $ gray 0.5)
+               $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
+       else []
      -- let rDrw = ()
  
      -- in [ ( unitHyCube 1  , ()  ) ]

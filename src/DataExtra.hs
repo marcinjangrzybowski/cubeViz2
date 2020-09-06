@@ -58,3 +58,7 @@ negCompIf :: Bool -> Ordering -> Ordering
 negCompIf True LT = GT
 negCompIf True GT = LT
 negCompIf _ x = x
+
+pickFromPair ::  Bool -> (a , a) -> a
+pickFromPair x | x = fst
+               | otherwise = snd

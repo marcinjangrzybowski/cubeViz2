@@ -16,7 +16,9 @@ import qualified Data.Map.Strict as Map
 import Data.Bifunctor
 import Data.List.Split
 import Data.Maybe
+import Data.Bool
 
+import DataExtra
 
 import Combi
 
@@ -43,6 +45,8 @@ setSetElim em emSing f s =
       case Set.toList x of
         [] -> emSing
         _ -> f $ (map Set.toList (x : xs))
+        -- if antihereditary property of s is assumed
+        -- this branch is guaranted to not contain empty lists
       
 
 type SubFace2 = Map.Map Int Bool
@@ -51,8 +55,12 @@ type FExpr = Set.Set SubFace2
 
 type Face2 = (Int , Bool)
 
+-- codim ?
 sfDim :: SubFace2 -> Int
 sfDim = length . Map.keys
+
+faceToFace2 :: Face -> Face2
+faceToFace2 (Face n f) = f
   
 toFace2 :: SubFace2 -> Maybe Face2
 toFace2 sf =
@@ -60,8 +68,8 @@ toFace2 sf =
     [ x ] -> Just x
     _ -> Nothing
 
-faceToSubFace2 :: Face2 -> SubFace2
-faceToSubFace2 x = Map.fromList [x]
+face2ToSubFace2 :: Face2 -> SubFace2
+face2ToSubFace2 x = Map.fromList [x]
 
 -- minMB :: (Maybe Bool) -> (Maybe Bool) -> (Maybe Bool)
 -- minMB Nothing _ = Nothing 
@@ -101,9 +109,34 @@ end :: Bool -> IExpr
 end True = Set.singleton (Set.empty)
 end False = Set.empty
 
+endView :: IExpr -> Maybe Bool
+endView x | x == end True = Just True
+          | x == end False = Just False
+          | otherwise = Nothing  
+          
 iFromL :: [[(Int, Bool)]] -> IExpr
 iFromL = Set.fromList . (map Set.fromList)
 
+
+getIExprFace :: Face -> Context -> IExpr -> IExpr
+getIExprFace (Face _ (i0 , b)) ctx =
+   setSetElim (end False) (end True) (makeAntiH . Set.fromList . (fmap Set.fromList) . f)
+  
+  where
+    i :: Int
+    i = fromDimI ctx i0
+
+    substHelp :: (Int , Bool) -> Maybe (Maybe (Int , Bool))
+    substHelp (j , bb) | j /= i = Just (Just (j , bb))
+                      | bb == b = Nothing -- term evaluates to one, can be removed from /\
+                      | otherwise = Just Nothing -- we note term evaluating to zero, and later discared whole /\
+                      
+    f :: [[(Int , Bool)]] -> [[(Int , Bool)]]
+    f l = 
+      let l0 = map (mapMaybe substHelp) l
+          l1 = filter (all isJust) l0
+      in map (map fromJust) l1
+    
 -- mmbi :: (Int , (Maybe Bool)) -> [IExpr]
 -- mmbi (i , Nothing) = [ Dim i , Neg $ Dim i ]
 -- mmbi (i , (Just b)) = [(if b then id else Neg) $ Dim i]
@@ -164,6 +197,7 @@ data Expr =
   | ILam String Expr
   deriving (Eq , Show)
 
+-- here indexes are RAW
 data CellExpr = CellExpr VarIndex [IExpr]
   deriving Show
 
@@ -172,6 +206,10 @@ remapCE f (CellExpr x y) = CellExpr x (map (remapIExpr f) y)
 
 -- NNF - not normal form
 data PieceExprNNF = PieceExprNNF VarIndex ([Either Bool (Int , Bool)])
+
+-- here indexes are DIM INDEXES
+-- conversion happens in piecesEval
+-- TODO : wrap dim indexes into datatype to avoid confusion
 
 data PieceExpr = PieceExpr VarIndex [(Int , Bool)] 
   deriving Show
@@ -196,6 +234,9 @@ data Env = Env [Name] [(Name , Int)]
 unsfDefTy :: CType
 unsfDefTy = CType (BType 0) []
 
+
+
+-- TODO : describe indexing conventions in Context and Env !! 
 data Context = Context [(String,CType)] [(String , Maybe Bool)] -- (Maybe CType)
                 -- deriving Show
 
@@ -218,10 +259,6 @@ mapAtMany _ [] = []
 mapAtMany ((0 , y) : ys) (x : xs) = y x : (mapAtMany (map (first (flip (-) 1)) ys) xs)
 mapAtMany ys (x : xs) = x : (mapAtMany (map (first (flip (-) 1)) ys) xs)
 
--- addConstraintToContext :: Context -> DimIndex -> Bool -> Context
--- addConstraintToContext (Context t d) (DimIndex i) b =
---    undefined
--- --Context t ((name , Nothing) : d)
 
 addSFConstraintToContext :: SubFace2 -> Context ->  Context
 addSFConstraintToContext sf (Context t d) =
@@ -295,7 +332,9 @@ getVarSymbol (Context l _) i =
 
 getVarType :: Context -> VarIndex -> CType
 getVarType (Context l _) (VarIndex i) =
-  maybe undefined id (snd <$> (indexS ((length l - 1) - i) l))
+  maybe (error "fatal : varIndex not consistent with context!!")
+        id
+        (snd <$> (indexS ((length l - 1) - i) l))
 
 
 instance Show Context where
@@ -397,13 +436,12 @@ mkBType (Env lN _) bI =
 getBaseType :: Env -> Context -> CType -> BType
 getBaseType _ _ (CType bTy _) = bTy
 
--- getBaseTypeEx :: Env -> Context -> Expr -> BType
--- getBaseTypeEx _ _ e = undefined
 
 getCTyDim :: Env -> Context -> CType -> Int
 getCTyDim e c (CType i faces) = length faces
 
 
+-- this tells us arity of expresion without looking into dimensions defined in context
 getExprDim :: Env -> Context -> Expr -> Int
 getExprDim e c (Var vI tl) = 
     ((\k -> k - (length tl)) . getCTyDim e c) (getVarType c vI)
@@ -419,20 +457,44 @@ mkCType e c (bTy , faces) =
   else (Left "faces of wrong dimension")
 
 
-getExprFace :: Face -> (Context , Expr) -> (Context , Expr)
-getExprFace fc@(Face _ fc2) (ctx , expr0) =
-  if (not ((getDim fc) == (length $ unConstrainedDimsOnly ctx)))
-  then error "face dimension not maching expresion"
-  else
-    let ctx2 = addSFConstraintToContext (faceToSubFace2 fc2) ctx
-        expr2 =
-          case expr0 of
-            HComp nm pa ex -> undefined
-            Var vi tl ->
-               let tl2 = undefined
-               in undefined
-            ILam _ _ -> error "apptempt to get face of lambda Expr" 
-    in (ctx2 , undefined)
+
+
+getCTypeFace :: Face -> CType -> Expr
+getCTypeFace (Face 0 _) _ = error "bad Face!!"
+getCTypeFace (Face n ( i , b) ) (CType _ fcs) | n /= length fcs = error "face dim do not mach CType dim"
+                                              | otherwise = pickFromPair b (fcs !! i) 
+
+
+handleProjections :: Context -> VarIndex -> [IExpr] -> Expr
+handleProjections ctx vi tl | onlyEnds == [] = Var vi tl
+                            | length tl > 1 = error "TODO : handleProjections imlemented only up to 1 dimension"
+                            | otherwise = getCTypeFace (Face 1 (0 ,(head onlyEnds))) (getVarType ctx vi)
+                            where onlyEnds = catMaybes (fmap endView tl)
+
+
+-- TODO : descirbe in details conventions of handling expressions in context and without context
+
+-- getExprFace :: Face -> (Context , Expr) -> (Context , Expr)
+-- getExprFace fc@(Face _ fc2) (ctx , expr0) =
+--   if (not ((getDim fc) == (length $ unConstrainedDimsOnly ctx)))
+--   then error "face dimension not maching expresion"
+--   else
+--     let sf2 = (face2ToSubFace2 fc2)
+--         ctx2 = addSFConstraintToContext sf2 ctx
+
+--         expr2 =
+--            case expr0 of
+--               HComp nm pa ex ->
+--                 case (Map.lookup sf2 pa) of
+--                   Just x ->
+--                      let faceOfSF = (getExprFace undefined ((addDimToContext ctx2 nm) , x) )
+--                      in undefined
+--                   Nothing -> undefined
+--               Var vi tl ->
+--                  let tl2 = map (getIExprFace fc ctx) tl
+--                  in (handleProjections ctx vi tl2)
+--               ILam _ _ -> error "apptempt to get face of lambda Expr" 
+--     in (ctx2 , expr2)
 
 mkHcomp ::  Env -> Context -> (String , Partial , Expr) -> Either String Expr
 mkHcomp env c (s , pa , e) =
