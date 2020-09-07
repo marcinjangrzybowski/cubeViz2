@@ -48,7 +48,6 @@ hcompDrawingsOnlyFaces bot sides =
              . transposeDrw i
           ) sides))
 
-
 subFaceTrans :: SubFace -> Drawing a -> Drawing a
 subFaceTrans sf@(SubFace n m) drw =
   case (Map.toList m) of
@@ -87,9 +86,9 @@ hcompDrawings bot sides =
 
 collectDrawings :: Cub (Drawing b) -> (Drawing b)
 collectDrawings =
-  foldSubFaces hcompDrawings
-  -- foldFaces hcompDrawingsOnlyFaces
-
+  -- foldSubFaces hcompDrawings
+  foldFaces hcompDrawingsOnlyFaces
+  
 
 
 type CellPainter b = 

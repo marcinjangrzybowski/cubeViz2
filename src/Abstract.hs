@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Abstract where
 
@@ -19,6 +20,9 @@ import Control.Applicative
 import Combi
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
+
+import DataExtra
 
 data Cub a = Cub Int (FromLI Face (Cub a)) a | Hcomp Name (Map.Map SubFace (Cub a)) (Cub a)
   deriving (Show , Functor)
@@ -73,6 +77,52 @@ class FromCub a c where
   fromCub :: Cub c -> a 
 
 
+
+-- TODO : extract some code from below and move to Cube
+-- sfProj , sfInj
+
+cubFace :: forall a. Face -> Cub a -> Cub a
+cubFace fc (Cub n fcs a) = appLI fc fcs
+cubFace fc@(Face n (i , b))  cub@(Hcomp nam pa a) | getDim cub /= n = error "dim of face do not mach dim of cub!!"
+                                                  | otherwise = 
+  Hcomp nam
+   sidesFace
+   (cubFace fc a)
+
+  where
+
+    subfaces =
+      (Set.map (SubFace (n - 1) . Map.fromList .
+                mapMaybe (\(ii , bb) -> (flip (,) bb) <$> punchOut i ii
+                         )
+                . Set.toList )
+        $ makeAntiH2 $
+         (Set.map (Set.fromList . Map.toList . (\(SubFace sfN sm) -> sm))
+            (Set.filter (\(SubFace sfN sm) -> Map.lookup i sm /= Just (not b)) (Map.keysSet pa))))
+
+
+    sidesFace :: Map.Map SubFace (Cub a)
+    sidesFace =
+      Map.fromSet
+      (\sf@(SubFace sfN sm0) ->
+
+         
+         let sm1 = Map.mapKeys (punchIn i) sm0
+             smMid = sm1
+             smEnd = Map.insert i b sm1
+         
+         in case (Map.lookup (SubFace (sfN + 1) smMid) pa , Map.lookup (SubFace (sfN + 1) smEnd) pa) of
+             (Just _ , Just _) -> error "imposible!"
+             (Nothing , Nothing) -> error "imposible!"
+             (Just x , _) ->
+                    cubFace
+                    (Face (n - subFaceCodim sf + 1)  (i - (Set.size (Set.filter (\j -> j < i) $ Map.keysSet sm0) )  , b))
+                    x
+             (_ , Just x) -> x
+      )
+      subfaces
+
+    
 instance ToCub ((Env , Context) , Expr) CellExpr where
   toCub ee@((env , ct) , (HComp nam pa e)) =
        let ct2 = addDimToContext ct nam

@@ -9,6 +9,16 @@ trpl2arr (x , y , z) = [x , y , z]
 
 range k = take k [0..]
 
+punchOut :: Int -> Int -> Maybe Int
+punchOut k i | i < k = Just i
+             | i == k = Nothing
+             | i > k = Just (i - 1)
+
+punchIn :: Int -> Int -> Int
+punchIn k i | i < k = i
+            | i >= k = i + 1
+
+
 
 explode :: [a] -> [[a]]
 explode [] = []
