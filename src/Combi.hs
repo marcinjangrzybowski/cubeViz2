@@ -139,6 +139,9 @@ class Ord a => ListInterpretable a b | a -> b where
 
   projectSplit :: Int -> a -> (b , a)
   projectSplit k a = Bf.second fromListLI (listPopAt k (toListLI a))
+
+  setOfAll :: Int -> Set.Set a
+  setOfAll = Set.fromList . genAllLI
     
 instance OfDim (SubFace) where
   getDim = sizeLI

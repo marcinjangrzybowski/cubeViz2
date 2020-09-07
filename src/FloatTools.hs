@@ -10,6 +10,10 @@ import qualified Data.Bifunctor as Bf
 
 import qualified Data.Map as Map
 
+import Data.Maybe
+
+import Data.List
+
 import Control.Arrow
 
 import Combi
@@ -55,12 +59,16 @@ vertSideFixInv compPar y =
 centerTransInv :: Float -> Float -> Float
 centerTransInv compPar x = ((x - 0.5) * ((1.0 -(compPar * 2.0)))) + 0.5      
 
-sideTransInv :: Float ->  Bool -> Face -> ( (Int -> Float)) -> (Int -> Float)
+data SideTransMode = STSubFace | STFill
+
+sideTransInv :: Float ->  SideTransMode -> Face -> ( (Int -> Float)) -> (Int -> Float)
 sideTransInv compPar sk (Face n (i , b0)) f k =
     let
         b = b0
         q = f i
-        zz = ( vertSideFixInv compPar q )    
+        zz = ( case sk of
+                    STSubFace -> ( vertSideFixInv compPar q )
+                    STFill -> q )    
         qq = compPar * (negF ( zz ))    
         z = (if b
              then (1.0 - qq)
@@ -69,7 +77,30 @@ sideTransInv compPar sk (Face n (i , b0)) f k =
     if (k == i)
     then z 
     else
-      ( if sk
-        then (((f k) - 0.5) / (1.0 / (interp ( centerW compPar) 1.0 (zz) ))) + 0.5
-        else (((f k) - 0.5)) + 0.5 )
+      ( case sk of
+           STSubFace -> (((f k) - 0.5) / (1.0 / (interp ( centerW compPar) 1.0 (zz) ))) + 0.5
+           STFill -> (((f k) - 0.5)) + 0.5 )
 
+sideQ :: Float -> Float -> Maybe (Float , Bool)
+sideQ compPar x =
+          if (x > compPar )
+          then (if (x < (1 - compPar) ) then Nothing else (Just ( 1 - x ,  True)))
+          else Just (x , False) 
+      
+sideGet :: Float -> Int -> (Int -> Float) -> Maybe ((Int , Float) , Bool)              
+sideGet compPar n0 amb =
+    case n0 of
+        0 -> Nothing
+        n ->  case (sideQ compPar (amb (n - 1)) , sideGet compPar (n - 1) amb) of
+                 (Nothing , x) -> x                                
+                 (Just (xN , bN) , Nothing) -> Just (((n - 1) , xN) , bN)
+                 (Just (xN , bN) , Just ((i , x) , b)) -> if xN < x
+                                                          then Just (((n - 1) , xN) , bN)
+                                                          else Just ((i , x) , b)     
+                                                              
+
+piramFn :: Float -> [ Float ] -> Float 
+piramFn compPar lf =
+  case sort (mapMaybe (sideQ compPar) lf) of
+    [] -> 0
+    ((x , _) : _) -> 1 - (x / compPar)

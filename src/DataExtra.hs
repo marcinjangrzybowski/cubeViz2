@@ -72,3 +72,10 @@ negCompIf _ x = x
 pickFromPair ::  Bool -> (a , a) -> a
 pickFromPair x | x = fst
                | otherwise = snd
+
+dot2 :: (d -> e) -> (a -> b -> d) -> (a -> b -> e)  
+dot2 f g a b = f $ g a b 
+
+
+dot3 :: (d -> e) -> (a -> b -> c -> d) -> (a -> b -> c -> e)  
+dot3 f g a b c = f $ g a b c 

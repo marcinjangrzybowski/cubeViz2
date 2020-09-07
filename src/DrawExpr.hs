@@ -1,6 +1,8 @@
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module DrawExpr where
 
@@ -10,6 +12,9 @@ import Syntax
 
 import Drawing.Base
 import Drawing.Color
+
+import Data.Maybe
+import Data.Either
 
 import qualified Data.Bifunctor as Bf
 
@@ -31,22 +36,24 @@ import PiecesEval
 
 import Reorientable
 
+import DataExtra
+
 defaultCompPar = 0.3      
 
-hcompDrawingsOnlyFaces :: (Drawing a) -> (Map.Map Face (Drawing a)) -> Drawing a 
-hcompDrawingsOnlyFaces bot sides =
+hcompDrawingsOnlyFaces :: (Drawing a , SideTransMode ) -> (FromLI Face (Drawing a  , SideTransMode)) -> Drawing a 
+hcompDrawingsOnlyFaces (bot , _) sides =
    concat
-    ((sMap (map $ centerTransInv defaultCompPar) bot) :
-      (map snd
-       $ Map.toList
-       $ Map.mapWithKey (
-          \fc@(Face n (i , b)) ->
-             
-              (sMap
-             $ ambFnOnArr
-             $ (sideTransInv defaultCompPar True) fc)
-             . transposeDrw i
-          ) sides))
+    ((sMap (map $ centerTransInv defaultCompPar) bot) : 
+          (toListFLI (fromLIppK (
+                         \fc@(Face n (i , b)) -> \(dr , stm) -> 
+                                      (sMap
+                                      $ ambFnOnArr
+                                      $ (sideTransInv defaultCompPar stm) fc)
+                                      $ transposeDrw i dr
+
+
+                                ) sides))   
+    )
 
 subFaceTrans :: SubFace -> Drawing a -> Drawing a
 subFaceTrans sf@(SubFace n m) drw =
@@ -54,13 +61,15 @@ subFaceTrans sf@(SubFace n m) drw =
     [] -> mempty
     -- _ : [] -> emptyDrawing 
     (i , b)  : js ->
-      let augmentedWithMissingTail =
+      let
+          -- putting subface in one of the adjant face to execute face transform
+          augmentedWithMissingTail =
              foldl (flip (\(i , b) -> embed (i - 1) (const $ if b then 1.0 else 0.0)))
                (drw) js
 
           transformed = (sMap
              $ ambFnOnArr
-             $ (sideTransInv defaultCompPar True) (Face n (i , b)))
+             $ (sideTransInv defaultCompPar STSubFace) (Face n (i , b)))
              $ transposeDrw i (augmentedWithMissingTail)
 
           -- extruded :: Drawing a
@@ -86,10 +95,12 @@ hcompDrawings bot sides =
 
 collectDrawings :: Cub (Drawing b) -> (Drawing b)
 collectDrawings =
-  -- foldSubFaces hcompDrawings
-  foldFaces hcompDrawingsOnlyFaces
+  foldSubFaces hcompDrawings
+  -- foldFaces hcompDrawingsOnlyFaces
   
-
+-- collectFaces :: Cub (Drawing b , SideTransMode) -> (Drawing b)
+-- collectFaces =
+--   foldSubFaces hcompDrawingsOnlyFaces
 
 type CellPainter b = 
        (Int -> Address -> CellExpr -> Either String (Drawing b))
@@ -135,11 +146,38 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
   mkDrawExpr na w@( envCtx , _ ) = 
       let  dctx = fromCtx envCtx
       in
-     
-      ( toCub
-      >>> cubMap (cellPainter envCtx na dctx )  []
-      >>> fmap (collectDrawings)) w
 
+      do let cub = toCub w
+         cubDrw <- cubMap (cellPainter envCtx na dctx )  [] cub
+         return $ collectDrawings cubDrw
+
+  -- TODO :: raczej zrezygnowac z Either w calej tej klasie...
+  mkDrawExprFill :: Never a  -> ((Env , Context) , Expr) -> Either String (Drawing b)
+  mkDrawExprFill na w@( envCtx , _ ) = 
+      let  dctx = fromCtx envCtx
+
+
+           fillFaces (nm , sides , bot) =
+               Map.mapKeys toSubFace
+             $ Map.fromSet
+               (\fc -> (
+                   let d = fromRight [] $ (drawCub (cubFace fc (Hcomp nm sides bot)))
+                       d1 = extrude (getDim bot) (piramFn defaultCompPar , const 1) d
+                       -- d1 = embed (getDim bot) (const 1) d
+                   in Cub (getDim bot) undefined (d1 , STFill)
+                   ) )
+               ((Set.difference (setOfAll (getDim bot)) (Set.fromList $ mapMaybe toFace $ Map.keys sides )) )
+               
+           -- drawCub :: Cub CellExpr -> Either String (Drawing b)
+           drawCub cub =
+             do cubDrw <- cubMapFill ((fmap $ (flip (,) STSubFace)) `dot3` (cellPainter envCtx na dctx) )
+                              fillFaces
+                              [] cub 
+                return $ fst (foldFacesFiled ((flip (,) STSubFace) `dot2` hcompDrawingsOnlyFaces ) cubDrw)
+
+      in
+
+      drawCub $ toCub w 
 
 
 -- XXXX
@@ -149,7 +187,7 @@ instance DrawingCtx () Color Int where
   fromCtx _ = ()
   drawGenericTerm (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
-  drawD _ 0 = FromLI 0 (const [([[]]  , nthColor 4) ] )
+  -- drawD _ 0 = FromLI 0 (const [([[]]  , nthColor 4) ] )
   drawD _ 1 =
     -- FromLI 1 (bool [([[0.2],[0.3]] , nthColor 1)] [([[0.6],[0.7]] , nthColor 2)] . fst . head . toListLI)
 
@@ -290,7 +328,7 @@ instance DrawingCtx () Color Int where
      
   
 
-drawExpr = mkDrawExpr (forget ())
+drawExpr = mkDrawExprFill (forget ())
   
 -- drawExpr = mkDrawExpr (forget Stripes1)
           

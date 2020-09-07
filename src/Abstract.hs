@@ -54,6 +54,28 @@ cubMap f addr (Hcomp name pa a) =
                  $ pa
       return (Hcomp name sides bot) 
 
+
+cubMapFill :: (Int -> Address -> a -> Either e b)
+                -> ( (Name , (Map.Map SubFace (Cub a)) , (Cub a)) -> Map.Map SubFace (Cub b)  )
+                 -> Address
+                 -> Cub a 
+                 -> Either e (Cub b)
+cubMapFill f g addr (Cub n fcs a) =
+   do cell <- f n addr a
+      fcs2 <- traverseMapLI (\fc -> cubMap f (toSubFace fc : addr)) $ fcs
+      return $ Cub n fcs2 cell
+
+cubMapFill f g addr (Hcomp name pa a) = 
+   do 
+      bot <- cubMapFill f g (fullSF (getDim a) : addr) a
+      sides <- traverseMap
+                 (\sf -> cubMapFill f g (sf : addr))
+                 $ pa
+      let sidesFilled = Map.union sides (g (name , pa , a))
+      return (Hcomp name sidesFilled bot) 
+
+
+
 foldSubFaces :: (a -> (Map.Map SubFace a) -> a) -> Cub a -> a
 foldSubFaces f (Cub _ _ a) = a
 foldSubFaces f (Hcomp _ pa a) =
@@ -68,7 +90,19 @@ foldFaces f (Hcomp _ pa a) =
         mapMaybe (\( sf , x) -> fmap (,x) $ toFace sf )
       $ Map.toList pa)
 
-
+-- requires for allFacesToBeFilled!
+foldFacesFiled :: (a -> (FromLI Face a) -> a) -> Cub a -> a
+foldFacesFiled f (Cub _ _ a) = a
+foldFacesFiled f cub@(Hcomp _ pa a) =
+   let li = fromMapFLIUnsafe (getDim cub)
+                (Map.fromList $ mapMaybe (\(sf , aa) -> (flip (,) (foldFacesFiled f aa)) <$> toFace sf ) $ Map.toList pa) 
+       
+   in f (foldFacesFiled f a) li
+   
+   -- f (foldFaces f a) $
+   --   (fmap (foldFaces f) $ Map.fromList $
+   --      mapMaybe (\( sf , x) -> fmap (,x) $ toFace sf )
+   --    $ Map.toList pa)
   
 class OfDim a => ToCub a c where
   toCub :: a -> (Cub c)
