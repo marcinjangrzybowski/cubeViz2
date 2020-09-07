@@ -118,7 +118,13 @@ class FromCub a c where
 cubFace :: forall a. Face -> Cub a -> Cub a
 cubFace fc (Cub n fcs a) = appLI fc fcs
 cubFace fc@(Face n (i , b))  cub@(Hcomp nam pa a) | getDim cub /= n = error "dim of face do not mach dim of cub!!"
-                                                  | otherwise = 
+                                                  | Map.member (toSubFace fc) pa =
+
+  cubFace (Face n (n - 1 , True)) (pa Map.! (toSubFace fc))
+
+
+                                                  | otherwise =
+                                                    
   Hcomp nam
    sidesFace
    (cubFace fc a)

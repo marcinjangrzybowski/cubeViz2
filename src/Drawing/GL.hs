@@ -163,8 +163,8 @@ shutdown win = do
   return ()
 
 
-onDisplay :: Window -> (Descriptor , Descriptor , Descriptor) -> IO ()
-onDisplay win dd@(ds0 , ds1 , ds2) = do
+onDisplay :: String -> Window -> (Descriptor , Descriptor , Descriptor) -> IO String
+onDisplay someString win dd@(ds0 , ds1 , ds2) = do
   GL.clearColor $= Color4 1 1 1 1
   -- GLFW.swapInterval 0
   GL.clear [ColorBuffer , DepthBuffer]
@@ -178,7 +178,7 @@ onDisplay win dd@(ds0 , ds1 , ds2) = do
   now <- GLFW.getTime
   -- blendFunc $= (SrcAlpha , OneMinusSrcAlpha)
   polygonSmooth $= Enabled
-  let vMat =  Vector3 75.0 0.0 (-35.0 + 1.0 * 50.0 * sin (0.7 * (realToFrac $ fromJust now)))
+  let vMat =  Vector3 75.0 0.0 $ 1.0 * (-35.0 + 1.0 * 50.0 * sin (0.7 * (realToFrac $ fromJust now)))
   uniform (UniformLocation 0 ) $= (vMat :: Vector3 GLfloat)
 
 
@@ -196,9 +196,14 @@ onDisplay win dd@(ds0 , ds1 , ds2) = do
   
   GLFW.swapBuffers win
   
-  forever $ do
-     GLFW.pollEvents
-     onDisplay win dd
+
+  GLFW.pollEvents
+  let someString2 = drop 1 someString 
+
+  when (someString2 /= []) (putStrLn someString2)
+  
+  onDisplay someString2 win dd
+
 
 
 render :: Renderables -> IO ()
@@ -212,9 +217,10 @@ render rs =
      GLFW.setKeyCallback win (Just keyPressed)
      GLFW.setWindowCloseCallback win (Just shutdown)
      descriptors <- initResources rs
-     onDisplay win descriptors
+     onDisplay "start" win descriptors
      GLFW.destroyWindow win
      GLFW.terminate
+
 
 
 

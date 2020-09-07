@@ -19,11 +19,22 @@ import Data.Bifunctor
 
 import DrawExpr
 
+import Combi
 
 
 showTerm :: SessionState -> IO ()
-showTerm ss =
-   either putStr (renderAs Raw) $ drawExpr $ ssEnvExpr $ ss
+showTerm ss@(SessionState ee _ _ e) =
+   
+      let drawing = drawExpr $ ssEnvExpr $ ss
+          dim = getDim ee
+      
+      in either
+            putStr
+            (case dim of
+               2 -> (renderAs Raw . embed 1 (const 0))
+               3 -> (renderAs Raw)
+            )
+            drawing
 
 mainShowTerm :: String -> IO ()
 mainShowTerm fname =

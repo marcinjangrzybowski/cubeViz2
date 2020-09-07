@@ -187,11 +187,11 @@ instance DrawingCtx () Color Int where
   fromCtx _ = ()
   drawGenericTerm (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
-  -- drawD _ 0 = FromLI 0 (const [([[]]  , nthColor 4) ] )
+  drawD _ 0 = FromLI 0 (const [([[]]  , nthColor 4) ] )
   drawD _ 1 =
-    -- FromLI 1 (bool [([[0.2],[0.3]] , nthColor 1)] [([[0.6],[0.7]] , nthColor 2)] . fst . head . toListLI)
+    FromLI 1 (bool [([[0.2],[0.3]] , nthColor 1)] [([[0.6],[0.7]] , nthColor 2)] . fst . head . toListLI)
 
-    FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
+    -- FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
     -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
 
     -- FromLI 1 (bool [([[0.2]] , ()) , ([[0.3]] , ())]
