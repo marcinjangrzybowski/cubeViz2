@@ -1,5 +1,8 @@
 module Drawing.GL where
 
+
+import Control.Concurrent.STM    (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue
+                                  , newTVarIO)
 import Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
 import Control.Monad
@@ -26,7 +29,7 @@ import Data.Bifunctor
 import DataExtra
 
 data Descriptor = Descriptor VertexArrayObject ArrayIndex NumArrayIndices
-
+  deriving Show
 
 
 data CombinedVertexData =
@@ -74,6 +77,7 @@ initResources rs =
   do de0 <- initTrianglesResources (pointVs (renderables2CVD rs))
      de1 <- initTrianglesResources (lineVs (renderables2CVD rs))
      de2 <- initTrianglesResources (triangleVs (renderables2CVD rs))
+     -- putStr (show de2)
      return (de0 , de1 , de2)
      
 bufferOffset :: Integral a => a -> Ptr b
@@ -143,11 +147,11 @@ initTrianglesResources vertices =
 
 
 
-resizeWindow :: GLFW.WindowSizeCallback
-resizeWindow win w h =
-    do
-      GL.viewport   $= (GL.Position 0 0, GL.Size (fromIntegral w) (fromIntegral h))
-      uniform (UniformLocation 1 ) $= (Vector2 (fromIntegral w) (fromIntegral h) :: Vector2 GLfloat) 
+-- resizeWindow :: GLFW.WindowSizeCallback
+-- resizeWindow win w h =
+--     do
+--       GL.viewport   $= (GL.Position 0 0, GL.Size (fromIntegral w) (fromIntegral h))
+--       uniform (UniformLocation 1 ) $= (Vector2 (fromIntegral w) (fromIntegral h) :: Vector2 GLfloat) 
 
 keyPressed :: GLFW.KeyCallback 
 keyPressed win GLFW.Key'Escape _ GLFW.KeyState'Pressed _ = shutdown win
@@ -163,11 +167,8 @@ shutdown win = do
   return ()
 
 
-onDisplay :: String -> Window -> (Descriptor , Descriptor , Descriptor) -> IO String
-onDisplay someString win dd@(ds0 , ds1 , ds2) = do
-  GL.clearColor $= Color4 1 1 1 1
-  -- GLFW.swapInterval 0
-  GL.clear [ColorBuffer , DepthBuffer]
+onDisplay :: Window -> Int -> Int -> (Descriptor , Descriptor , Descriptor) -> IO ()
+onDisplay win w h dd@(ds0 , ds1 , ds2) = do
 
   blend $= Disabled
   vertexProgramPointSize $= Enabled
@@ -180,7 +181,7 @@ onDisplay someString win dd@(ds0 , ds1 , ds2) = do
   polygonSmooth $= Enabled
   let vMat =  Vector3 75.0 0.0 $ 1.0 * (-35.0 + 1.0 * 50.0 * sin (0.7 * (realToFrac $ fromJust now)))
   uniform (UniformLocation 0 ) $= (vMat :: Vector3 GLfloat)
-
+  uniform (UniformLocation 1 ) $= (Vector2 (fromIntegral w) (fromIntegral h) :: Vector2 GLfloat) 
 
   let (Descriptor verts0 firstIndex0 numVertices0) = ds0  
   bindVertexArrayObject $= Just verts0
@@ -192,67 +193,59 @@ onDisplay someString win dd@(ds0 , ds1 , ds2) = do
 
   let (Descriptor verts2 firstIndex2 numVertices2) = ds2  
   bindVertexArrayObject $= Just verts2
+
   drawArrays Triangles firstIndex2 numVertices2
-  
-  GLFW.swapBuffers win
-  
-
-  GLFW.pollEvents
-  let someString2 = drop 1 someString 
-
-  when (someString2 /= []) (putStrLn someString2)
-  
-  onDisplay someString2 win dd
 
 
 
-render :: Renderables -> IO ()
-render rs =
-    do
-     GLFW.init
-     GLFW.defaultWindowHints
-     Just win <- GLFW.createWindow 640 480 "CubeViz2" Nothing Nothing
-     GLFW.makeContextCurrent (Just win)
-     GLFW.setWindowSizeCallback win (Just resizeWindow)
-     GLFW.setKeyCallback win (Just keyPressed)
-     GLFW.setWindowCloseCallback win (Just shutdown)
-     descriptors <- initResources rs
-     onDisplay "start" win descriptors
-     GLFW.destroyWindow win
-     GLFW.terminate
+-- render :: Renderables -> IO ()
+-- render rs =
+--     do
+--      GLFW.init
+--      GLFW.defaultWindowHints
+--      Just win <- GLFW.createWindow 640 480 "CubeViz2" Nothing Nothing
+--      GLFW.makeContextCurrent (Just win)
+--      GLFW.setWindowSizeCallback win (Just resizeWindow)
+--      GLFW.setKeyCallback win (Just keyPressed)
+--      GLFW.setWindowCloseCallback win (Just shutdown)
+--      descriptors <- initResources rs
+--      onDisplay win descriptors
+--      GLFW.destroyWindow win
+--      GLFW.terminate
 
 
+-- renderTask :: Renderables -> (IO Descriptors , GLFW.Window -> Descriptors -> IO ())
+renderTask rs = (initResources rs , onDisplay)
+
+-- testRen :: IO ()
+-- testRen =
+--   do putStr "drawing test"
+--      render ex1ren
 
 
-testRen :: IO ()
-testRen =
-  do putStr "drawing test"
-     render ex1ren
+-- testSf :: IO ()
+-- testSf =
+--   do putStr "drawing test"
+--      render (toRenderables ex2drw)
+
+-- testForce :: IO ()
+-- testForce =
+--   do putStr "drawing test force"
+--      render (toRenderablesForce ex2drw)
 
 
-testSf :: IO ()
-testSf =
-  do putStr "drawing test"
-     render (toRenderables ex2drw)
-
-testForce :: IO ()
-testForce =
-  do putStr "drawing test force"
-     render (toRenderablesForce ex2drw)
+-- testHycu :: IO ()
+-- testHycu =
+--   do putStr "drawing test force"
+--      render (toRenderables (D.scale 0.5 $ (unitHyCubeSkel 3 2)))
 
 
-testHycu :: IO ()
-testHycu =
-  do putStr "drawing test force"
-     render (toRenderables (D.scale 0.5 $ (unitHyCubeSkel 3 2)))
-
-
-test = testHycu
+-- test = testHycu
 
 data RenderMode = Raw
 
-renderAs :: (Colorlike a) => Drawing.GL.RenderMode -> Drawing a -> IO () 
-renderAs Raw dw = render (toRenderablesForce dw)
+-- renderAs :: (Colorlike a) => Drawing.GL.RenderMode -> Drawing a -> IO () 
+-- renderAs Raw dw = render (toRenderablesForce dw)
   
   
 

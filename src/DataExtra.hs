@@ -79,3 +79,11 @@ dot2 f g a b = f $ g a b
 
 dot3 :: (d -> e) -> (a -> b -> c -> d) -> (a -> b -> c -> e)  
 dot3 f g a b c = f $ g a b c 
+
+
+curb :: Ord a => a -> a -> a -> a
+curb l h x
+  | x < l     = l
+  | x > h     = h
+  | otherwise = x
+

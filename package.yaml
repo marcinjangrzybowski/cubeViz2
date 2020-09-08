@@ -32,7 +32,9 @@ dependencies:
 - text
 - sort
 - mtl
-
+- stm
+- transformers
+- pretty
 
 library:
   source-dirs: src
