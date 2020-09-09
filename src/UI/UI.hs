@@ -4,6 +4,8 @@ module UI.UI where
 
 import Control.Concurrent.STM    (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue)
 import Control.Monad             (unless, when, void)
+import Control.Monad.Reader      (ReaderT , ask , runReaderT)
+import Control.Monad.Writer      (WriterT, tell , runWriterT)
 import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, gets, liftIO, modify, put)
 import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 import Data.List                 (intercalate)
@@ -22,7 +24,7 @@ data Env = Env
     , envWindow        :: !GLFW.Window
     }
 
-data State uiState glDesc = State
+data State uiState glDesc uiMsg = State
     { stateWindowWidth     :: !Int
     , stateWindowHeight    :: !Int
     , stateLogEvents       :: !Bool
@@ -31,7 +33,8 @@ data State uiState glDesc = State
     , stateDragStartX      :: !Double
     , stateDragStartY      :: !Double
     , stateUI              :: uiState
-    , stateGLDesc          :: glDesc
+    , stateGLDesc          :: Maybe glDesc
+    , stateMsgsQueue       :: [uiMsg]
     }
 
 --------------------------------------------------------------------------------
@@ -55,24 +58,28 @@ data Event =
 
 --------------------------------------------------------------------------------
 
-type UI uiState glDesc = RWST Env () (State uiState glDesc) IO
+type UI uiState glDesc uiMsg = RWST Env [uiMsg] (State uiState glDesc uiMsg) IO
 
-data UIDesc uiState glDesc = UIDescription
-  { uiDescInitialState           :: uiState
-  , uiDescRenderInit             :: IO glDesc
-  , uiDescRenderFrame            :: GLFW.Window -> Int -> Int -> glDesc -> IO ()
+data UIDesc uiState glDesc uiMsg = UIDescription
+  { uiDescInit                   :: WriterT [uiMsg] IO uiState
+  -- , uiDescRenderInit             :: IO glDesc
+  , uiDescRenderFrame            :: GLFW.Window -> Int -> Int -> glDesc -> UI uiState glDesc uiMsg () -- -> glDesc -> IO ()
+  , uiDescUpdate                 :: uiMsg -> UI uiState glDesc uiMsg ()
+  , uiListeners                  :: Event -> UI uiState glDesc uiMsg ()
   }
 
 
-main :: UIDesc uiState glDesc -> IO ()
+main :: UIDesc uiState glDesc uiMsg -> IO ()
 main uiDesc =
   do
     let width  = 640
         height = 480
-
+    
     eventsChan <- newTQueueIO :: IO (TQueue Event)
 
-    withWindow width height "GLFW-b-demo" $ \win -> do
+    -- GLFW.windowHint $ GLFW.WindowHint'Resizable False
+
+    withWindow width height "cubeViz2" $ \win -> do
         GLFW.setErrorCallback               $ Just $ errorCallback           eventsChan
         GLFW.setWindowPosCallback       win $ Just $ windowPosCallback       eventsChan
         GLFW.setWindowSizeCallback      win $ Just $ windowSizeCallback      eventsChan
@@ -88,11 +95,21 @@ main uiDesc =
         GLFW.setKeyCallback             win $ Just $ keyCallback             eventsChan
         GLFW.setCharCallback            win $ Just $ charCallback            eventsChan
 
+
         GLFW.swapInterval 1
 
         (fbWidth, fbHeight) <- GLFW.getFramebufferSize win
 
-        descriptors <- uiDescRenderInit uiDesc
+
+        -- GLFW.setWindowSizeLimits win (Just fbWidth) (Just fbHeight) Nothing Nothing --(Just fbWidth) (Just fbHeight)
+
+
+        -- GLFW.setWindowAttrib win GLFW.WindowAttrib'Floating True
+        -- GLFW.setWindowAttrib win GLFW.WindowAttrib'Resizable False
+
+
+        (initialState , msgs) <- runWriterT (uiDescInit uiDesc)
+        -- descriptors <- uiDescRenderInit uiDesc
 
         let env = Env
               { envEventsChan    = eventsChan
@@ -101,13 +118,14 @@ main uiDesc =
             state = State
               { stateWindowWidth     = fbWidth
               , stateWindowHeight    = fbHeight
-              , stateLogEvents       = True
+              , stateLogEvents       = False
               , stateMouseDown       = False
               , stateDragging        = False
               , stateDragStartX      = 0
               , stateDragStartY      = 0
-              , stateUI              = uiDescInitialState uiDesc
-              , stateGLDesc          = descriptors
+              , stateUI              = initialState
+              , stateGLDesc          = Nothing --descriptors
+              , stateMsgsQueue       = msgs
               }
         runUI uiDesc env state
 
@@ -175,20 +193,47 @@ charCallback            tc win c          = atomically $ writeTQueue tc $ EventC
 
 --------------------------------------------------------------------------------
 
-runUI :: UIDesc uiState glDesc ->  Env -> State uiState glDesc -> IO ()
+modifyAppState :: (uiState -> uiState) -> UI uiState glDesc uiMsg ()
+modifyAppState f =
+  modify $ \s -> s { stateUI = f (stateUI s) }
+
+getsAppState :: (uiState -> a) -> UI uiState glDesc uiMsg a
+getsAppState f =
+  gets (f . stateUI)
+
+setAppState :: uiState -> UI uiState glDesc uiMsg ()
+setAppState s = modifyAppState (const s)
+  
+
+sendMsg :: uiMsg -> UI uiState glDesc uiMsg ()
+sendMsg msg =
+  do modify $ \s -> s { stateMsgsQueue = msg : stateMsgsQueue s }
+     
+
+runUI :: UIDesc uiState glDesc uiMsg ->  Env -> State uiState glDesc uiMsg -> IO ()
 runUI uiDesc env state = do
     printInstructions
     void $ evalRWST (adjustWindow >> run uiDesc) env state
 
-run :: UIDesc uiState glDesc -> UI uiState glDesc ()
+run :: UIDesc uiState glDesc uiMsg -> UI uiState glDesc uiMsg ()
 run uiDesc =
   
   do
-      win <- asks envWindow
 
-      descriptors <- gets stateGLDesc 
+
+      msgs <- gets $ stateMsgsQueue
+
+      modify $ \s -> s { stateMsgsQueue = []}
+
+      sequence $ fmap (uiDescUpdate uiDesc) msgs
+      
 
       state <- get
+      
+      win <- asks envWindow
+
+      mbDescriptors <- gets stateGLDesc 
+
 
       let width  = stateWindowWidth  state
           height = stateWindowHeight state
@@ -196,7 +241,11 @@ run uiDesc =
       liftIO $ do GL.clearColor GL.$= GL.Color4 1 1 1 1
                   -- GLFW.swapInterval 0
                   GL.clear [GL.ColorBuffer , GL.DepthBuffer]
-                  (uiDescRenderFrame uiDesc) win width height descriptors 
+                  
+      case mbDescriptors of
+          Just descriptors ->
+             (uiDescRenderFrame uiDesc) win width height descriptors
+          Nothing -> return ()
       -- draw
       liftIO $ do
           GLFW.swapBuffers win
@@ -204,7 +253,7 @@ run uiDesc =
           GLFW.pollEvents
 
           
-      processEvents
+      processEvents (uiListeners uiDesc)
 
       -- state <- get
       -- if stateDragging state
@@ -236,17 +285,22 @@ run uiDesc =
       q <- liftIO $ GLFW.windowShouldClose win
       unless q (run uiDesc)
 
-processEvents :: UI uiState glDesc ()
-processEvents = do
-    tc <- asks envEventsChan
-    me <- liftIO $ atomically $ tryReadTQueue tc
-    case me of
-      Just e -> do
-          processEvent e
-          processEvents
-      Nothing -> return ()
+processEvents :: (Event -> UI uiState glDesc uiMsg ()) -> UI uiState glDesc uiMsg ()
+processEvents appListeners = pe
 
-processEvent :: Event -> UI uiState glDesc ()
+  where pe =
+            do
+              tc <- asks envEventsChan
+              me <- liftIO $ atomically $ tryReadTQueue tc
+              case me of
+                Just e -> do
+                    processEvent e
+                    appListeners e
+                    pe
+                Nothing -> return ()
+   
+      
+processEvent :: Event -> UI uiState glDesc uiMsg ()
 processEvent ev =
     case ev of
       (EventError e s) -> do
@@ -333,13 +387,15 @@ processEvent ev =
               when (k == GLFW.Key'I) $
                 liftIO $ printInformation win
               when (k == GLFW.Key'E) $
-                modify $ \s -> s { stateLogEvents = not ( stateLogEvents s) }  
+                modify $ \s -> s { stateLogEvents = not ( stateLogEvents s) }
+              -- when (k == GLFW.Key'F) $
+                -- liftIO $ GLFW.setWindowAttrib win GLFW.WindowAttrib'Resizable False
 
       -- (EventChar _ c) ->
       --     printEvent "char" [show c]
       _ -> liftIO $ return ()
       
-adjustWindow :: UI uiState glDesc ()
+adjustWindow :: UI uiState glDesc uiMsg ()
 adjustWindow = do
     state <- get
     let width  = stateWindowWidth  state
@@ -515,7 +571,7 @@ getMonitorInfos =
 
 --------------------------------------------------------------------------------
 
-printEvent :: String -> [String] -> UI uiState glDesc ()
+printEvent :: String -> [String] -> UI uiState glDesc uiMsg ()
 printEvent cbname fields =
   do printEnabled <- gets stateLogEvents   
      when printEnabled $ liftIO $ putStrLn $ cbname ++ ": " ++ unwords fields

@@ -70,7 +70,7 @@ renderables2CVD =
       in x { pointVs = (perVert pos (calcNormal pos ++ color2arr cl)) ++ pointVs x}  
       
     
-
+type Descriptors = (Descriptor,Descriptor,Descriptor) 
 
 initResources :: Renderables -> IO (Descriptor,Descriptor,Descriptor)
 initResources rs =
@@ -167,8 +167,16 @@ shutdown win = do
   return ()
 
 
-onDisplay :: Window -> Int -> Int -> (Descriptor , Descriptor , Descriptor) -> IO ()
-onDisplay win w h dd@(ds0 , ds1 , ds2) = do
+
+data Viewport = Viewport
+   { vpAlpha :: Float
+   , vpBeta :: Float
+   , vpGamma :: Float
+   }
+  deriving Show
+
+onDisplay :: Window -> Int -> Int -> Viewport -> (Descriptor , Descriptor , Descriptor) -> IO ()
+onDisplay win w h vp dd@(ds0 , ds1 , ds2) = do
 
   blend $= Disabled
   vertexProgramPointSize $= Enabled
@@ -179,7 +187,12 @@ onDisplay win w h dd@(ds0 , ds1 , ds2) = do
   now <- GLFW.getTime
   -- blendFunc $= (SrcAlpha , OneMinusSrcAlpha)
   polygonSmooth $= Enabled
-  let vMat =  Vector3 75.0 0.0 $ 1.0 * (-35.0 + 1.0 * 50.0 * sin (0.7 * (realToFrac $ fromJust now)))
+
+  
+  
+  let vMat = Vector3 (vpAlpha vp * 360) (vpBeta vp * 360) (vpGamma vp * 360)  --75.0 0.0 $ 1.0 * (-35.0 + 1.0 * 50.0 * sin (0.7 * (realToFrac $ fromJust now)))
+
+  
   uniform (UniformLocation 0 ) $= (vMat :: Vector3 GLfloat)
   uniform (UniformLocation 1 ) $= (Vector2 (fromIntegral w) (fromIntegral h) :: Vector2 GLfloat) 
 

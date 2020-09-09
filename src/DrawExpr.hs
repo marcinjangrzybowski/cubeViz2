@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -20,7 +21,7 @@ import qualified Data.Bifunctor as Bf
 
 import qualified Data.Map as Map
 
-import Control.Arrow
+-- import Control.Arrow
 
 import Combi
 
@@ -30,7 +31,7 @@ import Data.Bool
 import Data.List
 import qualified Data.Set as Set
 
-import Data.Tuple.Extra
+import Data.Tuple.Extra (second , first)
 
 import PiecesEval
 
@@ -183,14 +184,19 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
 -- XXXX
 
 
-instance DrawingCtx () Color Int where    
+simpleDrawTerm 0 = FromLI 0 (const [([[]]  , ([] , nthColor 4)) ] )
+simpleDrawTerm 1 =
+    FromLI 1 (bool [([[0.2],[0.3]] , ([] , nthColor 1))]
+                   [([[0.6],[0.7]] , ([] , nthColor 2))] . fst . head . toListLI)
+simpleDrawTerm n = FromLI n (const [])
+
+instance DrawingCtx () ([String] , Color) Int where    
   fromCtx _ = ()
   drawGenericTerm (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
-  drawD _ 0 = FromLI 0 (const [([[]]  , nthColor 4) ] )
-  drawD _ 1 =
-    FromLI 1 (bool [([[0.2],[0.3]] , nthColor 1)] [([[0.6],[0.7]] , nthColor 2)] . fst . head . toListLI)
 
+  drawD _ k = fmap (fmap $ second $ first $ (:) "term") (simpleDrawTerm k)
+  
     -- FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
     -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
 
@@ -198,135 +204,16 @@ instance DrawingCtx () Color Int where
     --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
     --            . fst . head . toListLI)
 
-  drawD _ n = FromLI n (const [])
   
   drawCellCommon ee@(env , ctx) _ _ =
      let n = getDim ee
      in
        if n > 1
-       then  fmap (Bf.second $ const $ gray 0.5)
+       then  fmap (Bf.second $ const $ ( ["cellBorder"] , gray 0.5))
                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
        else []
 
 
-
---- XXXX  
- 
-
--- instance DrawingCtx () (Color) (Maybe ((Int , Color) , [Int])) where    
---   fromCtx _ = ()
-
---   drawCellCommon eee _ _ = emptyDrawing
---       -- Drawing [ ( unitHyCube (getDim eee)  , gray 0.3   ) ]
-
---   drawGenericTerm ((ee , ctx) , _) _ pc vi =
---     if True --(unemerate pc == 28) -- && unemerate pc < 30)
---     then Just ((getCTyDim ee ctx $ getVarType ctx vi ,
---           -- nthColor (unemerate pc)
---         gray 0.8
---           ) ,  [])
---     else Nothing
-
---   drawD _ (Just ( (1 , cl) , dg )) =
---      let d0 = Drawing [
-
---           --  ( (1 , [[0.2],[0.3]])  , cl   )
---           -- , ( (1 , [[0.7],[0.8]])  , cl   )
-           
-
-           
---             ( (1 , [[0.2],[0.25]])  , cl   )
---            , ( (1 , [[0.45],[0.55]])  , cl   )
---            ,( (1 , [[0.75],[0.8]])  , cl   )
---            ]
---      in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
-    
---   drawD _ (Just ( (k , cl) , dg )) =
---      let d0 = translate (replicate k 0.2)  $
---            scale 0.6 $ Drawing [ ( unitHyCube (k)  , cl   ) ]
---      in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
-     
---   drawD _ Nothing = emptyDrawing
-
--- data Stripes1 = Stripes1
-
--- data Field1 = Field1
-
--- instance DrawingCtx Stripes1 (Color) (Maybe (Either Color (Color , Color) , [Int])) where    
---   fromCtx _ = Stripes1
-
---   drawCellCommon eee _ _ = emptyDrawing
---       -- Drawing [ ( unitHyCube (getDim eee)  , gray 0.3   ) ]
-
---   drawGenericTerm ((ee , ctx) , _) _ pc vi@(VarIndex viK) =
---     let (CType _ l) = (getVarType ctx vi) in
---     case l of
---       [] -> Just (Left (nthColor viK)  , [])
---       [ (Var (VarIndex viK0) [] , Var (VarIndex viK1) []) ] ->
---           Just (Right ((nthColor viK0) , (nthColor viK1) ) , [])
---       _ -> error "this convention is not suitable for types of dim>1"
---     -- Just ((getCTyDim ee ctx $ getVarType ctx vi ,
---     --       -- nthColor (unemerate pc)
---     --     gray 0.8
---     --       ) ,  [])
-    
-
---   drawD _ (Just ( Right (c0 , c1)  , dg )) =
---      let d0 = Drawing [
-
---           --  ( (1 , [[0.2],[0.3]])  , cl   )
---           -- , ( (1 , [[0.7],[0.8]])  , cl   )
-           
-
-           
---             ( (1 , [[0.2],[0.25]])  , c0   )
---            -- , ( (1 , [[0.45],[0.55]])  , gray 0.5   )
---            ,( (1 , [[0.65],[0.7]])  , c1   )
---            ]
---      in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
-    
---   drawD _ (Just ( Left cl , dg )) =
---      let d0 = Drawing [ ( unitHyCube 0  , cl   ) ]
---      in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
-     
---   drawD _ Nothing = emptyDrawing
-
--- instance DrawingCtx Field1 (Color) ((Either Color (Color , Color) , [Int])) where    
---   fromCtx _ = Field1
-
---   drawCellCommon eee _ _ = emptyDrawing
---       -- Drawing [ ( unitHyCube (getDim eee)  , gray 0.3   ) ]
-
---   drawGenericTerm ((ee , ctx) , _) _ pc vi@(VarIndex viK) =
---     let (CType _ l) = (getVarType ctx vi) in
---     case l of
---       [] -> (Left (nthColor viK)  , [])
---       [ (Var (VarIndex viK0) [] , Var (VarIndex viK1) []) ] ->
---            (Right ((nthColor viK0) , (nthColor viK1) ) , [])
---       _ -> error "this convention is not suitable for types of dim>1"
---     -- Just ((getCTyDim ee ctx $ getVarType ctx vi ,
---     --       -- nthColor (unemerate pc)
---     --     gray 0.8
---     --       ) ,  [])
-    
-
---   drawD _ ( ( Right (c0 , c1)  , dg0 )) =
---      let
---          k = length dg0
---          -- d0 = translate (replicate k 0.4)  $
---          --          scale 0.2 $ Drawing [ ( unitHyCube (k)  , gray 0.3   ) ]
-
---          d0 = grid k 3 (gray 0.4)
-
---          dg :: [Int]
---          dg = [ length $ takeWhile id $ zipWith (==) dg0 [0..]  ]
---      in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
-    
---   drawD _ (( Left cl , dg )) = emptyDrawing
---      -- let d0 = Drawing [ ( unitHyCube 0  , cl   ) ]
---      -- in foldl (flip $ (flip addDim) (0.0001 , 0.9999)) d0 dg
-     
-  
 
 drawExpr = mkDrawExprFill (forget ())
   
