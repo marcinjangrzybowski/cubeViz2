@@ -126,8 +126,8 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
 
   drawD :: Never a -> c -> ZDrawing b
 
-  drawCellCommon :: (Env , Context) -> a -> CellExpr -> Drawing b
-  drawCellCommon _ _ _ = []
+  drawCellCommon :: (Env , Context) -> Int -> a -> CellExpr -> Drawing b
+  drawCellCommon _ _ _ _ = []
   
   drawCellPiece :: (Env , Context) -> Int -> a -> PieceExpr -> (Piece -> Drawing b)  
   drawCellPiece ee n a (PieceExpr h t) =     
@@ -138,7 +138,7 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
   cellPainter ee na dctx n adr ce =
      let zz = fmap (FromLI n . (drawCellPiece ee n dctx)) (piecesEval n ce)
      in Right $
-          drawCellCommon ee dctx ce
+          drawCellCommon ee n dctx ce
             ++
           (evalLI zz)
             
@@ -184,7 +184,7 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
 -- XXXX
 
 
-simpleDrawTerm 0 = FromLI 0 (const [([[]]  , ([] , nthColor 4)) ] )
+-- simpleDrawTerm 0 = FromLI 0 (const [([[]]  , ([] , nthColor 4)) ] )
 simpleDrawTerm 1 =
     FromLI 1 (bool [([[0.2],[0.3]] , ([] , nthColor 1))]
                    [([[0.6],[0.7]] , ([] , nthColor 2))] . fst . head . toListLI)
@@ -205,9 +205,30 @@ instance DrawingCtx () ([String] , Color) Int where
     --            . fst . head . toListLI)
 
   
-  drawCellCommon ee@(env , ctx) _ _ =
-     let n = getDim ee
-     in
+  drawCellCommon _ n _ _ = 
+       if n > 1
+       then  fmap (Bf.second $ const $ ( ["cellBorder"] , gray 0.5))
+               $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 0
+       else []
+
+data ScaffoldPT = ScaffoldPT
+
+instance DrawingCtx ScaffoldPT ([String] , Color) Int where    
+  fromCtx _ = ScaffoldPT
+  drawGenericTerm (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
+
+
+  drawD _ k = FromLI k (const [])
+  
+    -- FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
+    -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
+
+    -- FromLI 1 (bool [([[0.2]] , ()) , ([[0.3]] , ())]
+    --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
+    --            . fst . head . toListLI)
+
+  
+  drawCellCommon _ n _ _ = 
        if n > 1
        then  fmap (Bf.second $ const $ ( ["cellBorder"] , gray 0.5))
                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
@@ -215,7 +236,15 @@ instance DrawingCtx () ([String] , Color) Int where
 
 
 
-drawExpr = mkDrawExprFill (forget ())
+data DrawExprMode = Stripes | StripesNoFill | Scaffold 
+  deriving (Show , Eq)
+
+drawExprModes = [ Stripes , StripesNoFill , Scaffold ]
+
+drawExpr Stripes = mkDrawExprFill (forget ())
+drawExpr StripesNoFill = mkDrawExpr (forget ())
+drawExpr Scaffold  = mkDrawExprFill (forget ScaffoldPT)
+
   
 -- drawExpr = mkDrawExpr (forget Stripes1)
           

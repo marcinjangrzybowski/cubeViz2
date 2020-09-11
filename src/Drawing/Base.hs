@@ -126,18 +126,23 @@ extrude k (f0 , f1) =
                $ fmap fst $ zip [0..] s
          
      in map (flip (,) a) (ss))
-  -- Drawing $
-  --   ( fmap
-  --     (\(p , c) ->
-  --        case c of
-  --          Mask -> undefined
-  --          MShape a -> undefined
-  --          SShape a -> (extrudePrll v p , SShape a)
-  --            )
-  --     l )
 
 
--- data Renderable
+--first arg is dim of ambient, second dim of simplex
+mapWithDim :: (Int -> Int -> (Smplx , a) -> [(Smplx , a)]) -> Drawing a -> Drawing a 
+mapWithDim _ [] = [] 
+mapWithDim f xs =
+ xs >>= (\(pts , a) -> f (length (head pts) ) (length pts - 1) (pts , a) )
+
+getSkel :: Int -> Drawing a  -> Drawing a
+getSkel sk l = undefined
+
+extrudeSkel :: Int -> Int -> ([Float] -> Float , [Float] -> Float) -> Drawing a -> Drawing a
+extrudeSkel k sk (f0 , f1) = undefined
+
+    
+
+
 
 type ZDrawing a = FromLI Piece (Drawing a)
 

@@ -22,6 +22,8 @@ import Drawing.GL
 import Drawing.Example
 import Data.List
 
+import Data.Tuple.Extra
+
 import Data.Maybe
 
 import Syntax
@@ -31,15 +33,17 @@ import Data.Bifunctor
 
 import DrawExpr
 
+import DataExtra
+
 import Combi
 
 import qualified UI.UI as UI
 
 
 -- termDrawing :: SessionState -> IO ()
-termDrawing ss@(SessionState ee _ _ e) =
+termDrawing dm ss@(SessionState ee _ _ e) =
    
-      let drawing = drawExpr $ ssEnvExpr $ ss
+      let drawing = drawExpr dm $ ssEnvExpr $ ss
           dim = getDim ee
       
       in bimap
@@ -53,12 +57,17 @@ termDrawing ss@(SessionState ee _ _ e) =
 data Msg =
     SetDescriptor Descriptors
   | LoadFile String
+  | CycleDrawMode
 
 data AppState = AppState
    { fileName        :: Maybe String
+   , asSession       :: Maybe SessionState
+   , asDrawMode      :: DrawExprMode
    , asViewport      :: Viewport 
    , asDragStartVP   :: Maybe Viewport
    }
+
+
 
 main :: IO ()
 main =
@@ -90,8 +99,22 @@ main =
            return $ AppState
             { fileName        = Nothing
             , asViewport      = Viewport { vpAlpha = 1/5 , vpBeta = 0 , vpGamma = -0.1 }
+            , asDrawMode      = Stripes --Scaffold --head drawExprModes
             , asDragStartVP   = Nothing
+            , asSession       = Nothing
             }
+
+      updateView =
+        do (session , dm) <- UI.getsAppState (asSession &&& asDrawMode)
+           case session of
+             Nothing -> error "unhandled"
+             Just session ->
+                 case termDrawing dm session of
+                      Left errMsg -> liftIO $ putStrLn errMsg
+                      Right drawing ->
+                        do
+                           desc <- liftIO $ initResources $ toRenderablesForce drawing
+                           UI.sendMsg $ SetDescriptor desc
       
       update msg =
         case msg of
@@ -113,13 +136,16 @@ main =
                         
                case fileLoadingResult of
                   Left errMsg -> liftIO $ putStrLn errMsg
-                  Right sessionState ->
-                    case termDrawing sessionState of
-                      Left errMsg -> liftIO $ putStrLn errMsg
-                      Right drawing ->
-                        do
-                           desc <- liftIO $ initResources $ toRenderablesForce drawing
-                           UI.sendMsg $ SetDescriptor desc
+                  Right sessionState -> do
+                         UI.modifyAppState $ (\s -> s
+                             { asSession = Just sessionState 
+                              })
+                         updateView
+          CycleDrawMode -> do
+               UI.modifyAppState $ \s -> s
+                  { asDrawMode = rotateFrom (asDrawMode s) drawExprModes 
+                  }                
+               updateView
 
       processEvent ev =
             case ev of
@@ -159,6 +185,9 @@ main =
                         -- Q, Esc: exit
                         when (k == GLFW.Key'C) $
                           UI.sendMsg $ LoadFile "data/input-to-viz/expr3d1-fill"
+                        when (k == GLFW.Key'D) $ do
+                          UI.sendMsg $ CycleDrawMode
+                          
                           -- modify $ \s -> s { stateLogEvents = not ( stateLogEvents s) }           
               _ -> return ()
               

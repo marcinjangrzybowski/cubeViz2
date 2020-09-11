@@ -182,7 +182,7 @@ instance ToCub ((Env , Context) , Expr) CellExpr where
 
 
 -- -- UNTESTED IN ANY WAY
--- makeGrid :: Int -> Int -> Cub ()
+-- makeGrid :: Int -> Int -> Cub ()     
 -- makeGrid dim 0 = Cub 0 ()
 -- makeGrid dim depth =
 --   let prev = (makeGrid dim (depth - 1))

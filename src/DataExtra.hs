@@ -18,7 +18,14 @@ punchIn :: Int -> Int -> Int
 punchIn k i | i < k = i
             | i >= k = i + 1
 
+rotate :: Int -> [a] -> [a]
+rotate _ [] = []
+rotate n xs = zipWith const (drop n (cycle xs)) xs
 
+rotateFrom :: (Eq a) => a -> [a] -> a
+rotateFrom a (x : y : ys) | x == a = y
+rotateFrom a (x : y : ys) | otherwise = rotateFrom a (y : ys ++ [x]) 
+rotateFrom a _ = a
 
 explode :: [a] -> [[a]]
 explode [] = []
