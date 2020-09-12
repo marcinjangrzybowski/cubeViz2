@@ -28,7 +28,7 @@ import Data.Bifunctor
 
 import DataExtra
 
-data Descriptor = Descriptor VertexArrayObject ArrayIndex NumArrayIndices
+data Descriptor = Descriptor PrimitiveMode VertexArrayObject ArrayIndex NumArrayIndices
   deriving Show
 
 
@@ -72,19 +72,19 @@ renderables2CVD =
     
 type Descriptors = (Descriptor,Descriptor,Descriptor) 
 
-initResources :: Renderables -> IO (Descriptor,Descriptor,Descriptor)
+initResources :: Renderables -> IO [Descriptor]
 initResources rs =
-  do de0 <- initTrianglesResources (pointVs (renderables2CVD rs))
-     de1 <- initTrianglesResources (lineVs (renderables2CVD rs))
-     de2 <- initTrianglesResources (triangleVs (renderables2CVD rs))
+  do de0 <- initTrianglesResources Points (pointVs (renderables2CVD rs))
+     de1 <- initTrianglesResources Lines (lineVs (renderables2CVD rs))
+     de2 <- initTrianglesResources Triangles (triangleVs (renderables2CVD rs))
      -- putStr (show de2)
-     return (de0 , de1 , de2)
+     return [de0 , de1 , de2]
      
 bufferOffset :: Integral a => a -> Ptr b
 bufferOffset = plusPtr nullPtr . fromIntegral
 
-initTrianglesResources :: [GLfloat] -> IO Descriptor
-initTrianglesResources vertices = 
+initTrianglesResources ::  PrimitiveMode -> [GLfloat] -> IO Descriptor
+initTrianglesResources pm vertices = 
 
   do triangles <- genObjectName
      bindVertexArrayObject $= Just triangles
@@ -143,7 +143,7 @@ initTrianglesResources vertices =
      vertexAttribArray colorPosition $= Enabled
 
 
-     return $ Descriptor triangles firstIndex (fromIntegral numVertices)
+     return $ Descriptor pm triangles firstIndex (fromIntegral numVertices)
 
 
 
@@ -157,8 +157,8 @@ data Viewport = Viewport
    }
   deriving Show
 
-onDisplay :: Window -> Int -> Int -> Viewport -> (Descriptor , Descriptor , Descriptor) -> IO ()
-onDisplay win w h vp dd@(ds0 , ds1 , ds2) = do
+onDisplay :: Window -> Int -> Int -> Viewport -> Descriptor -> IO ()
+onDisplay win w h vp ds = do
 
   blend $= Disabled
   vertexProgramPointSize $= Enabled
@@ -178,18 +178,22 @@ onDisplay win w h vp dd@(ds0 , ds1 , ds2) = do
   uniform (UniformLocation 0 ) $= (vMat :: Vector3 GLfloat)
   uniform (UniformLocation 1 ) $= (Vector2 (fromIntegral w) (fromIntegral h) :: Vector2 GLfloat) 
 
-  let (Descriptor verts0 firstIndex0 numVertices0) = ds0  
-  bindVertexArrayObject $= Just verts0
-  drawArrays Points firstIndex0 numVertices0
+  let (Descriptor pm verts firstIndex numVertices) = ds 
+  bindVertexArrayObject $= Just verts
+  drawArrays pm firstIndex numVertices
 
-  let (Descriptor verts1 firstIndex1 numVertices1) = ds1  
-  bindVertexArrayObject $= Just verts1
-  drawArrays Lines firstIndex1 numVertices1
 
-  let (Descriptor verts2 firstIndex2 numVertices2) = ds2  
-  bindVertexArrayObject $= Just verts2
+onDisplayAll :: Window -> Int -> Int -> Viewport -> [Descriptor] -> IO ()
+onDisplayAll win w h vp = void . sequence . map (onDisplay win w h vp) 
 
-  drawArrays Triangles firstIndex2 numVertices2
+  -- let (Descriptor pm1 verts1 firstIndex1 numVertices1) = ds1  
+  -- bindVertexArrayObject $= Just verts1
+  -- drawArrays pm1 firstIndex1 numVertices1
+
+  -- let (Descriptor pm2 verts2 firstIndex2 numVertices2) = ds2  
+  -- bindVertexArrayObject $= Just verts2
+
+  -- drawArrays pm2 firstIndex2 numVertices2
 
 
 -- testRen :: IO ()

@@ -55,7 +55,7 @@ termDrawing dm ss@(SessionState ee _ _ e) =
             drawing
 
 data Msg =
-    SetDescriptor Descriptors
+    SetDescriptor [Descriptor]
   | LoadFile String
   | CycleDrawMode
 
@@ -83,7 +83,7 @@ main =
       render win w h descriptors =
          do
             viewport <- UI.getsAppState asViewport
-            liftIO $ onDisplay win w h viewport descriptors 
+            liftIO $ onDisplayAll win w h viewport descriptors 
         
       
       init =
