@@ -99,7 +99,7 @@ main =
            return $ AppState
             { fileName        = Nothing
             , asViewport      = Viewport { vpAlpha = 1/5 , vpBeta = 0 , vpGamma = -0.1 }
-            , asDrawMode      = Stripes --Scaffold --head drawExprModes
+            , asDrawMode      = Scaffold -- Stripes --head drawExprModes
             , asDragStartVP   = Nothing
             , asSession       = Nothing
             }

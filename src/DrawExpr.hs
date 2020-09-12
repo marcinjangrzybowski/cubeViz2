@@ -109,7 +109,7 @@ type CellPainter b =
 
 
 
-class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
+class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c | a -> b c where
   -- a is precomputed data, config, COMMON FOR ALL CELLS,
   -- c is some abstract escriptoon
   -- b is colorlike
@@ -152,6 +152,9 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
          cubDrw <- cubMap (cellPainter envCtx na dctx )  [] cub
          return $ collectDrawings cubDrw
 
+  fillStyleProcess :: Never a -> Drawing b -> Drawing b
+  fillStyleProcess _ = id
+
   -- TODO :: raczej zrezygnowac z Either w calej tej klasie...
   mkDrawExprFill :: Never a  -> ((Env , Context) , Expr) -> Either String (Drawing b)
   mkDrawExprFill na w@( envCtx , _ ) = 
@@ -163,7 +166,7 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
              $ Map.fromSet
                (\fc -> (
                    let d = fromRight [] $ (drawCub (cubFace fc (Hcomp nm sides bot)))
-                       d1 = extrude (getDim bot) (piramFn defaultCompPar , const 1) d
+                       d1 = fillStyleProcess na $ extrude (getDim bot) (piramFn defaultCompPar , const 1) d
                        -- d1 = embed (getDim bot) (const 1) d
                    in Cub (getDim bot) undefined (d1 , STFill)
                    ) )
@@ -186,16 +189,16 @@ class (Colorlike b , DiaDeg c) => DrawingCtx a b c | a -> b c where
 
 -- simpleDrawTerm 0 = FromLI 0 (const [([[]]  , ([] , nthColor 4)) ] )
 simpleDrawTerm 1 =
-    FromLI 1 (bool [([[0.2],[0.3]] , ([] , nthColor 1))]
-                   [([[0.6],[0.7]] , ([] , nthColor 2))] . fst . head . toListLI)
+    FromLI 1 (bool [([[0.2],[0.3]] , (([] , Basic) , nthColor 1))]
+                   [([[0.6],[0.7]] , (([] , Basic) , nthColor 2))] . fst . head . toListLI)
 simpleDrawTerm n = FromLI n (const [])
 
-instance DrawingCtx () ([String] , Color) Int where    
+instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int where    
   fromCtx _ = ()
   drawGenericTerm (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
 
-  drawD _ k = fmap (fmap $ second $ first $ (:) "term") (simpleDrawTerm k)
+  drawD _ k = fmap (fmap $ second $ first $ first $ (:) "term") (simpleDrawTerm k)
   
     -- FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
     -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
@@ -207,13 +210,13 @@ instance DrawingCtx () ([String] , Color) Int where
   
   drawCellCommon _ n _ _ = 
        if n > 1
-       then  fmap (Bf.second $ const $ ( ["cellBorder"] , gray 0.5))
-               $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 0
+       then  fmap (Bf.second $ const $ ( (["cellBorder"] , ExtrudeLines) , gray 0.8))
+               $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
        else []
 
 data ScaffoldPT = ScaffoldPT
 
-instance DrawingCtx ScaffoldPT ([String] , Color) Int where    
+instance DrawingCtx ScaffoldPT (([String] , ExtrudeMode) , Color) Int where    
   fromCtx _ = ScaffoldPT
   drawGenericTerm (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
@@ -227,10 +230,17 @@ instance DrawingCtx ScaffoldPT ([String] , Color) Int where
     --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
     --            . fst . head . toListLI)
 
-  
+
+  fillStyleProcess _ =
+    map (\(s , a@((tags , em) , c) ) ->
+           case em of
+             ExtrudeLines -> (s , ((tags , em) , Rgba 0.8 0.8 0.8 0.1))
+             _ -> (s , a) 
+        )
+    
   drawCellCommon _ n _ _ = 
-       if n > 1
-       then  fmap (Bf.second $ const $ ( ["cellBorder"] , gray 0.5))
+       if n > -1
+       then  fmap (Bf.second $ const $ (( ["cellBorder"] , ExtrudeLines) , gray 0.5))
                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
        else []
 

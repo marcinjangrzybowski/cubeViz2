@@ -89,7 +89,7 @@ initTrianglesResources vertices =
   do triangles <- genObjectName
      bindVertexArrayObject $= Just triangles
 
-     putStr (show $ length vertices)
+     -- putStr (show $ length vertices)
      -- let vertices = [
 
      let numVertices = (length vertices)
@@ -147,24 +147,6 @@ initTrianglesResources vertices =
 
 
 
--- resizeWindow :: GLFW.WindowSizeCallback
--- resizeWindow win w h =
---     do
---       GL.viewport   $= (GL.Position 0 0, GL.Size (fromIntegral w) (fromIntegral h))
---       uniform (UniformLocation 1 ) $= (Vector2 (fromIntegral w) (fromIntegral h) :: Vector2 GLfloat) 
-
-keyPressed :: GLFW.KeyCallback 
-keyPressed win GLFW.Key'Escape _ GLFW.KeyState'Pressed _ = shutdown win
-keyPressed win GLFW.Key'Right _ GLFW.KeyState'Pressed _ = putStr "xx"
-keyPressed _   _               _ _                     _ = return ()
-
-
-shutdown :: GLFW.WindowCloseCallback
-shutdown win = do
-  GLFW.destroyWindow win
-  GLFW.terminate
-  _ <- exitWith ExitSuccess
-  return ()
 
 
 
@@ -209,26 +191,6 @@ onDisplay win w h vp dd@(ds0 , ds1 , ds2) = do
 
   drawArrays Triangles firstIndex2 numVertices2
 
-
-
--- render :: Renderables -> IO ()
--- render rs =
---     do
---      GLFW.init
---      GLFW.defaultWindowHints
---      Just win <- GLFW.createWindow 640 480 "CubeViz2" Nothing Nothing
---      GLFW.makeContextCurrent (Just win)
---      GLFW.setWindowSizeCallback win (Just resizeWindow)
---      GLFW.setKeyCallback win (Just keyPressed)
---      GLFW.setWindowCloseCallback win (Just shutdown)
---      descriptors <- initResources rs
---      onDisplay win descriptors
---      GLFW.destroyWindow win
---      GLFW.terminate
-
-
--- renderTask :: Renderables -> (IO Descriptors , GLFW.Window -> Descriptors -> IO ())
-renderTask rs = (initResources rs , onDisplay)
 
 -- testRen :: IO ()
 -- testRen =

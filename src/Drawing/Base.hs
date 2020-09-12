@@ -69,6 +69,11 @@ data Renderable = Point Pt3D | Line (Pt3D , Pt3D) | Triangle (Pt3D , Pt3D , Pt3D
 type Renderables = [(Renderable,Color)]  
 
 
+
+
+  
+
+
 toRenderable :: Smplx -> Maybe Renderable
 toRenderable ([([ x0 , y0 , z0 ]) , ([ x1 , y1 , z1]) , ([ x2 , y2 , z2])]) =
     Just $ Triangle ((x0 , y0 , z0) , (x1 , y1 , z1) , (x2 , y2 , z2)) 
@@ -112,11 +117,11 @@ embed k f = sMap (\l -> listInsert k (f l) l)
 --   Drawing $
 --     ( fmap (first $ extrudePrll v) l )
 
+data ExtrudeMode = Basic | ExtrudeLines
 
-
-extrude :: Int -> ([Float] -> Float , [Float] -> Float) -> Drawing a -> Drawing a
-extrude k (f0 , f1) =
-    (=<<) (\(s , a) ->
+extrudeBasicF :: Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a
+extrudeBasicF k (f0 , f1) (s , a) =
+    -- (=<<) (\(s , a) ->
      let ss = map
                (\i ->
                  let s0 = fmap (\pt -> listInsert k (f0 pt) pt) $ take (i + 1) s
@@ -125,8 +130,47 @@ extrude k (f0 , f1) =
                   )
                $ fmap fst $ zip [0..] s
          
-     in map (flip (,) a) (ss))
+     in map (flip (,) a) (ss)
 
+extrudeLinesF :: Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a
+extrudeLinesF k (f0 , f1) (s , a) =
+    -- (=<<) (\(s , a) ->
+     let ss = if (length s > 2) then error "dim>1 feeded to extrudeLinesF!!"
+              else ( map (\pt -> listInsert k (f0 pt) pt  ) s
+                     :
+                     map (\pt -> listInsert k (f1 pt) pt  ) s
+                     :
+                     map (\pt -> [listInsert k (f0 pt) pt , listInsert k (f1 pt) pt ]  ) s
+                   )
+
+              -- map
+              --  (\i ->
+              --    let s0 = fmap (\pt -> listInsert k (f0 pt) pt) $ take (i + 1) s
+              --        s1 = fmap (\pt -> listInsert k (f1 pt) pt) $ drop i s
+              --    in s0 ++ s1
+              --     )
+              --  $ fmap fst $ zip [0..] s
+         
+     in map (flip (,) a) (ss)
+
+extrudeF :: ExtrudeMode -> (Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a)
+extrudeF Basic = extrudeBasicF
+extrudeF ExtrudeLines = extrudeLinesF
+
+class Extrudable a where
+  extrudeMode :: a -> ExtrudeMode
+  extrudeMode _ = Basic
+
+  extrudeFPriv :: Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a
+  extrudeFPriv k f (s , a) = extrudeF (extrudeMode a) k f (s , a) 
+
+  extrude :: Int -> ([Float] -> Float , [Float] -> Float) -> Drawing a -> Drawing a
+  extrude k f = (=<<) $ extrudeFPriv k f
+    
+instance Extrudable ([String],Color) where
+
+instance Extrudable (([String],ExtrudeMode),Color) where  
+  extrudeMode = snd . fst
 
 --first arg is dim of ambient, second dim of simplex
 mapWithDim :: (Int -> Int -> (Smplx , a) -> [(Smplx , a)]) -> Drawing a -> Drawing a 
@@ -140,6 +184,11 @@ getSkel sk l = undefined
 extrudeSkel :: Int -> Int -> ([Float] -> Float , [Float] -> Float) -> Drawing a -> Drawing a
 extrudeSkel k sk (f0 , f1) = undefined
 
+getPoints :: Drawing a  -> Drawing a
+getPoints l = undefined
+
+extrudeLines :: Int -> Int -> ([Float] -> Float , [Float] -> Float) -> Drawing a -> Drawing a
+extrudeLines k sk (f0 , f1) = undefined
     
 
 
@@ -181,7 +230,7 @@ pieceHyperPlanes (b , j0) pc0@( (Subset dim _) , _) = ( hyperPlanes !! j , hyper
 
     j = dim - j0
 
-degen :: Int -> ZDrawing a -> ZDrawing a
+degen :: (Extrudable a) => Int -> ZDrawing a -> ZDrawing a
 degen k (FromLI n f) =
 
    -- fmap (scaleRelToCenter 1.01)
@@ -211,7 +260,7 @@ scaleRelToCenter f =
 
 
 
-degenAll :: [Int] -> ZDrawing a -> ZDrawing a
+degenAll :: (Extrudable a) => [Int] -> ZDrawing a -> ZDrawing a
 degenAll ds x = foldl (flip degen) x ds
 
 

@@ -67,17 +67,17 @@ class DiaDeg a where
   appPerm :: Permutation -> a -> a
   -- appPerm _ = id
 
-  appDegen :: (a -> ZDrawing b) -> [Int] ->  a -> ZDrawing b
+  appDegen :: Extrudable b => (a -> ZDrawing b) -> [Int] ->  a -> ZDrawing b
   appDegen fromDiag ds a = degenAll ds (fromDiag a) 
 
-  remapDS :: (a -> ZDrawing b) -> DecomposedSubst -> a -> ZDrawing b  
+  remapDS :: Extrudable b => (a -> ZDrawing b) -> DecomposedSubst -> a -> ZDrawing b  
   remapDS fromDiag ds =
        appDegen fromDiag (missingDS ds)
      . appPerm (orderDS ds)
      . appDiags (diagDS ds)
      . appNegs (negsDS ds)
 
-  remapTL :: (a -> ZDrawing b) -> Int -> [(Int,Bool)] -> a -> ZDrawing b
+  remapTL :: Extrudable b =>  (a -> ZDrawing b) -> Int -> [(Int,Bool)] -> a -> ZDrawing b
   remapTL fromDiag k tl = remapDS fromDiag $ decomposeSubst k tl 
 
   
