@@ -201,6 +201,10 @@ getsAppState :: (uiState -> a) -> UI uiState glDesc uiMsg a
 getsAppState f =
   gets (f . stateUI)
 
+getAppState :: UI uiState glDesc uiMsg uiState
+getAppState =
+  gets (stateUI)
+
 setAppState :: uiState -> UI uiState glDesc uiMsg ()
 setAppState s = modifyAppState (const s)
   

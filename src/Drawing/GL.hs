@@ -160,6 +160,7 @@ data Viewport = Viewport
 onDisplay :: Window -> Int -> Int -> Viewport -> Descriptor -> IO ()
 onDisplay win w h vp ds = do
 
+  -- GL.clear [GL.DepthBuffer]
   blend $= Disabled
   vertexProgramPointSize $= Enabled
   clearDepth $= 1
@@ -176,7 +177,10 @@ onDisplay win w h vp ds = do
 
   
   uniform (UniformLocation 0 ) $= (vMat :: Vector3 GLfloat)
-  uniform (UniformLocation 1 ) $= (Vector2 (fromIntegral w) (fromIntegral h) :: Vector2 GLfloat) 
+  uniform (UniformLocation 1 ) $= (Vector2 (fromIntegral w) (fromIntegral h) :: Vector2 GLfloat)
+  case now of
+    Just nowD -> uniform (UniformLocation 2 ) $= nowD
+    Nothing -> return ()
 
   let (Descriptor pm verts firstIndex numVertices) = ds 
   bindVertexArrayObject $= Just verts

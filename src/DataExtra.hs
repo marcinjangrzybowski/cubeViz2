@@ -27,6 +27,8 @@ rotateFrom a (x : y : ys) | x == a = y
 rotateFrom a (x : y : ys) | otherwise = rotateFrom a (y : ys ++ [x]) 
 rotateFrom a _ = a
 
+
+--all subsets of cardinality card(x) - 1
 explode :: [a] -> [[a]]
 explode [] = []
 explode [a] = [[]]
@@ -49,6 +51,10 @@ listPopAt :: Int -> [a] -> (a , [a])
 listPopAt _ [] = error "bad index or empty list"
 listPopAt 0 (x : xs) = (x , xs) 
 listPopAt k (x : xs) = second ((:) x) $ listPopAt (k - 1) ( xs)
+
+tailAlways :: [a] -> [a]
+tailAlways [] = []
+tailAlways (_ : l) = l
 
 transposeTuples ((a , b) , (c , d)) = ((a , c) , (b , d))
 

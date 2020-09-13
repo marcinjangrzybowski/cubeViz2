@@ -17,6 +17,8 @@ import Drawing.Color
 import Data.Maybe
 import Data.Either
 
+import Control.Applicative
+
 import qualified Data.Bifunctor as Bf
 
 import qualified Data.Map as Map
@@ -104,86 +106,90 @@ collectDrawings =
 --   foldSubFaces hcompDrawingsOnlyFaces
 
 type CellPainter b = 
-       (Int -> Address -> CellExpr -> Either String (Drawing b))
+       (Int -> Address -> Either Int CellExpr -> Either String (Drawing b))
 
 
 
 
-class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c | a -> b c where
-  -- a is precomputed data, config, COMMON FOR ALL CELLS,
-  -- c is some abstract escriptoon
+class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c where
+  -- a is precomputed data, COMMON FOR ALL CELLS,
+  -- c is some abstract descriptoon
   -- b is colorlike
-
-  fromCtx :: (Env , Context) -> a
+  -- d - settings, also main type setting the rest !
+  
+  fromCtx :: d -> (Env , Context) -> a
 
   -- IMPORTANT : (Env , Context) everywhere bellow is global! , cant be trustet with dimensions!! 
 
   -- HERE PIECE ARGUMENT IS ADDITIONAL!!!, for some special application!
   -- TODO :: Recover local context in cellPainter using Address
-  drawGenericTerm :: (Env , Context) -> a -> Piece -> VarIndex -> c
+  drawGenericTerm :: d -> (Env , Context) -> a -> Piece -> VarIndex -> c
 
   --Drawing b
 
-  drawD :: Never a -> c -> ZDrawing b
+  drawD :: d -> a -> c -> ZDrawing b
 
-  drawCellCommon :: (Env , Context) -> Int -> a -> CellExpr -> Drawing b
-  drawCellCommon _ _ _ _ = []
+  drawCellCommon :: d -> (Env , Context) -> Int -> Address -> a -> Drawing b
+  drawCellCommon _ _ _ _ _ = []
   
-  drawCellPiece :: (Env , Context) -> Int -> a -> PieceExpr -> (Piece -> Drawing b)  
-  drawCellPiece ee n a (PieceExpr h t) =     
-     (\pc -> appLI pc (remapTL (drawD (forget a)) n t $ drawGenericTerm ee a pc h))
+  drawCellPiece :: d -> (Env , Context) -> Int -> Address -> a -> PieceExpr -> (Piece -> Drawing b)  
+  drawCellPiece d ee n adr a (PieceExpr h t) =  
+     (\pc -> appLI pc (remapTL (drawD d a) n t $ drawGenericTerm d ee a pc h))
+
+  drawHole :: d -> (Env , Context) -> Int -> Address -> a -> Int -> Drawing b  
+  drawHole _ _ _ _ _ _ = [] 
 
 
-  cellPainter :: (Env , Context) -> Never a -> a -> CellPainter b
-  cellPainter ee na dctx n adr ce =
-     let zz = fmap (FromLI n . (drawCellPiece ee n dctx)) (piecesEval n ce)
+  cellPainter :: d -> (Env , Context) -> a -> CellPainter b
+  cellPainter d ee dctx n adr x = 
+     let zz =
+           case x of
+             Right ce -> evalLI (fmap (FromLI n . (drawCellPiece d ee n adr dctx)) (piecesEval n ce))
+             Left hI -> drawHole d ee n adr dctx hI
      in Right $
-          drawCellCommon ee n dctx ce
+          drawCellCommon d ee n adr dctx
             ++
-          (evalLI zz)
+          ( zz)
             
 
-  mkDrawExpr :: Never a  -> ((Env , Context) , Expr) -> Either String (Drawing b)
-  mkDrawExpr na w@( envCtx , _ ) = 
-      let  dctx = fromCtx envCtx
+  mkDrawExpr :: d  -> ((Env , Context) , Expr) -> Either String (Drawing b)
+  mkDrawExpr d w@( envCtx , _ ) = 
+      let  dctx = fromCtx d envCtx
       in
 
       do let cub = toCub w
-         cubDrw <- cubMap (cellPainter envCtx na dctx )  [] cub
+         cubDrw <- cubMap (cellPainter d envCtx dctx )  [] cub
          return $ collectDrawings cubDrw
 
-  fillStyleProcess :: Never a -> Drawing b -> Drawing b
-  fillStyleProcess _ = id
+  fillStyleProcess :: d -> Drawing b -> Drawing b
+  fillStyleProcess d = id
 
   -- TODO :: raczej zrezygnowac z Either w calej tej klasie...
-  mkDrawExprFill :: Never a  -> ((Env , Context) , Expr) -> Either String (Drawing b)
-  mkDrawExprFill na w@( envCtx , _ ) = 
-      let  dctx = fromCtx envCtx
+  mkDrawExprFill :: d -> ((Env , Context) , Expr) -> Either String (Drawing b)
+  mkDrawExprFill d w@( envCtx , _ ) = 
+      drawCub $ toCub w 
 
+      where
+
+           dctx = fromCtx d envCtx
 
            fillFaces (nm , sides , bot) =
                Map.mapKeys toSubFace
              $ Map.fromSet
                (\fc -> (
-                   let d = fromRight [] $ (drawCub (cubFace fc (Hcomp nm sides bot)))
-                       d1 = fillStyleProcess na $ extrude (getDim bot) (piramFn defaultCompPar , const 1) d
-                       -- d1 = embed (getDim bot) (const 1) d
-                   in Cub (getDim bot) undefined (d1 , STFill)
+                   let d0 = fromRight [] $ (drawCub (cubFace fc (Hcomp nm sides bot)))
+                       d1 = extrude (getDim bot) (piramFn defaultCompPar , const 1) d0
+
+                   in Cub (getDim bot) undefined (fillStyleProcess d $ d1 , STFill)
                    ) )
                ((Set.difference (setOfAll (getDim bot)) (Set.fromList $ mapMaybe toFace $ Map.keys sides )) )
-               
-           -- drawCub :: Cub CellExpr -> Either String (Drawing b)
+
            drawCub cub =
-             do cubDrw <- cubMapFill ((fmap $ (flip (,) STSubFace)) `dot3` (cellPainter envCtx na dctx) )
+             do cubDrw <- cubMapFill ((fmap $ (flip (,) STSubFace)) `dot3` (cellPainter d envCtx dctx) )
                               fillFaces
                               [] cub 
                 return $ fst (foldFacesFiled ((flip (,) STSubFace) `dot2` hcompDrawingsOnlyFaces ) cubDrw)
-
-      in
-
-      drawCub $ toCub w 
-
-
+        
 -- XXXX
 
 
@@ -193,12 +199,17 @@ simpleDrawTerm 1 =
                    [([[0.6],[0.7]] , (([] , Basic) , nthColor 2))] . fst . head . toListLI)
 simpleDrawTerm n = FromLI n (const [])
 
-instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int where    
-  fromCtx _ = ()
-  drawGenericTerm (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
+
+data DefaultPT = DefaultPT
+
+type ColorType = (([String] , ExtrudeMode) , Color)
+
+instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int DefaultPT where    
+  fromCtx _ _ = ()
+  drawGenericTerm _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
 
-  drawD _ k = fmap (fmap $ second $ first $ first $ (:) "term") (simpleDrawTerm k)
+  drawD _ _ k = fmap (fmap $ second $ first $ first $ (:) "term") (simpleDrawTerm k)
   
     -- FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
     -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
@@ -208,53 +219,62 @@ instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int where
     --            . fst . head . toListLI)
 
   
-  drawCellCommon _ n _ _ = 
+  
+  drawCellCommon _ _ n _ _ = 
        if n > 1
-       then  fmap (Bf.second $ const $ ( (["cellBorder"] , ExtrudeLines) , gray 0.8))
+       then  fmap (Bf.second $ const $ ( (["cellBorder"] , ExtrudeLines) , gray 0.5))
                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
        else []
 
-data ScaffoldPT = ScaffoldPT
+data ScaffoldPT = ScaffoldPT { sptDrawFillSkelet :: Bool }
 
-instance DrawingCtx ScaffoldPT (([String] , ExtrudeMode) , Color) Int where    
-  fromCtx _ = ScaffoldPT
-  drawGenericTerm (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
-
-
-  drawD _ k = FromLI k (const [])
-  
-    -- FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
-    -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
-
-    -- FromLI 1 (bool [([[0.2]] , ()) , ([[0.3]] , ())]
-    --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
-    --            . fst . head . toListLI)
+instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where    
+  fromCtx _ _ = ()
+  drawGenericTerm _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
 
-  fillStyleProcess _ =
-    map (\(s , a@((tags , em) , c) ) ->
-           case em of
-             ExtrudeLines -> (s , ((tags , em) , Rgba 0.8 0.8 0.8 0.1))
-             _ -> (s , a) 
-        )
+  drawD _ _ k = FromLI k (const [])
+
+  -- fillStyleProcess _ =
+  --   map (\(s , a@((tags , em) , c) ) ->
+  --          case em of
+  --            ExtrudeLines -> (s , ((tags , em) , Rgba 0.9 0.9 0.9 1.0))
+  --            _ -> (s , a) 
+  --       )
     
-  drawCellCommon _ n _ _ = 
+  drawCellCommon spt _ n _ _ =
+    let g = if ( sptDrawFillSkelet spt) then 0.0 else 0.85
+    in
        if n > -1
-       then  fmap (Bf.second $ const $ (( ["cellBorder"] , ExtrudeLines) , gray 0.5))
+       then  fmap (Bf.second $ const $ (( ["cellBorder"] , ExtrudeLines) , gray g))
                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
        else []
 
+data CursorPT = CursorPT { cursorAddress :: Address }
+
+instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int CursorPT where    
+  fromCtx _ _ = ()
+  drawGenericTerm _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
 
-data DrawExprMode = Stripes | StripesNoFill | Scaffold 
-  deriving (Show , Eq)
+  drawD _ _ k = FromLI k (const [])
 
-drawExprModes = [ Stripes , StripesNoFill , Scaffold ]
+  -- fillStyleProcess _ =
+  --   map (\(s , a@((tags , em) , c) ) ->
+  --          case em of
+  --            ExtrudeLines -> (s , ((tags , em) , Rgba 0.9 0.9 0.9 1.0))
+  --            _ -> (s , a) 
+  --       )
+    
+  drawCellCommon cpt _ n addr _ = 
+    let cAddr = cursorAddress cpt 
+    in
+       if cAddr == addr
+       then fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 1.0 0.0 0.0 0.3))
+               $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCube n
+       else []
 
-drawExpr Stripes = mkDrawExprFill (forget ())
-drawExpr StripesNoFill = mkDrawExpr (forget ())
-drawExpr Scaffold  = mkDrawExprFill (forget ScaffoldPT)
 
   
--- drawExpr = mkDrawExpr (forget Stripes1)
+-- -- drawExpr = mkDrawExpr (forget Stripes1)
           

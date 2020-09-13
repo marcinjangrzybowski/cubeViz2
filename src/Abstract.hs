@@ -163,7 +163,7 @@ cubFace fc@(Face n (i , b))  cub@(Hcomp nam pa a) | getDim cub /= n = error "dim
       subfaces
 
     
-instance ToCub ((Env , Context) , Expr) CellExpr where
+instance ToCub ((Env , Context) , Expr) (Either Int CellExpr) where
   toCub ee@((env , ct) , (HComp nam pa e)) =
        let ct2 = addDimToContext ct nam
            dim = getDim ee
@@ -177,8 +177,14 @@ instance ToCub ((Env , Context) , Expr) CellExpr where
          fcss = fromLIppK
                   (\fc -> \e -> toCub ((env , addFaceConstraintToContext fc ct) , e) )
                  fcs
-     in Cub (getDim ee) fcss cell  
-  toCub ee@((env , ct) , (ILam nam x)) = toCub (first (second (flip addDimToContext nam)) ee) 
+     in Cub (getDim ee) fcss (Right cell)  
+  toCub ee@((env , ct) , (ILam nam x)) = toCub (first (second (flip addDimToContext nam)) ee)
+
+  toCub ee@((env , ct) , (Hole hI)) =
+     let fcss = fromLIppK
+                  (\fc -> \e -> toCub ((env , addFaceConstraintToContext fc ct) , e) )
+                  (FromLI (getDim ct) $ const (Hole hI)) 
+     in Cub (getDim ee) fcss  (Left hI) 
 
 
 -- -- UNTESTED IN ANY WAY

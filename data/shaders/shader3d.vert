@@ -8,6 +8,9 @@ out vec4 vCol;
 
 out vec3 vNor;
 
+out vec3 worldPos;
+out vec3 screenPos;
+
 layout(location = 0) uniform vec3 euler;
 layout(location = 1) uniform vec2 screen;
 
@@ -95,6 +98,10 @@ main()
 		    ( anglesToAxes(euler) *
 		   (vec4(1.0 , 1.0 , 1.0 , 1.0) * ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
 		      - vec4(0.5 , 0.5 , 0.5 , 0.0)))))));
+
+   worldPos = vPosition.xyz;
+   screenPos = (gl_Position.xyz)/gl_Position.w;
+   
 
    gl_PointSize = 5.0;
 }

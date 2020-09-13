@@ -17,7 +17,7 @@ import Data.Bifunctor
 import Data.List.Split
 import Data.Maybe
 import Data.Bool
-
+import Data.Either
 import DataExtra
 
 import Combi
@@ -201,6 +201,7 @@ data Expr =
   HComp Name Partial Expr
   | Var VarIndex [IExpr]
   | ILam String Expr
+  | Hole Int
   deriving (Eq , Show)
 
 -- here indexes are DIM INDEXES
@@ -292,6 +293,8 @@ lookupBType (Env  _ dts) x = (BType . ((length dts - 1)-)) <$> elemIndex x (map 
 unConstrainedDimsOnly :: Context -> [String]
 unConstrainedDimsOnly (Context _ l) = map fst $ filter (isNothing . snd) $ l 
 
+unConstrainedDimsOnlyIds :: Context -> [Int]
+unConstrainedDimsOnlyIds (Context _ l) = map snd $ filter (isNothing . snd . fst) $ zip (reverse l) [0..] 
 
 (!!<) :: [a] -> Int -> a 
 l !!< i = l !! (length l - 1 - i)
@@ -406,6 +409,8 @@ instance Codelike Expr where
      do l <- traverse (toCode c) t
         hc <- getVarSymbol c h
         return (hc ++ " " ++ (intercalate " " (map parr l)))
+  toCode c (Hole hI) =
+     return ("{!!}")
   
 instance Codelike SubFace2 where
   toCode c f =
@@ -465,6 +470,7 @@ getExprDim e c (Var vI tl) =
     ((\k -> k - (length tl)) . getCTyDim e c) (getVarType c vI)
 getExprDim e c (HComp _ _ x) = getExprDim e c x
 getExprDim e c (ILam _ x) = 1 + (getExprDim e c x)
+getExprDim e c (Hole _) = 0
 
 mkCType :: Env -> Context -> (BType , [(Expr , Expr)]) -> Either String CType
 mkCType e c (bTy , []) = Right (CType bTy []) 
@@ -538,5 +544,47 @@ instance OfDim ((Env , Context) , Expr) where
   getDim ((_ , c) , _) = ctxDim c
 
 
+instance OfDim Context where
+  getDim c = ctxDim c
+
 instance OfDim (Env , Context) where
   getDim (_ , c) = ctxDim c
+
+
+-- 
+-- fExprAllFaces :: Context -> FExpr
+-- fExprAllFaces ctx =
+--   Set.fromList [ Map.fromList (zip vars sides)
+--                | vars <- explode $ unConstrainedDimsOnlyIds ctx 
+--                , sides <- map toListLI $ (genAllLI ((getDim ctx) - 1) :: [Subset])
+--                ]
+
+fExprAllFaces :: Context -> FExpr
+fExprAllFaces ctx =
+  Set.fromList [ Map.fromList ([(vars , side)])
+               | vars <- unConstrainedDimsOnlyIds ctx
+               , side <- [True , False]
+               ]
+  
+  
+mkExprGrid :: Int -> Int ->  ((Env , Context) , Expr)
+mkExprGrid n k = ((env , ctxTop) , meg ctxTop k) 
+
+  where
+    (env , ctxTop) =
+      let dims = fmap (flip (,) Nothing) $ take n (["i","j","k"] ++ [ "i" ++ (show i) | i <- range (n - 3) ])
+      in (Env [] [] , Context [] dims)
+  
+      
+    meg ctx 0 = Hole 0
+    meg ctx k =
+      let newVar = ( "z" ++ (show (k - 1)))
+          newCtx = addDimToContext ctx newVar
+      in  either ( \e -> error $ e ++ "imposible " ++ (show ctx) )
+                 id (mkHcomp env ctx (newVar
+                       , Map.fromSet (\sf2 ->
+                                        meg (addSFConstraintToContext sf2 newCtx) (k - 1)
+                                     ) (fExprAllFaces ctx)
+                        -- partialConst (iExprFull ctx) (meg undefined k) 
+                       , meg ctx (k - 1) ))
+      
