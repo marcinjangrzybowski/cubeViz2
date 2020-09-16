@@ -14,6 +14,7 @@ import Syntax
 import Data.Maybe
 import Data.Bifunctor
 import Data.Traversable
+import Data.Functor
 
 import Control.Applicative
 
@@ -24,108 +25,124 @@ import qualified Data.Set as Set
 
 import DataExtra
 
-data Cub a = Cub Int (FromLI Face (Cub a)) a | Hcomp Name (Map.Map SubFace (Cub a)) (Cub a)
-  deriving (Show , Functor)
+data Cub b a =
+    Cub (FromLI Face (Cub b a)) a
+  | Hcomp b Name (Map.Map SubFace (Cub b a)) (Cub b a)
+  deriving (Show ,  Functor)
 
+
+instance Bifunctor Cub where
+  first f (Cub fc a) = (Cub (fmap (first f) fc) a) 
+  first f (Hcomp b nm si a) = (Hcomp (f b) nm (fmap (first f) si) (first f a))
+
+  second = fmap
 
 type Address = [SubFace]
 
-
-
-instance OfDim (Cub a) where
-  getDim (Cub n _ _) = n 
-  getDim (Hcomp nm pa x) = getDim x
+instance OfDim (Cub b a) where
+  getDim (Cub fc _) = getDim fc 
+  getDim (Hcomp b nm pa a) = getDim a
 
      
-cubMap :: (Int -> Address -> a -> Either e b)
+cubMap :: (Int -> Address -> b -> Name -> (Map.Map SubFace (Cub b a)) -> (Cub b a) -> Either e bb)
+          -> (Int -> Address -> a -> Either e aa)
                  -> Address
-                 -> Cub a 
-                 -> Either e (Cub b)
-cubMap f addr (Cub n fcs a) =
-   do cell <- f n addr a
-      fcs2 <- traverseMapLI (\fc -> cubMap f (toSubFace fc : addr)) $ fcs
-      return $ Cub n fcs2 cell
+                 -> Cub b a 
+                 -> Either e (Cub bb aa)
+cubMap g f addr (Cub fcs a) =
+   do let n = (getDim fcs)
+      cell <- f n addr a
+      fcs2 <- traverseMapLI (\fc -> cubMap g f (toSubFace fc : addr)) $ fcs
+      return $ Cub fcs2 cell
 
-cubMap f addr (Hcomp name pa a) = 
-   do 
-      bot <- cubMap f (fullSF (getDim a) : addr) a
+cubMap g f addr (Hcomp b name pa a) = 
+   do
+      let n = (getDim a)
+      bot <- cubMap g f (fullSF (getDim a) : addr) a
       sides <- traverseMap
-                 (\sf -> cubMap f (sf : addr))
+                 (\sf -> cubMap g f (sf : addr))
                  $ pa
-      return (Hcomp name sides bot) 
+      b2 <- g n addr b name pa a
+      return (Hcomp b2 name sides bot) 
 
+-- variant of cubMap constant on node data
+cubMapOld = cubMap (const $ const $ \b -> const $ const $ const $ Right b)
 
-cubMapFill :: (Int -> Address -> a -> Either e b)
-                -> ( (Name , (Map.Map SubFace (Cub a)) , (Cub a)) -> Map.Map SubFace (Cub b)  )
+cubMapFill :: (Int -> Address -> a -> Either e aa)
+                -> ( (Name , (Map.Map SubFace (Cub b a)) , (Cub b a)) -> Map.Map SubFace (Cub b aa)  )
                  -> Address
-                 -> Cub a 
-                 -> Either e (Cub b)
-cubMapFill f g addr (Cub n fcs a) =
-   do cell <- f n addr a
-      fcs2 <- traverseMapLI (\fc -> cubMap f (toSubFace fc : addr)) $ fcs
-      return $ Cub n fcs2 cell
+                 -> Cub b a 
+                 -> Either e (Cub b aa)
+cubMapFill f g addr (Cub fcs a) =
+   do let n = (getDim fcs)
+      cell <- f n addr a --
+      fcs2 <- traverseMapLI (\fc -> cubMapOld f (toSubFace fc : addr)) $ fcs
+      return $ Cub fcs2 cell
 
-cubMapFill f g addr (Hcomp name pa a) = 
+cubMapFill f g addr (Hcomp b name pa a) = 
    do 
       bot <- cubMapFill f g (fullSF (getDim a) : addr) a
       sides <- traverseMap
                  (\sf -> cubMapFill f g (sf : addr))
                  $ pa
       let sidesFilled = Map.union sides (g (name , pa , a))
-      return (Hcomp name sidesFilled bot) 
+      return (Hcomp b name sidesFilled bot) 
 
 
 
-foldSubFaces :: (a -> (Map.Map SubFace a) -> a) -> Cub a -> a
-foldSubFaces f (Cub _ _ a) = a
-foldSubFaces f (Hcomp _ pa a) =
-  f (foldSubFaces f a) $ (fmap (foldSubFaces f) pa)
+foldSubFaces :: (b -> a -> (Map.Map SubFace a) -> a) -> Cub b a -> a
+foldSubFaces f (Cub _ a) = a
+foldSubFaces f (Hcomp b _ pa a) =
+  f b (foldSubFaces f a) $ (fmap (foldSubFaces f) pa)
 
 
-foldFaces :: (a -> (Map.Map Face a) -> a) -> Cub a -> a
-foldFaces f (Cub _ _ a) = a
-foldFaces f (Hcomp _ pa a) =
-   f (foldFaces f a) $
+foldFaces :: (b -> a -> (Map.Map Face a) -> a) -> Cub b a -> a
+foldFaces f (Cub _ a) = a
+foldFaces f (Hcomp b _ pa a) =
+   f b (foldFaces f a) $
      (fmap (foldFaces f) $ Map.fromList $
         mapMaybe (\( sf , x) -> fmap (,x) $ toFace sf )
       $ Map.toList pa)
 
 -- requires for allFacesToBeFilled!
-foldFacesFiled :: (a -> (FromLI Face a) -> a) -> Cub a -> a
-foldFacesFiled f (Cub _ _ a) = a
-foldFacesFiled f cub@(Hcomp _ pa a) =
+foldFacesFiled :: (b -> a -> (FromLI Face a) -> a) -> Cub b a -> a
+foldFacesFiled f (Cub _ a) = a
+foldFacesFiled f cub@(Hcomp b _ pa a) =
    let li = fromMapFLIUnsafe (getDim cub)
                 (Map.fromList $ mapMaybe (\(sf , aa) -> (flip (,) (foldFacesFiled f aa)) <$> toFace sf ) $ Map.toList pa) 
        
-   in f (foldFacesFiled f a) li
+   in f b (foldFacesFiled f a) li
    
    -- f (foldFaces f a) $
    --   (fmap (foldFaces f) $ Map.fromList $
    --      mapMaybe (\( sf , x) -> fmap (,x) $ toFace sf )
    --    $ Map.toList pa)
   
-class OfDim a => ToCub a c where
-  toCub :: a -> (Cub c)
+class OfDim a => ToCub a b c where
+  toCub :: a -> (Cub b c)
 
-class FromCub a c where
-  fromCub :: Cub c -> a 
+class FromCub a b c where
+  fromCub :: Cub b c -> a 
 
 
 
 -- TODO : extract some code from below and move to Cube
 -- sfProj , sfInj
 
-cubFace :: forall a. Face -> Cub a -> Cub a
-cubFace fc (Cub n fcs a) = appLI fc fcs
-cubFace fc@(Face n (i , b))  cub@(Hcomp nam pa a) | getDim cub /= n = error "dim of face do not mach dim of cub!!"
-                                                  | Map.member (toSubFace fc) pa =
+-- WARNING, node data (of b type), are simply copied without any processing!
+
+cubFace :: forall a b. Face -> Cub b a -> Cub b a
+cubFace fc (Cub fcs a) = appLI fc fcs
+cubFace fc@(Face n (i , b))  cub@(Hcomp bb nam pa a)
+    | getDim cub /= n = error "dim of face do not mach dim of cub!!"
+    | Map.member (toSubFace fc) pa =
 
   cubFace (Face n (n - 1 , True)) (pa Map.! (toSubFace fc))
 
 
-                                                  | otherwise =
+    | otherwise =
                                                     
-  Hcomp nam
+  Hcomp bb nam
    sidesFace
    (cubFace fc a)
 
@@ -141,11 +158,10 @@ cubFace fc@(Face n (i , b))  cub@(Hcomp nam pa a) | getDim cub /= n = error "dim
             (Set.filter (\(SubFace sfN sm) -> Map.lookup i sm /= Just (not b)) (Map.keysSet pa))))
 
 
-    sidesFace :: Map.Map SubFace (Cub a)
-    sidesFace =
+    sidesFace :: Map.Map SubFace (Cub b a)
+    sidesFace = 
       Map.fromSet
       (\sf@(SubFace sfN sm0) ->
-
          
          let sm1 = Map.mapKeys (punchIn i) sm0
              smMid = sm1
@@ -163,33 +179,33 @@ cubFace fc@(Face n (i , b))  cub@(Hcomp nam pa a) | getDim cub /= n = error "dim
       subfaces
 
     
-instance ToCub ((Env , Context) , Expr) (Either Int CellExpr) where
+instance ToCub ((Env , Context) , Expr) () (Either Int CellExpr) where
   toCub ee@((env , ct) , (HComp nam pa e)) =
        let ct2 = addDimToContext ct nam
            dim = getDim ee
            pa2 = Map.mapKeys (SubFace dim . Map.mapKeys (toDimI ct2)) $
                  Map.mapWithKey (\sf -> toCub . ((env , addSFConstraintToContext sf ct2),)) pa
            b   = (toCub ((env , ct) , e))
-       in (Hcomp nam pa2 b)
+       in (Hcomp () nam pa2 b)
 
   toCub (ee@(env , ct) , (Var vI tl)) =
      let (cell , fcs) = mkCellExpr ee vI tl
          fcss = fromLIppK
                   (\fc -> \e -> toCub ((env , addFaceConstraintToContext fc ct) , e) )
                  fcs
-     in Cub (getDim ee) fcss (Right cell)  
+     in Cub fcss (Right cell)  
   toCub ee@((env , ct) , (ILam nam x)) = toCub (first (second (flip addDimToContext nam)) ee)
 
   toCub ee@((env , ct) , (Hole hI)) =
      let fcss = fromLIppK
                   (\fc -> \e -> toCub ((env , addFaceConstraintToContext fc ct) , e) )
                   (FromLI (getDim ct) $ const (Hole hI)) 
-     in Cub (getDim ee) fcss  (Left hI) 
+     in Cub fcss  (Left hI) 
 
 
--- -- UNTESTED IN ANY WAY
--- makeGrid :: Int -> Int -> Cub ()     
--- makeGrid dim 0 = Cub 0 ()
--- makeGrid dim depth =
---   let prev = (makeGrid dim (depth - 1))
---   in Hcomp "z" (Map.fromList $ map (flip (,) prev) (map toSubFace (genAllLI dim)) ) prev 
+-- -- -- UNTESTED IN ANY WAY
+-- -- makeGrid :: Int -> Int -> Cub ()     
+-- -- makeGrid dim 0 = Cub 0 ()
+-- -- makeGrid dim depth =
+-- --   let prev = (makeGrid dim (depth - 1))
+-- --   in Hcomp "z" (Map.fromList $ map (flip (,) prev) (map toSubFace (genAllLI dim)) ) prev 

@@ -96,9 +96,9 @@ hcompDrawings bot sides =
     
 
 
-collectDrawings :: Cub (Drawing b) -> (Drawing b)
+collectDrawings :: Cub bb (Drawing b) -> (Drawing b)
 collectDrawings =
-  foldSubFaces hcompDrawings
+  foldSubFaces (const hcompDrawings)
   -- foldFaces hcompDrawingsOnlyFaces
   
 -- collectFaces :: Cub (Drawing b , SideTransMode) -> (Drawing b)
@@ -157,9 +157,9 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
       let  dctx = fromCtx d envCtx
       in
 
-      do let cub = toCub w
-         cubDrw <- cubMap (cellPainter d envCtx dctx )  [] cub
-         return $ collectDrawings cubDrw
+      do let cub = (toCub w :: Cub () (Either Int CellExpr))
+         cubDrw <- cubMapOld (cellPainter d envCtx dctx )  [] cub
+         return $ collectDrawings (cubDrw)
 
   fillStyleProcess :: d -> Drawing b -> Drawing b
   fillStyleProcess d = id
@@ -177,10 +177,10 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
                Map.mapKeys toSubFace
              $ Map.fromSet
                (\fc -> (
-                   let d0 = fromRight [] $ (drawCub (cubFace fc (Hcomp nm sides bot)))
+                   let d0 = fromRight [] $ (drawCub (cubFace fc (Hcomp () nm sides bot)))
                        d1 = extrude (getDim bot) (piramFn defaultCompPar , const 1) d0
 
-                   in Cub (getDim bot) undefined (fillStyleProcess d $ d1 , STFill)
+                   in Cub (FromLI (getDim bot) undefined) (fillStyleProcess d $ d1 , STFill)
                    ) )
                ((Set.difference (setOfAll (getDim bot)) (Set.fromList $ mapMaybe toFace $ Map.keys sides )) )
 
@@ -188,7 +188,7 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
              do cubDrw <- cubMapFill ((fmap $ (flip (,) STSubFace)) `dot3` (cellPainter d envCtx dctx) )
                               fillFaces
                               [] cub 
-                return $ fst (foldFacesFiled ((flip (,) STSubFace) `dot2` hcompDrawingsOnlyFaces ) cubDrw)
+                return $ fst (foldFacesFiled (const $ (flip (,) STSubFace) `dot2` hcompDrawingsOnlyFaces ) cubDrw)
         
 -- XXXX
 
