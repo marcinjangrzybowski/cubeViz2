@@ -43,7 +43,9 @@ instance OfDim (Cub b a) where
   getDim (Cub fc _) = getDim fc 
   getDim (Hcomp b nm pa a) = getDim a
 
-     
+
+
+               
 cubMap :: (Int -> Address -> b -> Name -> (Map.Map SubFace (Cub b a)) -> (Cub b a) -> Either e bb)
           -> (Int -> Address -> a -> Either e aa)
                  -> Address
@@ -209,3 +211,52 @@ instance ToCub ((Env , Context) , Expr) () (Either Int CellExpr) where
 -- -- makeGrid dim depth =
 -- --   let prev = (makeGrid dim (depth - 1))
 -- --   in Hcomp "z" (Map.fromList $ map (flip (,) prev) (map toSubFace (genAllLI dim)) ) prev 
+
+
+cubPick :: Address -> Cub b a -> Maybe (Cub b a)
+cubPick [] c = Just c
+cubPick (_ : _) (Cub _ a) =  Nothing
+cubPick addr (Hcomp _ _ si a) =
+  case reverse addr of
+    sf@(SubFace n ma) : xs ->
+      if (Map.null ma)
+      then cubPick (reverse xs) a 
+      else cubPick (reverse xs) (si Map.! sf)
+    _ -> error "imposible"
+
+data Direction = DParent | DChild | DNext | DPrev
+
+data ImposibleMove = ImposibleMove
+
+cubNav :: Cub b a -> Address -> Direction -> Either ImposibleMove Address
+
+cubNav c addr dir =
+  case (cubPick addr c , addr , dir) of
+    (Nothing , _ , _) -> error "bad address!"
+
+    (Just _ , (x : xs) , DParent ) -> Right xs
+    (Just _ , [] , DParent ) -> Left ImposibleMove
+                -- top level cell do not have parent!
+
+    (Just (Cub _ _) , _ , DChild ) -> Left ImposibleMove
+                -- leaf do not have childern!
+    (Just (Hcomp _ _ _ a) , _ , DChild ) -> Right (fullSF (getDim a) : addr)
+                -- leaf do not have childern!                                     
+
+    
+    (Just _ , [] , DNext ) -> Left ImposibleMove
+    (Just _ , [] , DPrev ) -> Left ImposibleMove
+                -- top level cell do not have a parent, so it is not posible to cycle thru its children
+                                
+    (Just _ , x : xs , nv ) ->
+       case cubPick xs c of         
+         Just (Hcomp _ _ pa a) -> 
+             let
+                 sfcs = fullSF (getDim a) : (Map.keys pa)
+                 x2 =
+                   case nv of
+                     DNext -> rotateFrom x sfcs 
+                     DPrev -> rotateFrom x (reverse sfcs)
+                     _ -> error "imposible"
+             in Right (x2 : xs)
+         _ -> error "bad address, parent cell is leaf!!"

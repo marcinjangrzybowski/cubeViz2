@@ -10,6 +10,7 @@ in vec3 worldPos;
 in vec3 screenPos;
 
 layout(location = 2) uniform double time;
+layout(location = 3) uniform float shade;
 
 float checker(vec3 uvw, float repeats) 
 {
@@ -39,8 +40,13 @@ main()
    float boost = 0.5 ;
    float ambient = 0.3;
 
-   vec3 finalRGB = vCol.rgb * (ambient + boost * abs(dot(lightDir,normal)));  
+   vec3 finalRGB;
 
+   if (shade > 0.5){
+	finalRGB = vCol.rgb * (ambient + boost * abs(dot(lightDir,normal)));  
+   } else {
+	finalRGB = vCol.rgb * (ambient + boost * 0.5);
+   }
 
    // if (dotter(worldPos , 1000.0 ) < 0.5)
    // {

@@ -142,6 +142,9 @@ class Ord a => ListInterpretable a b | a -> b where
 
   setOfAll :: Int -> Set.Set a
   setOfAll = Set.fromList . genAllLI
+
+  rotateLI :: Int -> a -> a
+  rotateLI k a = enumerate (sizeLI a) $ mod ((unemerate a) + k) (cardLi a)
     
 instance OfDim (SubFace) where
   getDim = sizeLI

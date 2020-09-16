@@ -48,6 +48,9 @@ import Abstract
 
 asExpression = fmap ssEnvExpr . asSession
 
+asCub :: AppState -> Maybe (Cub () (Either Int CellExpr))
+asCub = fmap toCub . asExpression
+
 termDrawing :: UIApp (Maybe (Either String [Drawing ColorType]))
 termDrawing =
    do appState <- UI.getAppState
@@ -66,6 +69,7 @@ termDrawing =
 data Msg =
     SetDescriptor [Descriptor]
   | LoadFile String
+  | LoadGrid
   | CycleDrawMode
 
 data AppState = AppState
@@ -84,24 +88,26 @@ data DrawExprMode = Stripes | StripesNoFill | Scaffold | Scaffold2
 
 drawExprModes = [
   Stripes , StripesNoFill ,
-  Scaffold , Scaffold2  ]
+  Scaffold  ]
 
 drawExpr :: AppState -> DrawExprMode -> ((Env , Context) , Expr)
                   -> Either String ([Drawing (([String] , ExtrudeMode) , Color)])
 drawExpr _ Stripes = fmap pure . mkDrawExprFill DefaultPT
 drawExpr _ StripesNoFill = fmap pure . mkDrawExpr DefaultPT
-drawExpr _ Scaffold = \e ->
-   sequence $  [
-                mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True })
-              , mkDrawExprFill (ScaffoldPT { sptDrawFillSkelet = False })              
-              ] <*> pure e
+-- drawExpr _ Scaffold = \e ->
+--    sequence $  [
+--                 mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True , sptCursorAddress = Nothing })
+--               , mkDrawExprFill (ScaffoldPT { sptDrawFillSkelet = False  , sptCursorAddress = Nothing })              
+--               ] <*> pure e
    
-drawExpr as Scaffold2 = \e ->
+drawExpr as Scaffold = \e ->
    sequence $ (
 
-              [ mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True }) ]
-               ++
-               maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
+              [ mkDrawExprFill (ScaffoldPT { sptDrawFillSkelet = True
+                                           , sptCursorAddress = (asCursorAddress as)
+                                           , sptScaffDim = 1}) ]
+               -- ++
+               -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
               ) <*> pure e 
 
 type UIApp = UI.UI AppState [Descriptor] Msg
@@ -143,10 +149,10 @@ main =
            return $ AppState
             { fileName          = Nothing
             , asViewport        = Viewport { vpAlpha = 1/5 , vpBeta = 0 , vpGamma = -0.1 }
-            , asDrawMode        = Scaffold2 -- Stripes --head drawExprModes
+            , asDrawMode        = Scaffold --  Stripes --  --head drawExprModes
             , asDragStartVP     = Nothing
             , asSession         = Nothing
-            , asCursorAddress   = Just ( (enumerate 3 2 ) : (enumerate 3 1 )  : [])
+            , asCursorAddress   = Nothing --Just ( (enumerate 3 2 ) : (enumerate 3 1 )  : [])
             }
 
       updateView = 
@@ -182,11 +188,24 @@ main =
                   Right sessionState -> do
                          UI.modifyAppState $ (\s -> s
                              { asSession =
-                                let (ee , expr) = (mkExprGrid 3 2)
-                                in Just $ SessionState ee [] (BType 0) expr
-                               -- Just sessionState 
+                                -- let (ee , expr) = (mkExprGrid 3 2)
+                                -- in Just $ SessionState ee [] (BType 0) expr
+                               Just sessionState
+                             , asCursorAddress = Nothing
                               })
                          updateView
+
+          LoadGrid ->
+            do 
+               UI.modifyAppState $ (\s -> s
+                   { asSession =
+                      let (ee , expr) = (mkExprGrid 3 2)
+                      in Just $ SessionState ee [] (BType 0) expr
+
+                     , asCursorAddress = Just []
+                    })
+               updateView
+                         
           CycleDrawMode -> do
                UI.modifyAppState $ \s -> s
                   { asDrawMode = rotateFrom (asDrawMode s) drawExprModes 
@@ -231,18 +250,27 @@ main =
                         -- Q, Esc: exit
                         when (k == GLFW.Key'C) $
                           UI.sendMsg $ LoadFile "data/input-to-viz/expr3d1-fill"
+                        when (k == GLFW.Key'G) $
+                          UI.sendMsg $ LoadGrid 
                         when (k == GLFW.Key'D) $ do
                           UI.sendMsg $ CycleDrawMode
                         when (k == GLFW.Key'P) $ 
                           printExpr
-                        when (k == GLFW.Key'Down) $ do
-                          mbAddr <- UI.getsAppState asCursorAddress
-                          case mbAddr of
-                            Nothing -> return ()
-                            Just addr -> do
-                               UI.modifyAppState (\s -> s { asCursorAddress = Just (tailAlways addr) })
-                               updateView
+                        when (isArrowKey k) $ do
+                          appS <- UI.getAppState
+                          case (asCursorAddress appS , asCub appS)  of
                             
+                            (Just addr , Just cub) -> do
+                               UI.modifyAppState (\s ->
+                                  let nav = fromJust (arrowKey2nav k)
+                                      jna = fromRight (addr) (cubNav cub addr nav)  
+                                         
+                                  in s { asCursorAddress = Just jna })
+                               updateView
+                            _ -> return ()
+                        
+
+                            -- fullSF
                           -- modify $ \s -> s { stateLogEvents = not ( stateLogEvents s) }           
               _ -> return ()
               
@@ -257,5 +285,17 @@ main =
 --      showDrawing example3d
 
 
+---- helpers
 
+isArrowKey GLFW.Key'Down = True
+isArrowKey GLFW.Key'Up = True
+isArrowKey GLFW.Key'Left = True
+isArrowKey GLFW.Key'Right = True
+isArrowKey _ = False
 
+arrowKey2nav k =
+  case k of
+    GLFW.Key'Up -> Just DParent
+    GLFW.Key'Down -> Just DChild
+    GLFW.Key'Left -> Just DNext
+    GLFW.Key'Right -> Just DPrev

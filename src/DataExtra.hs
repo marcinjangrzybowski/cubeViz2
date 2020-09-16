@@ -3,6 +3,7 @@ module DataExtra where
 import Data.Bifunctor
 
 import Data.List
+import qualified Data.Set as Set
 
 tpl2arr (x , y) = [x , y]
 trpl2arr (x , y , z) = [x , y , z]
@@ -27,7 +28,6 @@ rotateFrom a (x : y : ys) | x == a = y
 rotateFrom a (x : y : ys) | otherwise = rotateFrom a (y : ys ++ [x]) 
 rotateFrom a _ = a
 
-
 --all subsets of cardinality card(x) - 1
 explode :: [a] -> [[a]]
 explode [] = []
@@ -36,6 +36,10 @@ explode l =
   let z = zip [0..] l
   in fmap (\(i , _) -> fmap snd $ filter (\(j , _) -> j /= i) z ) z
 
+
+mapHead :: (a -> a) -> [a] -> [a]
+mapHead f [] = []
+mapHead f (x : xs) = f x : xs
 
 listInsert :: Int -> a -> [a] -> [a]
 listInsert 0 a l = a : l

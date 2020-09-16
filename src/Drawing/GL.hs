@@ -54,8 +54,8 @@ renderables2CVD =
         let [ uX , uY , uZ ] = zipWith (-) v1 v0
             [ vX , vY , vZ ] = zipWith (-) v2 v0
         in [ uY * vZ - uZ * vY , uZ * vX - uX * vZ , uX * vY - uY * vX ]
-    calcNormal [ v0 , v1 ] = calcNormal [ v0 , v1 , [0 , 0 , 0] ] 
-    calcNormal _ = [1.0 , 0.0 , 0.0 ] 
+    calcNormal [ v0 , v1 ] = [0.0 , 0.0 , 0.0 ] 
+    calcNormal _ = [0.0 , 0.0 , 0.0 ] 
     
     mkVs x (D.Triangle pts , cl) =
       let pos = fmap trpl2arr $ trpl2arr pts          
@@ -112,7 +112,7 @@ initTrianglesResources pm vertices =
 
 
      let ofst = (2 * 3 * 4 + 1 * 4 * 4 )
-
+     
      vertexAttribPointer vPosition $=
        (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset firstIndex))
      vertexAttribArray vPosition $= Enabled
@@ -172,7 +172,6 @@ onDisplay win w h vp ds = do
   polygonSmooth $= Enabled
 
   
-  
   let vMat = Vector3 (vpAlpha vp * 360) (vpBeta vp * 360) (vpGamma vp * 360)  --75.0 0.0 $ 1.0 * (-35.0 + 1.0 * 50.0 * sin (0.7 * (realToFrac $ fromJust now)))
 
   
@@ -182,7 +181,12 @@ onDisplay win w h vp ds = do
     Just nowD -> uniform (UniformLocation 2 ) $= nowD
     Nothing -> return ()
 
-  let (Descriptor pm verts firstIndex numVertices) = ds 
+  let (Descriptor pm verts firstIndex numVertices) = ds
+  case pm of
+    Lines -> uniform (UniformLocation 3 ) $= (0 :: GLfloat)
+    Points -> uniform (UniformLocation 3 ) $= (0 :: GLfloat)
+    _ -> uniform (UniformLocation 3 ) $= (1 :: GLfloat)
+      
   bindVertexArrayObject $= Just verts
   drawArrays pm firstIndex numVertices
 
