@@ -146,7 +146,7 @@ main =
             , asDrawMode        = Scaffold2 -- Stripes --head drawExprModes
             , asDragStartVP     = Nothing
             , asSession         = Nothing
-            , asCursorAddress   = Just ((enumerate 3 2 ) : (enumerate 3 1 )  : [])
+            , asCursorAddress   = Just ( (enumerate 3 2 ) : (enumerate 3 1 )  : [])
             }
 
       updateView = 
