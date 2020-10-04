@@ -4,6 +4,8 @@ in vec4 vCol;
 
 in vec3 vNor;
 
+in float vMode;
+
 out vec4 fColor;
 
 in vec3 worldPos;
@@ -30,6 +32,20 @@ float dotter(vec3 uvw, float repeats)
   return sign(result);
 }
 
+float stripper(vec3 uvw, float repeats, float fill , float delta) 
+{
+  float phase = mod(repeats * (uvw.x + uvw.y + uvw.z + delta) , 1.0);
+
+  if(phase > fill){
+	return 0.0;
+  }else{
+	return 1.0;
+	}
+
+
+}
+
+
 void
 main()
 {
@@ -46,6 +62,20 @@ main()
 	finalRGB = vCol.rgb * (ambient + boost * abs(dot(lightDir,normal)));  
    } else {
 	finalRGB = vCol.rgb * (ambient + boost * 0.5);
+   }
+
+   if(vMode == 0.0){
+
+   }else if(vMode == 1.0){
+      if (stripper(worldPos , 10.0 , 0.2  , float(time*0.1) ) < 0.5)
+      {
+       discard;
+      }
+   }else if(vMode == 2.0){
+      if (checker(worldPos , 10.0) < 0.5)
+      {
+       discard;
+      }
    }
 
    // if (dotter(worldPos , 1000.0 ) < 0.5)

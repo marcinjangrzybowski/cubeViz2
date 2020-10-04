@@ -268,7 +268,13 @@ instance ListInterpretable SubFace (Maybe Bool) where
   fromListLI l = SubFace (length l) $ Map.fromList $ catMaybes $ map (\(i , x) -> fmap ((,) i) x) $ zip [0..] l 
 
 instance Show SubFace where
-  show (SubFace n x) = concat $ map (uncurry (++)) $ map (Bf.bimap show (bool "-" "+")) $ Map.toList x
+  show sf =
+    intercalate ","
+    $ map (uncurry (++))
+    $ map (Bf.bimap show (maybe "_" (bool "-" "+"))) $ zip [0..] (toListLI sf)
+    -- concat
+    -- $ map (uncurry (++))
+    -- $ map (Bf.bimap show (bool "-" "+")) $ Map.toList x
 
 
 instance Show Subset where

@@ -86,8 +86,9 @@ cTypeParserDim0 (env , ctx) =
            Left z -> unexpected z
            Right cty -> return cty
 
-cTypeParserDim1 :: (Env , Context) -> Parsec String (Env , Context) CType
-cTypeParserDim1 (env , ctx) = 
+
+cTypeParserId :: (Env , Context) -> Parsec String (Env , Context) CType
+cTypeParserId (env , ctx) = 
   do string "_≡_"
      spaces
      char '{'
@@ -95,24 +96,72 @@ cTypeParserDim1 (env , ctx) =
      char '}'
      spaces
      char '{'
-     (CType (BType z) []) <- cTypeParserDim0 (env , ctx)
-     let ty = (CType (BType z) [])
+     spaces
+     putState (env , addDimToContext ctx "noAbsDim" )
+     (CType z l) <- cTypeParser0
+     putState (env , ctx)
+     spaces
      char '}'
      spaces
-     e0 <- parsecSnd env varIdentifier
+     e0 <- changeState ((,) env) (snd) exprArg
      spaces
-     e1 <- parsecSnd env varIdentifier
-     let ty0 = getVarType ctx e0
-     let ty1 = getVarType ctx e1
-     if (ty0 == ty) && (ty1 == ty) 
-     then return (CType (BType z) [(Var e0 [] , Var e1 [])])
-     else fail "wrong type of ends"
+     e1 <- changeState ((,) env) (snd) exprArg
+     -- let ty0 = getVarType ctx e0
+     -- let ty1 = getVarType ctx e1
+     -- if (ty0 == ty) && (ty1 == ty) 
+     --then
+     return (CType z ((e0 , e1) : l))
+     --else fail "wrong type of ends"
+
+-- PathP {ℓ} (λ i₁ → _≡_ {ℓ} {A} (xy1 i₁) (yz2 i₁)) xy1 yz1
+
+-- ss  : PathP {ℓ}
+--       (λ i₁ →
+--          PathP {ℓ} (λ i₂ → _≡_ {ℓ} {A} (sq5 i₁ i₂) (sq6 i₁ i₂)) (sq3 i₁)
+--          (sq4 i₁))
+--       sq1 sq2
+
+cTypeParserPathP :: (Env , Context) -> Parsec String (Env , Context) CType
+cTypeParserPathP (env , ctx) = 
+  do string "PathP"
+     spaces
+     char '{'
+     char 'ℓ'
+     char '}'
+     spaces
+     char '('
+     spaces
+     (_ , CType z l)
+          <- abstT (second . flip addDimToContext) cTypeParser0
+     spaces
+     char ')'
+     spaces
+     sq0I <- changeState ((,) env) (snd) exprArg
+     spaces
+     sq1I <- changeState ((,) env) (snd) exprArg
+     -- let ty0 = getVarType ctx e0
+     -- let ty1 = getVarType ctx e1
+     -- if (ty0 == ty) && (ty1 == ty) 
+     return (CType z ((sq0I,sq1I) : l))
+     -- else fail "wrong type of ends"
+
+
+cTypeParser0 :: Parsec String (Env , Context) CType
+cTypeParser0 =
+  do (env , ctx) <- getState
+     (spaces *>
+      (try (cTypeParserPathP (env , ctx))
+       <|> (cTypeParserId (env , ctx))
+       <|> (cTypeParserDim0 (env , ctx))
+      ) <* spaces)
+     
 
 cTypeParser :: Parsec String (Env , Context) CType
 cTypeParser =
   do (env , ctx) <- getState
      (spaces *>
-      (try (cTypeParserDim1 (env , ctx))
+      (try (cTypeParserPathP (env , ctx))
+       <|> (cTypeParserId (env , ctx))
        <|> (cTypeParserDim0 (env , ctx))
       )
        <* spaces

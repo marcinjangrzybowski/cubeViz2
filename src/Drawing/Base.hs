@@ -66,7 +66,7 @@ type Pt3D = (Float , Float , Float)
 
 data Renderable = Point Pt3D | Line (Pt3D , Pt3D) | Triangle (Pt3D , Pt3D , Pt3D)
 
-type Renderables = [(Renderable,Color)]  
+type Renderables = [(Renderable,Shade)]  
 
 
 
@@ -90,12 +90,12 @@ toRenderableForce l =
 
 
 -- throws error when aproching unrenderable
-toRenderables :: Colorlike a => Drawing a -> Renderables
-toRenderables = fmap $ bimap (fromJust . toRenderable) toColor
+toRenderables :: Shadelike a => Drawing a -> Renderables
+toRenderables = fmap $ bimap (fromJust . toRenderable) toShade
 
-toRenderablesForce :: Colorlike a => Drawing a -> Renderables
+toRenderablesForce :: Shadelike a => Drawing a -> Renderables
 toRenderablesForce l =
-  fmap (bimap toRenderableForce toColor) l >>= (\(l , a) -> fmap (flip (,) a) l)
+  fmap (bimap toRenderableForce toShade) l >>= (\(l , a) -> fmap (flip (,) a) l)
 
 transposeDrw :: Int -> Drawing a -> Drawing a
 transposeDrw k = sMap (\l ->
@@ -117,7 +117,7 @@ embed k f = sMap (\l -> listInsert k (f l) l)
 --   Drawing $
 --     ( fmap (first $ extrudePrll v) l )
 
-data ExtrudeMode = Basic | ExtrudeLines
+data ExtrudeMode = Basic | ExtrudeLines | ExtrudePlanes
 
 extrudeBasicF :: Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a
 extrudeBasicF k (f0 , f1) (s , a) =
@@ -153,9 +153,15 @@ extrudeLinesF k (f0 , f1) (s , a) =
          
      in map (flip (,) a) (ss)
 
+extrudePlanesF :: Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a
+extrudePlanesF k (f0 , f1) (s , a) =
+    -- (=<<) (\(s , a) ->
+     undefined
+
 extrudeF :: ExtrudeMode -> (Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a)
 extrudeF Basic = extrudeBasicF
 extrudeF ExtrudeLines = extrudeLinesF
+extrudeF ExtrudePlanes = extrudePlanesF
 
 class Extrudable a where
   extrudeMode :: a -> ExtrudeMode

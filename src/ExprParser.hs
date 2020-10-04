@@ -20,6 +20,7 @@ import Data.Bool
 import Data.Either
 import Data.Maybe
 
+
 import Syntax
 
 -- Convention
@@ -68,19 +69,33 @@ faceAbs ie x =
      y <- x
      -- setState ctx 
      return y
-     
-abstr :: Parsec String Context z -> Parsec String Context (Maybe String , z)
-abstr p =
+
+abstT :: (String -> c -> c) -> Parsec String c z -> Parsec String c (Maybe String , z)
+abstT f p =
   do spaces
      string "λ "
      ctx <- getState
      name <- agdaName
      string " →"
      space
-     setState (addDimToContext ctx name)
+     setState (f name ctx)
      x <- p
      setState ctx 
      return (Just name , x)
+
+     
+abstr :: Parsec String Context z -> Parsec String Context (Maybe String , z)
+abstr = abstT $ flip addDimToContext
+  -- do spaces
+  --    string "λ "
+  --    ctx <- getState
+  --    name <- agdaName
+  --    string " →"
+  --    space
+  --    setState (addDimToContext ctx name)
+  --    x <- p
+  --    setState ctx 
+  --    return (Just name , x)
 
 agdaName = many1 (digit <|> letter <|> (oneOf ".₀₁₂₃₄₅₆₇₈₉'"))
        

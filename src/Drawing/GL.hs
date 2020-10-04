@@ -57,17 +57,20 @@ renderables2CVD =
     calcNormal [ v0 , v1 ] = [0.0 , 0.0 , 0.0 ] 
     calcNormal _ = [0.0 , 0.0 , 0.0 ] 
     
-    mkVs x (D.Triangle pts , cl) =
+    mkVs x (D.Triangle pts , shade) =
       let pos = fmap trpl2arr $ trpl2arr pts          
-      in x { triangleVs = (perVert pos (calcNormal pos ++ color2arr cl)) ++ triangleVs x}
+      in x { triangleVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade) ++ [ fromIntegral (shadeMode shade) ]))
+                ++ triangleVs x }
 
-    mkVs x (D.Line pts , cl) =
+    mkVs x (D.Line pts , shade) =
       let pos = fmap trpl2arr $ tpl2arr pts          
-      in x { lineVs = (perVert pos (calcNormal pos ++ color2arr cl)) ++ lineVs x}
+      in x { lineVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade) ++ [ fromIntegral (shadeMode shade) ]))
+                 ++ lineVs x }
 
-    mkVs x (D.Point pt , cl) =
+    mkVs x (D.Point pt , shade) =
       let pos = fmap trpl2arr [pt]          
-      in x { pointVs = (perVert pos (calcNormal pos ++ color2arr cl)) ++ pointVs x}  
+      in x { pointVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade) ++ [ fromIntegral (shadeMode shade) ]))
+                 ++ pointVs x}  
       
     
 type Descriptors = (Descriptor,Descriptor,Descriptor) 
@@ -111,7 +114,7 @@ initTrianglesResources pm vertices =
          vPosition = AttribLocation 0
 
 
-     let ofst = (2 * 3 * 4 + 1 * 4 * 4 )
+     let ofst = (2 * 3 * 4 + 1 * 4 * 4 + 1 * 1 * 4)
      
      vertexAttribPointer vPosition $=
        (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset firstIndex))
@@ -142,6 +145,18 @@ initTrianglesResources pm vertices =
        (ToFloat, VertexArrayDescriptor 4 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2)))
      vertexAttribArray colorPosition $= Enabled
 
+
+     modeBuffer <- genObjectName
+     bindBuffer ArrayBuffer $= Just modeBuffer
+     withArray vertices $ \ptr -> do
+       let size = fromIntegral (numVertices * sizeOf (head vertices))
+       bufferData ArrayBuffer $= (size, ptr, StaticDraw)
+
+     let modePosition = AttribLocation 3
+ 
+     vertexAttribPointer modePosition $=
+       (ToFloat, VertexArrayDescriptor 1 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2 + 4 * 4 * 1)))
+     vertexAttribArray modePosition $= Enabled
 
      return $ Descriptor pm triangles firstIndex (fromIntegral numVertices)
 

@@ -3,6 +3,7 @@
 layout(location = 0) in vec4 vPosition;
 layout(location = 1) in vec3 Normal;
 layout(location = 2) in vec4 Color;
+layout(location = 3) in float Mode;
 
 out vec4 vCol;
 
@@ -10,6 +11,8 @@ out vec3 vNor;
 
 out vec3 worldPos;
 out vec3 screenPos;
+
+out float vMode;
 
 layout(location = 0) uniform vec3 euler;
 layout(location = 1) uniform vec2 screen;
@@ -68,6 +71,7 @@ main()
    vCol = Color;
 
    vNor = Normal;
+   vMode = Mode;
 
    float n , r , t , f ;
 

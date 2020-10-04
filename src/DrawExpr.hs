@@ -241,27 +241,6 @@ data ScaffoldPT = ScaffoldPT
   }
 
 
-instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where    
-  fromCtx _ _ = ()
-  drawGenericTerm _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
-
-
-  drawD _ _ k = FromLI k (const [])
-
-  -- fillStyleProcess _ =
-  --   map (\(s , a@((tags , em) , c) ) ->
-  --          case em of
-  --            ExtrudeLines -> (s , ((tags , em) , Rgba 0.9 0.9 0.9 1.0))
-  --            _ -> (s , a) 
-  --       )
-
-  nodePainter spt ee dctx n addr () nm si center = Right $
-       let m = sptScaffDim spt
-       in undefined
-    
-  drawCellCommon spt _ n addr _ = []
-
-
 -- instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where    
 --   fromCtx _ _ = ()
 --   drawGenericTerm _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
@@ -277,27 +256,61 @@ instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where
 --   --       )
 
 --   nodePainter spt ee dctx n addr () nm si center = Right $
---           if (sptCursorAddress spt == Just addr)
---           then fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 0.0 1.0 0.0 0.3))
---                 $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCube n
---           else []
+--        let m = sptScaffDim spt
+--        in undefined
     
---   drawCellCommon spt _ n addr _ =
---     let g = if ( sptDrawFillSkelet spt) then 0.85 else 0.0
-    
-    
---         lines = if n > -1
---                 then  fmap (Bf.second $ const $ (( ["cellBorder"] , ExtrudeLines) , gray g))
---                        $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
---                 else []
+--   drawCellCommon spt _ n addr _ = []
 
---         cursor =
---           if (sptCursorAddress spt == Just addr)
---           then fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 1.0 0.0 0.0 0.3))
---                 $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCube n
---           else []
+instance Shadelike (([String] , ExtrudeMode) , Color) where
+  toShade ((tags , _) , c) =
+          let isCursor = elem "cursor" tags
 
---     in lines ++ cursor
+          in
+          Shade { shadeColor = c 
+                , shadeMode = if isCursor then 1 else 0
+                }  
+
+
+instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where    
+  fromCtx _ _ = ()
+  drawGenericTerm _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
+
+
+  drawD _ _ k = FromLI k (const [])
+
+  -- fillStyleProcess _ =
+  --   map (\(s , a@((tags , em) , c) ) ->
+  --          case em of
+  --            ExtrudeLines -> (s , ((tags , em) , Rgba 0.9 0.9 0.9 1.0))
+  --            _ -> (s , a) 
+  --       )
+
+  nodePainter spt ee dctx n addr () nm si center = Right $
+          if (sptCursorAddress spt == Just addr)
+          then fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 0.0 1.0 0.0 0.3))
+                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 2
+          else []
+    
+  drawCellCommon spt _ n addr _ =
+    let g = if ( sptDrawFillSkelet spt) then 0.85 else 0.0
+    
+    
+        lines = if n > -1
+                then  fmap (Bf.second $ const $ (( ["cellBorder"] , ExtrudeLines) , gray g))
+                       $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
+                else []
+
+        cursor =
+          if (sptCursorAddress spt == Just addr)
+          then fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 1.0 0.0 0.0 0.3))
+                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 2
+          else []
+
+    
+    in case (n , (sptCursorAddress spt == Just addr)) of
+         (1 , True) -> cursor
+         _ -> cursor ++ lines
+    
 
 
 

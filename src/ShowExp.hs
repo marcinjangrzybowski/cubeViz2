@@ -4,7 +4,7 @@ module ShowExp where
 
 import Control.Monad             (unless, when, void)
 import Control.Monad.Reader      (ReaderT , ask)
-import Control.Monad.Writer      (tell)
+import Control.Monad.Writer      (WriterT , tell)
 import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, gets, liftIO, modify, put)
 import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 
@@ -103,7 +103,7 @@ drawExpr _ StripesNoFill = fmap pure . mkDrawExpr DefaultPT
 drawExpr as Scaffold = \e ->
    sequence $ (
 
-              [ mkDrawExprFill (ScaffoldPT { sptDrawFillSkelet = True
+              [ mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True
                                            , sptCursorAddress = (asCursorAddress as)
                                            , sptScaffDim = 1}) ]
                -- ++
@@ -164,6 +164,11 @@ main =
                           do
                              desc <- liftIO $ initResources $ concat (map toRenderablesForce drawings)
                              UI.sendMsg $ SetDescriptor desc
+                             
+      printAddress :: UIApp ()
+      printAddress = do
+           aSt <- UI.getAppState
+           liftIO $ putStrLn (show (asCursorAddress aSt)) 
       
       update msg =
         case msg of
@@ -181,18 +186,16 @@ main =
                       do
                          handle <- (openFile fName ReadMode)
                          contents <- hGetContents handle
-                         return $ parseInteractive contents
-                        
+                         return $ parseInteractive contents 
+                         
                case fileLoadingResult of
                   Left errMsg -> liftIO $ putStrLn errMsg
                   Right sessionState -> do
                          UI.modifyAppState $ (\s -> s
-                             { asSession =
-                                -- let (ee , expr) = (mkExprGrid 3 2)
-                                -- in Just $ SessionState ee [] (BType 0) expr
-                               Just sessionState
+                             { asSession = Just sessionState
                              , asCursorAddress = Nothing
                               })
+                         liftIO $ putStrLn (show sessionState)
                          updateView
 
           LoadGrid ->
@@ -266,6 +269,12 @@ main =
                                       jna = fromRight (addr) (cubNav cub addr nav)  
                                          
                                   in s { asCursorAddress = Just jna })
+                               -- printAddress
+                               updateView
+                            (Nothing , Just cub) -> do
+                               UI.modifyAppState (\s ->
+                                   s { asCursorAddress = Just [] })
+                               -- printAddress
                                updateView
                             _ -> return ()
                         

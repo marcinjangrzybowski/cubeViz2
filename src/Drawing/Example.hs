@@ -5,13 +5,13 @@ import Drawing.Base
 import Drawing.Color
 
 
-ex1ren :: Renderables
-ex1ren = [
-           (Point (0.1,0.1,0.1), nthColor 0 )
-          ,(Line ((0.6,0.1,0.1),(0.7,0.4,0.1)), nthColor 1 )
-          ,(Triangle ((0.6,0.6,0.1),(0.7,0.9,0.1),(0.9,0.8,0.05)), nthColor 2 )
-          ,(Triangle ((0.6,0.6,-0.1),(0.7,0.9,-0.1),(0.9,0.8, 0.1)), nthColor 3 )
-            ]
+-- ex1ren :: Renderables
+-- ex1ren = [
+--            (Point (0.1,0.1,0.1), nthColor 0 )
+--           ,(Line ((0.6,0.1,0.1),(0.7,0.4,0.1)), nthColor 1 )
+--           ,(Triangle ((0.6,0.6,0.1),(0.7,0.9,0.1),(0.9,0.8,0.05)), nthColor 2 )
+--           ,(Triangle ((0.6,0.6,-0.1),(0.7,0.9,-0.1),(0.9,0.8, 0.1)), nthColor 3 )
+--             ]
 
 ex1drw :: Drawing Color
 ex1drw = [

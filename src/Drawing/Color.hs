@@ -67,3 +67,29 @@ nthColor :: Int -> Color
 nthColor i = hsv (phiNumber * fromIntegral i * 360.0) 1.0 0.5
 
 
+data Shade =
+   Shade { shadeColor :: Color
+         , shadeMode :: Int
+         }
+
+class Shadelike a where
+  toShade :: a -> Shade
+  toShade _ =
+         Shade { shadeColor = (Rgba 0.5 0.5 0.5 1.0)
+              , shadeMode = 0
+            }
+         
+instance Shadelike Color where
+  toShade c =
+     Shade { shadeColor = c 
+           , shadeMode = 0
+            }  
+
+
+-- instance Shadelike a => Shadelike (b , a) where
+--   toShade = toShade . snd
+
+instance Shadelike [Shade] where
+  toShade = head
+
+
