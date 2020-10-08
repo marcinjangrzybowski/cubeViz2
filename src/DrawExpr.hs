@@ -201,7 +201,7 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
 -- XXXX
 
 
--- simpleDrawTerm 0 = FromLI 0 (const [([[]]  , ([] , nthColor 4)) ] )
+simpleDrawTerm 0 = FromLI 0 (const [([[]]  , (([] , Basic) , nthColor 4)) ] )
 simpleDrawTerm 1 =
     FromLI 1 (bool [([[0.2],[0.3]] , (([] , Basic) , nthColor 1))]
                    [([[0.6],[0.7]] , (([] , Basic) , nthColor 2))] . fst . head . toListLI)

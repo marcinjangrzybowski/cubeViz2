@@ -343,7 +343,14 @@ appLI :: (ListInterpretable a b) => a -> FromLI a c -> c
 appLI a (FromLI n f) =
   if (sizeLI a == n)
   then f a
-  else (error $ "argument of wrong dimension! " ++ (show (sizeLI a)) ++ " "  ++ (show n))
+  else (error $ "argument of wrong dimension! " ++ (show (sizeLI a)) ++ " expected:"  ++ (show n))
+
+appLI2 :: (ListInterpretable a b) => a -> FromLI a c -> c
+appLI2 a (FromLI n f) =
+  if (sizeLI a == n)
+  then f a
+  else (error $ "XXX argument of wrong dimension! " ++ (show (sizeLI a)) ++ " expected:"  ++ (show n))
+
 
 fromLIppK :: (a -> c -> b) -> FromLI a c -> FromLI a b
 fromLIppK f (FromLI n g) = FromLI n (\x -> f x $ g x) 
@@ -359,6 +366,10 @@ fromMapFLI n = FromLI n . flip Map.lookup
 
 fromMapFLIUnsafe :: ListInterpretable a b => Int -> Map.Map a c -> FromLI a c
 fromMapFLIUnsafe n = fmap fromJust . fromMapFLI n
+
+
+mkFaceLI :: [(a , a)] -> FromLI Face a
+mkFaceLI l = FromLI (length l) (\(Face _ (k , b)) -> pickFromPair b (l !! k))
 
 instance Functor (FromLI a) where
   fmap f (FromLI n g) = FromLI n (f . g)  

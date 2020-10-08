@@ -1,5 +1,5 @@
 Goal: A
-Elaborates to: sq1 i j
+Elaborates to: ss k i j
 ———— Boundary ——————————————————————————————————————————————
 i = i0 ⊢ sq1 j k
 i = i1 ⊢ sq2 j k

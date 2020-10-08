@@ -183,20 +183,20 @@ cubFace fc@(Face n (i , b))  cub@(Hcomp bb nam pa a)
     
 instance ToCub ((Env , Context) , Expr) () (Either Int CellExpr) where
   toCub ee@((env , ct) , (HComp nam pa e)) =
-       let ct2 = addDimToContext ct nam
+       let ct2 = addDimToContext ct (Just nam)
            dim = getDim ee
            pa2 = Map.mapKeys (SubFace dim . Map.mapKeys (toDimI ct2)) $
                  Map.mapWithKey (\sf -> toCub . ((env , addSFConstraintToContext sf ct2),)) pa
            b   = (toCub ((env , ct) , e))
        in (Hcomp () nam pa2 b)
 
-  toCub (ee@(env , ct) , (Var vI tl)) =
-     let (cell , fcs) = mkCellExpr ee vI tl
+  toCub (ee@(env , ct) , tm@(Var vI tl)) =
+     let cell = mkCellExpr ee vI tl
          fcss = fromLIppK
                   (\fc -> \e -> toCub ((env , addFaceConstraintToContext fc ct) , e) )
-                 fcs
+                   (exprFaces ct tm )
      in Cub fcss (Right cell)  
-  toCub ee@((env , ct) , (ILam nam x)) = toCub (first (second (flip addDimToContext nam)) ee)
+  -- toCub ee@((env , ct) , (ILam nam x)) = toCub (first (second (flip addDimToContext nam)) ee)
 
   toCub ee@((env , ct) , (Hole hI)) =
      let fcss = fromLIppK

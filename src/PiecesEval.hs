@@ -37,7 +37,7 @@ pieceComp (su@(Subset _ suS) , pm@(Permutation pmm)) (x , xb) (y , yb) =
 
 iExprPE :: Piece -> IExpr -> Either Bool (Int , Bool)
 iExprPE pc =
-  setSetElim (Left False) (Left True)
+  elimIExpr
     (Right . g)
   where
     
@@ -54,7 +54,7 @@ iExprPE pc =
 
 pieceEval :: CellExpr -> Piece -> PieceExprNNF
 pieceEval (CellExpr vi tl) pc =
-  let tl2 = (fmap $ iExprPE (Bf.second id pc)) tl
+  let tl2 = (fmap $ iExprPE (Bf.second id pc)) (fmap snd tl)
   in PieceExprNNF vi tl2 
 
 

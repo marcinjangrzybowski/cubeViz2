@@ -116,7 +116,7 @@ printExpr :: UIApp ()
 printExpr =
   do mbExpr <- UI.getsAppState asExpression
      case mbExpr of
-       Just (( _ , ctx) , expr) -> liftIO $ (putStrLn $ fromRight "no expresion to print" (toCode ctx expr))
+       Just (ee , expr) -> liftIO $ (putStrLn $ fromRight "error while printing expr" (toCode ee expr))
        _ -> return ()
 
 main :: IO ()
@@ -149,7 +149,7 @@ main =
            return $ AppState
             { fileName          = Nothing
             , asViewport        = Viewport { vpAlpha = 1/5 , vpBeta = 0 , vpGamma = -0.1 }
-            , asDrawMode        = Scaffold --  Stripes --  --head drawExprModes
+            , asDrawMode        = Stripes -- Scaffold --   --head drawExprModes
             , asDragStartVP     = Nothing
             , asSession         = Nothing
             , asCursorAddress   = Nothing --Just ( (enumerate 3 2 ) : (enumerate 3 1 )  : [])
@@ -197,6 +197,7 @@ main =
                               })
                          liftIO $ putStrLn (show sessionState)
                          updateView
+                         return ()
 
           LoadGrid ->
             do 

@@ -1,5 +1,8 @@
 Goal: A
-Elaborates to: sq1 i j
+Elaborates to: hcomp {ℓ} {A} {i ∨ (j ∨ (~ k))}
+                     (λ l → primPOr {ℓ} i (j ∨ ~ k) {λ _ → A} (λ _ → sq2 j k)
+                               (primPOr {ℓ} j (~ k) {λ _ → A} (λ _ → sq4 i k) (λ _ → sq5 i j)))
+                       (ss i j k)
 ———— Boundary ——————————————————————————————————————————————
 i = i0 ⊢ sq1 j k
 i = i1 ⊢ sq2 j k
@@ -42,4 +45,4 @@ sq5 i j = ?1 (k = i0) : A
 sq4 i k = ?1 (j = i1) : A
 sq3 i k = ?1 (j = i0) : A
 sq2 j k = ?1 (i = i1) : A
-sq1 j k = ?1 (i = i0) : A
+sq1 j k = ?1 (i = i0) : A	

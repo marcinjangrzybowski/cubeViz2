@@ -20,6 +20,7 @@ import Data.Bool
 import Data.Either
 import Data.Maybe
 
+import Data.Bifunctor
 
 import Syntax
 
@@ -70,18 +71,18 @@ faceAbs ie x =
      -- setState ctx 
      return y
 
-abstT :: (String -> c -> c) -> Parsec String c z -> Parsec String c (Maybe String , z)
+abstT :: (Maybe String -> c -> c) -> Parsec String c z -> Parsec String c (Maybe String , z)
 abstT f p =
   do spaces
      string "λ "
      ctx <- getState
-     name <- agdaName
+     mbName <- (fmap Just agdaName) <|> (fmap (const Nothing) (string "_"))
      string " →"
      space
-     setState (f name ctx)
+     setState (f mbName ctx)
      x <- p
      setState ctx 
-     return (Just name , x)
+     return (mbName , x)
 
      
 abstr :: Parsec String Context z -> Parsec String Context (Maybe String , z)
@@ -165,9 +166,17 @@ iExprArg = ((between (char '(') (spaces *> char ')') iExpr0) <|> iExprVar)
 
 var1 :: Parsec String Context Expr
 var1 =  do h <- varIdentifier
+           ctx <- getState
            many1 space
-           tl <- sepEndBy iExprArg (many1 space)
-           return (Var h tl)
+           tl <- (sepEndBy iExprArg (many1 space))
+           return (mkVar ctx h tl)
+-- tail of expression should containt pairs of expressions of decrasing arrity, so that last expression have arrity 0
+-- it should be achived by aplying nTh expression if CType tail to first n arguments.
+-- if CType tails is [(f0,f1),(g0,g1),(h0,h1)]
+---     and arguments are [x,y,z]
+--  then resultng expression tail should be:
+--     [(f0,f1),(g0 x ,g1 x),(h0 x y,h1 x y)]     
+
 
 var0 :: Parsec String Context Expr
 var0 = spaces *>  ((try var1) <|> (((flip Var) []) <$> (varIdentifier)))
@@ -186,7 +195,7 @@ partialPrimPOr :: IExpr -> Parsec String Context Partial
 partialPrimPOr x =
   do string "primPOr"
      space
-     implArg (levelP)
+     implArg levelP
      space
      ia1 <- iExprArg
      space
@@ -249,6 +258,18 @@ exprArg :: Parsec String Context Expr
 exprArg = spaces *>  ((between (char '(') (spaces *> char ')') expr0))
             <|>
             ((((flip Var) []) <$> varIdentifier))
+
+pathAbstrExpr0 ::  Parsec String Context LExpr
+pathAbstrExpr0 = spaces *> (
+  (fmap (first (\x -> [x])) (try $ abstr expr0))
+    <|>
+   fmap (\x -> ([] , x)) expr0 )
+
+pathAbstrExprArg :: Parsec String Context LExpr
+pathAbstrExprArg =
+       spaces *>  ((between (char '(') (spaces *> char ')') pathAbstrExpr0))
+            <|>
+            (fmap (\x -> ([] , x)) (((flip Var) []) <$> varIdentifier))
 
   
 parseExpr :: Context -> String -> Either ParseError Expr

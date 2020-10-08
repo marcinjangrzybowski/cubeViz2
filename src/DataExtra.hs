@@ -4,6 +4,7 @@ import Data.Bifunctor
 
 import Data.List
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 
 tpl2arr (x , y) = [x , y]
 trpl2arr (x , y , z) = [x , y , z]
@@ -64,6 +65,7 @@ transposeTuples ((a , b) , (c , d)) = ((a , c) , (b , d))
 
 mapBoth f = bimap f f
 
+
 average :: (Real a , Fractional b) => [a] -> b
 average [] = error "attempt to took average of empty list"
 average xs = realToFrac (sum xs) / genericLength xs
@@ -87,8 +89,8 @@ negCompIf True GT = LT
 negCompIf _ x = x
 
 pickFromPair ::  Bool -> (a , a) -> a
-pickFromPair x | x = fst
-               | otherwise = snd
+pickFromPair x | x = snd
+               | otherwise = fst
 
 dot2 :: (d -> e) -> (a -> b -> d) -> (a -> b -> e)  
 dot2 f g a b = f $ g a b 
@@ -104,3 +106,13 @@ curb l h x
   | x > h     = h
   | otherwise = x
 
+
+
+look :: Int -> [ a ] -> Maybe a
+look _ [] = Nothing
+look 0 (x : _) = Just x
+look k (_ : xs) = look (k - 1) xs
+
+
+mapToSet :: (Ord k , Ord a) => Map.Map k a -> Set.Set (k , a) 
+mapToSet = Set.fromList . Map.toList

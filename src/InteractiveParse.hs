@@ -54,9 +54,9 @@ ssEnvExpr (SessionState ee _ _ e) = (ee , e)
 instance Show SessionState where
    show (SessionState (env , ctx) bndrs bType e) =
      show env ++ "\n"
-     ++ show ctx
+     ++ toString (env , emptyCtx) ctx
      ++ "\n"
-     ++ "Expr:\n" ++ (toString ctx e)
+     ++ "Expr:\n" ++ (toString (env , ctx) e)
      ++ "\n"
 
   

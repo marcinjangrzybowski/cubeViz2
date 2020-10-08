@@ -31,7 +31,7 @@ mainProcTerm fname =
      let parseResult = parseInteractive contents
      putStr $ either id (show) parseResult
      putStr $ either id
-       (\(SessionState (env , ctx) _ bType expr) -> toString ctx expr)
+       (\(SessionState (env , ctx) _ bType expr) -> toStringEE ctx expr)
        parseResult
      
      hClose handle   

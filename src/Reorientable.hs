@@ -46,13 +46,17 @@ decomposeSubst n t =
   where
       
     diag =
+
+      -- ks will hold pairs of duplicates : (positionOfDuplicateInTail , duplicate)
+      -- l holds array without duplicates
       let (ks , l) = foldl
              (\(ks , l) -> \(i , k) ->
                  if (elem k l)
                  then (ks ++ [(i , k)] , l)
                  else (ks , (l ++ [k])))
                 ([] , []) (zip [0..] (fmap fst t))
-          vM = Map.fromList $ zip l [0..]   
+          vM = Map.fromList $ zip l [0..]
+          -- vM assigns for each dimensionIndex its position in deduplicated tail
       in (Permutation vM , fmap (second $ ((Map.!) vM)) ks)
 
 
@@ -90,7 +94,7 @@ instance DiaDeg Int where
 
   appNegs _ = id
   
-  appDiags _ = id
+  appDiags l x = x - (length l)
 
   appPerm _ = id
 
