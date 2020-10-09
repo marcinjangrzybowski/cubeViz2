@@ -46,6 +46,8 @@ import qualified UI.UI as UI
 
 import Abstract
 
+import ExprTransform
+
 asExpression = fmap ssEnvExpr . asSession
 
 asCub :: AppState -> Maybe (Cub () (Either Int CellExpr))
@@ -66,11 +68,14 @@ termDrawing =
 --             )
 --             drawings
 
+-- data EditCommand = ClearCell
+
 data Msg =
     SetDescriptor [Descriptor]
   | LoadFile String
   | LoadGrid
   | CycleDrawMode
+  | EditCub (CubTransformation (Either Int CellExpr))
 
 data AppState = AppState
    { fileName          :: Maybe String
@@ -105,7 +110,9 @@ drawExpr as Scaffold = \e ->
 
               [ mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True
                                            , sptCursorAddress = (asCursorAddress as)
-                                           , sptScaffDim = 1}) ]
+                                           , sptScaffDim = 1})
+              , mkDrawExprFill DefaultPT
+              ]
                -- ++
                -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
               ) <*> pure e 
@@ -149,7 +156,7 @@ main =
            return $ AppState
             { fileName          = Nothing
             , asViewport        = Viewport { vpAlpha = 1/5 , vpBeta = 0 , vpGamma = -0.1 }
-            , asDrawMode        = Stripes -- Scaffold --   --head drawExprModes
+            , asDrawMode        = Scaffold -- Stripes --   --head drawExprModes
             , asDragStartVP     = Nothing
             , asSession         = Nothing
             , asCursorAddress   = Nothing --Just ( (enumerate 3 2 ) : (enumerate 3 1 )  : [])
@@ -168,7 +175,29 @@ main =
       printAddress :: UIApp ()
       printAddress = do
            aSt <- UI.getAppState
-           liftIO $ putStrLn (show (asCursorAddress aSt)) 
+           liftIO $ putStrLn (show (asCursorAddress aSt))
+
+
+      consolePrint :: String -> UIApp ()
+      consolePrint str = do
+           liftIO $ putStrLn (str)
+
+      setFromCub :: Cub () (Either Int CellExpr) -> UIApp () 
+      setFromCub newCub = do
+           UI.modifyAppState (\s ->
+                    case (asSession s) of
+                      Nothing -> s
+                      Just (ss) -> s {
+                            asSession = Just $
+                              ssSetExpression ss (fromCub (fst (ssEnvExpr ss) ) newCub)
+                                       }
+
+                   )
+           updateView
+           return ()
+
+            
+       
       
       update msg =
         case msg of
@@ -215,7 +244,13 @@ main =
                   { asDrawMode = rotateFrom (asDrawMode s) drawExprModes 
                   }                
                updateView
-
+          EditCub trns -> do
+               appS <- UI.getAppState
+               case fmap (applyTransform trns) (asCub appS) of
+                 Just (Left err) -> consolePrint $ "transform error: " ++ err
+                 Just (Right newCub) -> setFromCub newCub
+                 Nothing -> return ()
+                 
       processEvent ev =
             case ev of
               (UI.EventCursorPos _ x y) -> do
@@ -252,7 +287,7 @@ main =
               (UI.EventKey win k scancode ks mk) -> do
                     when (ks == GLFW.KeyState'Pressed) $ do
                         -- Q, Esc: exit
-                        when (k == GLFW.Key'C) $
+                        when (k == GLFW.Key'O) $
                           UI.sendMsg $ LoadFile "data/input-to-viz/expr3d1-fill"
                         when (k == GLFW.Key'G) $
                           UI.sendMsg $ LoadGrid 
@@ -260,6 +295,29 @@ main =
                           UI.sendMsg $ CycleDrawMode
                         when (k == GLFW.Key'P) $ 
                           printExpr
+
+                          
+                        when (k == GLFW.Key'C) $ do
+                          appS <- UI.getAppState
+                          case (asCursorAddress appS , asCub appS)  of
+                            (Just addr , Just cub) -> 
+                                 UI.sendMsg $ EditCub (RemoveCell addr)
+                            _ -> return ()
+                            
+                        when (k == GLFW.Key'S) $ do
+                          appS <- UI.getAppState
+                          case (asCursorAddress appS , asCub appS)  of
+                            (Just addr , Just cub) -> 
+                                 UI.sendMsg $ EditCub (SplitCell addr)
+                            _ -> return ()
+
+                        when (k == GLFW.Key'H) $ do
+                          appS <- UI.getAppState
+                          case (asCursorAddress appS , asCub appS)  of
+                            (Just addr , Just cub) -> 
+                                 UI.sendMsg $ EditCub (ReplaceAt addr (Left 0))
+                            _ -> return ()
+                            
                         when (isArrowKey k) $ do
                           appS <- UI.getAppState
                           case (asCursorAddress appS , asCub appS)  of

@@ -11,6 +11,8 @@ import Data.List
 
 -- import Data.Floating.Classes
 
+import DataExtra
+
 import Combi
 
 -- type NPoint = [ Float ]
@@ -20,6 +22,11 @@ data Color = Rgba Float Float Float Float
   deriving (Show)
             
 gray x = Rgba x x x 1.0 
+
+lighter :: Float -> Color -> Color
+lighter y (Rgba r g b a) =
+  let f x = curb 0.0 1.0 ( x + y)
+  in (Rgba (f r) (f g) (f b) a) 
 
 color2arr (Rgba r g b a) = [r , g , b , a] 
 

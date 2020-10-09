@@ -339,6 +339,9 @@ data Expr =
 
 type LExpr = ([Maybe String] , Expr)  
 
+data CellExpr = CellExpr VarIndex [IArg]
+  deriving Show
+
 
 iLam :: Maybe String -> LExpr -> LExpr
 iLam mbs = first ( (:) mbs )  
@@ -387,8 +390,6 @@ arityForceRepair ctx k x@(mbNs , Var vi tl)
     
 arityForceRepair _ _ x = x
 
-data CellExpr = CellExpr VarIndex [IArg]
-  deriving Show
 
 
 
@@ -433,6 +434,22 @@ exprFaces ctx e =
         (\fc ->
            substProj (fcToSubFace2 ctx fc) e
         ) 
+
+toVarIndexUnsafe :: Expr -> VarIndex
+toVarIndexUnsafe (Var vi []) = vi 
+toVarIndexUnsafe _ = error "not a term of dimension 0!"
+
+subsetToSubFace2 :: Context -> Subset -> SubFace2
+subsetToSubFace2 ctx =
+  Map.fromList . (map $ first $ fromDimI ctx) . (zip [0..]) . toListLI 
+
+exprCorners :: Context -> Expr -> FromLI Subset VarIndex
+exprCorners ctx e =
+  let n = getDim ctx
+  in FromLI n
+      (toVarIndexUnsafe
+      . flip substProj e
+      . subsetToSubFace2 ctx) 
 
 substProj :: SubFace2 -> Expr -> Expr
 substProj sf = \case 
@@ -503,7 +520,11 @@ mkVar ctx vi tl =
 mkCellExpr :: (Env , Context) -> VarIndex -> [IArg] -> CellExpr
 mkCellExpr (ee@(env , ctx)) vI tl = 
   ( CellExpr vI (map (second (remapIExpr (toDimI ctx))) tl) )
-                                                                  
+
+fromCellExpr :: (Env , Context) -> CellExpr -> Expr 
+fromCellExpr (ee@(env , ctx)) (CellExpr vI tl) = 
+  ( Var vI (map (second (remapIExpr (fromDimI ctx))) tl) )
+  
 -- remapCE :: (Int -> Int) -> CellExpr -> CellExpr
 -- remapCE f (CellExpr x y) = CellExpr x (map (remapIExpr f) y) 
 
@@ -653,16 +674,28 @@ getVarType (Context l _) (VarIndex i) =
         (snd <$> (indexS ((length l - 1) - i) l))
 
 
+
+printCTypeCorners :: Env -> Context -> CType -> Int -> String 
+printCTypeCorners ee ctx0 ct i =
+      let n = getCTyDim ee ctx0 ct
+          ctx = foldl addDimToContext ctx0 (replicate n Nothing )
+          crnrs = exprCorners ctx (mkVar ctx (VarIndex i) (fmap dim $ range n))
+      in indent 6 $ ("\n" ++ (intercalate "\n" $ fmap (show) $ toListFLI crnrs))
+        
 instance Codelike Context where
    toCode (ee , _) (Context ty dims) = Right $
      "CTypes:\n" ++ (intercalate "\n" (
                         -- map (\(nm, val) -> nm ++ " : " ++ show val) ty
                         map 
                         (\((nm , val),k) ->
-                             nm ++ " : " ++ (toString (ee , Context (drop k ty) []) val))
-                          (zip ty [1..]) 
+                             nm ++ " : " ++ (toString (ee , Context (drop k ty) []) val)
+                             ++ "\n"
+                             ++ (printCTypeCorners ee (Context ty []) val (length ty - k))
+                             ++ "\n"
                         )
-                    ) 
+                          (zip ty [1..]) 
+                        
+                        ))
      ++ "\nDimensions:\n" ++ (intercalate "\n" (map (\(nm, _) -> (fromMaybe "_" nm) ++ " : " ++ "X") dims))
   
 -- instance Show Context where
@@ -722,8 +755,8 @@ instance Codelike Expr where
   toCode (e , c) (Var (VarIndex h) t) =
      do let l = map
                 (\((e0, e1), a) ->
-                   parr((toString (e , c) e0) ++ "|" ++ (toString (e , c) a)  ++"|"++ (toString (e , c) e1))
-                    -- (toString (e , c) a)
+                   -- parr((toString (e , c) e0) ++ "|" ++ (toString (e , c) a)  ++"|"++ (toString (e , c) e1))
+                    (toString (e , c) a)
                    )
                    
                       t

@@ -1,7 +1,8 @@
 Goal: A
-Elaborates to: hcomp {ℓ} {A} {~ k}
-               (λ l → λ _ → sq1 i j)
-               (ss i j k)
+Elaborates to: hcomp {ℓ} {A} {i ∨ (j ∨ (~ k))}
+                     (λ l → primPOr {ℓ} i (j ∨ ~ k) {λ _ → A} (λ _ → sq2 j k)
+                               (primPOr {ℓ} j (~ k) {λ _ → A} (λ _ → sq4 i k) (λ _ → sq5 i j)))
+                       (ss i j k)
 ———— Boundary ——————————————————————————————————————————————
 i = i0 ⊢ sq1 j k
 i = i1 ⊢ sq2 j k
@@ -15,11 +16,9 @@ j   : I
 i   : I
 ss  : PathP {ℓ}
       (λ i₁ →
-         PathP {ℓ} (λ i₂ → _≡_ {ℓ} {A} (sq1 i₁ i₂) (sq1 i₁ i₂)) (sq1 i₁)
-         (λ i₂ → hcomp {ℓ} {A} {i₂}
-               (λ l → λ _ → s i₁ )
-               (sq1 i₁ i₂ )))
-      sq1 sq1
+         PathP {ℓ} (λ i₂ → _≡_ {ℓ} {A} (sq5 i₁ i₂) (sq6 i₁ i₂)) (sq3 i₁)
+         (sq4 i₁))
+      sq1 sq2
 sq7 : _≡_ {ℓ} {_≡_ {ℓ} {A} x x} (λ _ → x) (λ _ → x)
 sq6 : _≡_ {ℓ} {_≡_ {ℓ} {A} y z} yz2 yz2
 sq5 : _≡_ {ℓ} {_≡_ {ℓ} {A} x y} xy1 xy1

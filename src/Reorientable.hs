@@ -58,8 +58,8 @@ decomposeSubst n t =
           vM = Map.fromList $ zip l [0..]
           -- vM assigns for each dimensionIndex its position in deduplicated tail
       in (Permutation vM , fmap (second $ ((Map.!) vM)) ks)
-
-
+                          --( those are pairs of (positionOfDuplicate , positionOfDupicatedValue in deduplciated tail)) 
+ 
 
   
 class DiaDeg a where
@@ -98,34 +98,16 @@ instance DiaDeg Int where
 
   appPerm _ = id
 
+instance DiaDeg (FromLI Subset a) where
+  appNegs l (FromLI n f) = (FromLI n (f . fromListLI . (zipWith (\x -> xor (not x)) l) . toListLI ))
   
--- -- instance Diagonable (a , [Int]) where
--- --   -- remapD ds ( = undefined
--- --   appDegen l (k , _) = (k , l)
--- --   -- appNegs l (k , _) = (k , l)
+  appDiags l (FromLI n f) = 
+     let isDupe = not . (flip elem) (fmap fst l)
+     in (FromLI n (f . fromListLI . map snd . (filter (isDupe . fst ) )  . (zip [0..]) . toListLI ))
 
--- instance Diagonable (Maybe ((Int , Color) , [Int])) where
---   -- remapD ds ( = undefined
---   appDegen l (Just (k , _)) = Just (k , l)
---   appDegen l (Nothing) = Nothing
+  appPerm prm (FromLI n f) = (FromLI n (f . fromListLI . listPermute prm . toListLI )) 
 
---   -- appNegs l (Just (k , _)) = Just (k , l)
---   -- appNegs l (Nothing) = Nothing
-
--- -- instance Reorientable (Drawing b) where
-
--- instance Diagonable (Maybe (Either Color (Color , Color) , [Int])) where
---   appDegen l (Just (k , _)) = Just (k , l)
---   appDegen l (Nothing) = Nothing
-
---   appNegs ([ False ]) (Just ((Right (c0 , c1)) , y)) = (Just ((Right (c1 , c0)) , y))
---   appNegs _ x = x
-
--- instance Diagonable (Either Color (Color , Color) , [Int]) where
---   appDegen l (k , _) = (k , l)
   
---   appNegs ([ False ]) ((Right (c0 , c1)) , y) =  ((Right (c1 , c0)) , y)
---   appNegs _ x = x  
 
   
 

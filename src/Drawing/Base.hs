@@ -89,6 +89,9 @@ toRenderableForce l =
   maybe (explode l >>= toRenderableForce) pure $ (toRenderable l) 
 
 
+mapStyle :: (a -> a) -> Drawing a -> Drawing a
+mapStyle = fmap . fmap
+
 -- throws error when aproching unrenderable
 toRenderables :: Shadelike a => Drawing a -> Renderables
 toRenderables = fmap $ bimap (fromJust . toRenderable) toShade
@@ -201,6 +204,7 @@ extrudeLines k sk (f0 , f1) = undefined
 
 type ZDrawing a = FromLI Piece (Drawing a)
 
+type ColorType = (([String] , ExtrudeMode) , Color)
 
      
     

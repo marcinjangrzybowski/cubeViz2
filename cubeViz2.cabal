@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8aba03202fe7583214266d0c7ac71143bffdf4a400448aab870fd71f48d0a197
+-- hash: 3a355750e287bc0fb414fe7d1e8796a6676b38e411614f339afac8c032b5b94d
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -39,7 +39,9 @@ library
       Drawing.GL
       ExprParser
       ExprParserTests
+      ExprTransform
       FloatTools
+      GenericCell
       InteractiveParse
       InteractiveParseTests
       Lib

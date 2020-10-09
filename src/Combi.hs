@@ -345,11 +345,6 @@ appLI a (FromLI n f) =
   then f a
   else (error $ "argument of wrong dimension! " ++ (show (sizeLI a)) ++ " expected:"  ++ (show n))
 
-appLI2 :: (ListInterpretable a b) => a -> FromLI a c -> c
-appLI2 a (FromLI n f) =
-  if (sizeLI a == n)
-  then f a
-  else (error $ "XXX argument of wrong dimension! " ++ (show (sizeLI a)) ++ " expected:"  ++ (show n))
 
 
 fromLIppK :: (a -> c -> b) -> FromLI a c -> FromLI a b
@@ -357,6 +352,10 @@ fromLIppK f (FromLI n g) = FromLI n (\x -> f x $ g x)
 
 toListFLI :: ListInterpretable a b =>  FromLI a c -> [c]
 toListFLI (FromLI n g) = (map g $ genAllLI n)
+
+fromListFLI :: ListInterpretable a b => Int -> [c] -> FromLI a c
+fromListFLI n l = FromLI n ((!!) l . unemerate)
+ 
 
 toMapFLI :: ListInterpretable a b =>  FromLI a c -> Map.Map a c
 toMapFLI (FromLI n g) = Map.fromList $ map (\x -> (x , g x) ) $ genAllLI n

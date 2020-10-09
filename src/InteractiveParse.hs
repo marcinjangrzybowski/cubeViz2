@@ -51,6 +51,9 @@ data SessionState = SessionState (Env , Context) [(Expr , Expr)] BType Expr
 
 ssEnvExpr (SessionState ee _ _ e) = (ee , e)
 
+ssSetExpression :: SessionState -> Expr -> SessionState
+ssSetExpression (SessionState ee si bt _) e = (SessionState ee si bt e)
+
 instance Show SessionState where
    show (SessionState (env , ctx) bndrs bType e) =
      show env ++ "\n"

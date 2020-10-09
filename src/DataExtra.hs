@@ -99,6 +99,8 @@ dot2 f g a b = f $ g a b
 dot3 :: (d -> e) -> (a -> b -> c -> d) -> (a -> b -> c -> e)  
 dot3 f g a b c = f $ g a b c 
 
+dot4 :: (e -> f) -> (a -> b -> c -> d -> e) -> (a -> b -> c -> d -> f)  
+dot4 f g a b c d = f $ g a b c d 
 
 curb :: Ord a => a -> a -> a -> a
 curb l h x
@@ -116,3 +118,11 @@ look k (_ : xs) = look (k - 1) xs
 
 mapToSet :: (Ord k , Ord a) => Map.Map k a -> Set.Set (k , a) 
 mapToSet = Set.fromList . Map.toList
+
+
+addIfNotIn :: Eq a => a -> [a] -> [a]
+addIfNotIn a l =
+  if (elem a l)
+  then l
+  else a : l
+  

@@ -47,13 +47,13 @@ instance OfDim (Cub b a) where
 
                
 cubMap :: (Int -> Address -> b -> Name -> (Map.Map SubFace (Cub b a)) -> (Cub b a) -> Either e bb)
-          -> (Int -> Address -> a -> Either e aa)
+          -> (Int -> Address -> (FromLI Face (Cub b a)) -> a -> Either e aa)
                  -> Address
                  -> Cub b a 
                  -> Either e (Cub bb aa)
 cubMap g f addr (Cub fcs a) =
    do let n = (getDim fcs)
-      cell <- f n addr a
+      cell <- f n addr fcs a
       fcs2 <- traverseMapLI (\fc -> cubMap g f (toSubFace fc : addr)) $ fcs
       return $ Cub fcs2 cell
 
@@ -67,17 +67,37 @@ cubMap g f addr (Hcomp b name pa a) =
       b2 <- g n addr b name pa a
       return (Hcomp b2 name sides bot) 
 
+cubMapMayReplace  :: (Int -> Address -> Cub b a -> Maybe (Either e (Cub b a)))
+                 -> Address
+                 -> Cub b a 
+                 -> Either e (Cub b a)
+cubMapMayReplace f addr x =
+   let n = getDim x
+   in case f n addr x of
+        Nothing ->
+           case x of
+              (Hcomp b name pa a) ->
+                 do a2 <- cubMapMayReplace f (fullSF (getDim a) : addr) a
+                    sides <- traverseMap
+                      (\sf -> cubMapMayReplace f (sf : addr))
+                        $ pa
+                    return (Hcomp b name sides a2) 
+              _ -> Right x
+        Just y -> y
+           
+
 -- variant of cubMap constant on node data
 cubMapOld = cubMap (const $ const $ \b -> const $ const $ const $ Right b)
+                  
 
-cubMapFill :: (Int -> Address -> a -> Either e aa)
+cubMapFill :: (Int -> Address -> (FromLI Face (Cub b a)) -> a -> Either e aa)
                 -> ( (Name , (Map.Map SubFace (Cub b a)) , (Cub b a)) -> Map.Map SubFace (Cub b aa)  )
                  -> Address
                  -> Cub b a 
                  -> Either e (Cub b aa)
 cubMapFill f g addr (Cub fcs a) =
    do let n = (getDim fcs)
-      cell <- f n addr a --
+      cell <- f n addr fcs a --
       fcs2 <- traverseMapLI (\fc -> cubMapOld f (toSubFace fc : addr)) $ fcs
       return $ Cub fcs2 cell
 
@@ -123,8 +143,8 @@ foldFacesFiled f cub@(Hcomp b _ pa a) =
 class OfDim a => ToCub a b c where
   toCub :: a -> (Cub b c)
 
-class FromCub a b c where
-  fromCub :: Cub b c -> a 
+class FromCub env a b c where
+  fromCub :: env -> Cub b c -> a 
 
 
 
@@ -204,7 +224,20 @@ instance ToCub ((Env , Context) , Expr) () (Either Int CellExpr) where
                   (FromLI (getDim ct) $ const (Hole hI)) 
      in Cub fcss  (Left hI) 
 
-
+instance FromCub (Env , Context) Expr () (Either Int CellExpr) where
+  fromCub ee (Cub _ a) =
+    case a of
+      Left k -> Hole k
+      Right ce -> fromCellExpr ee ce 
+  fromCub ee@(env , ct) (Hcomp () nam sides x) =
+       let ct2 = addDimToContext ct (Just nam)
+           dim = getDim ee
+           pa2 = Map.mapWithKey (\sf2 -> fromCub (env , addSFConstraintToContext sf2 ct2))
+                 $ Map.mapKeys ((Map.mapKeys (fromDimI ct2)) . (\(SubFace _ sf2) -> sf2) )
+                 $ sides
+           
+    in HComp nam pa2 (fromCub ee x)
+    
 -- -- -- UNTESTED IN ANY WAY
 -- -- makeGrid :: Int -> Int -> Cub ()     
 -- -- makeGrid dim 0 = Cub 0 ()

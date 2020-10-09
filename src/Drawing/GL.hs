@@ -184,7 +184,7 @@ onDisplay win w h vp ds = do
   lineWidth $= 2
   now <- GLFW.getTime
   -- blendFunc $= (SrcAlpha , OneMinusSrcAlpha)
-  polygonSmooth $= Enabled
+  polygonSmooth $= Disabled
 
   
   let vMat = Vector3 (vpAlpha vp * 360) (vpBeta vp * 360) (vpGamma vp * 360)  --75.0 0.0 $ 1.0 * (-35.0 + 1.0 * 50.0 * sin (0.7 * (realToFrac $ fromJust now)))
