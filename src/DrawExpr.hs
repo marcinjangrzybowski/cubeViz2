@@ -148,7 +148,7 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
 
 
   cellPainter :: d -> (Env , Context) -> a -> CellPainter b
-  cellPainter d ee dctx n adr _ x = 
+  cellPainter d ee dctx n adr fcs x = 
      let zz =
            case x of
              Right ce -> evalLI (fmap (FromLI n . (drawCellPiece d ee n adr dctx)) (piecesEval n ce))
@@ -156,7 +156,7 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
      in Right $
           drawCellCommon d ee n adr dctx
             ++
-          ( zz)
+          ((cellStyleProcess d ee dctx n adr fcs x) zz)
             
 
   nodePainter :: d -> (Env , Context) -> a ->
@@ -176,6 +176,10 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
 
   fillStyleProcess :: d -> Drawing b -> Drawing b
   fillStyleProcess d = id
+
+  cellStyleProcess :: d -> (Env , Context) -> a -> Int -> Address -> FromLI Face (Cub () (Either Int CellExpr))
+                              -> Either Int CellExpr -> Drawing b -> Drawing b
+  cellStyleProcess _ _ _ _ _ _ _ = id
 
   finalProcess :: d -> Drawing b -> Drawing b
   finalProcess d = id
@@ -243,7 +247,8 @@ instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int SimplePT where
                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
        else []
 
-data DefaultPT = DefaultPT
+data DefaultPT = DefaultPT { dptCursorAddress ::  Maybe Address
+                                           }
 
 addTag :: String -> ColorType -> ColorType
 addTag s = first (first (addIfNotIn s))  
@@ -263,6 +268,11 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
     --            . fst . head . toListLI)
 
   fillStyleProcess _ = mapStyle (addTag "filling") 
+
+  cellStyleProcess d ee dctx n addr fcs ce drw =
+    if (dptCursorAddress d == Just addr)
+    then mapStyle (addTag "selected") drw
+    else drw
   
   drawCellCommon _ _ n _ _ = 
        if n > 1
@@ -288,10 +298,14 @@ data ScaffoldPT = ScaffoldPT
 instance Shadelike (([String] , ExtrudeMode) , Color) where
   toShade ((tags , _) , c) =
           let isCursor = elem "cursor" tags
-
+              isSelected = elem "selected" tags
+              shadeMode = case (isCursor , isSelected) of
+                              (True , _) -> 1
+                              (_ , True) -> 3
+                              (_) -> 0
           in
           Shade { shadeColor = c 
-                , shadeMode = if isCursor then 1 else 0
+                , shadeMode = shadeMode
                 }  
 
 

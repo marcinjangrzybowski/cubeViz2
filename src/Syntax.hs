@@ -160,20 +160,6 @@ face2ToSubFace2 x = Map.fromList [x]
 -- minMB (Just b1) (Just b2) = if b1 == b2 then Just b1 else Nothing
 
 
--- this removes Subsets that are BIG
-makeAntiH :: Ord a => Set.Set (Set.Set a) -> Set.Set (Set.Set a)
-makeAntiH y = Set.filter (\x -> not (any (flip Set.isProperSubsetOf x) y)) y
-
-makeAntiHKeys :: (Ord a , Ord b) => Map.Map (Map.Map a b) c -> Map.Map (Map.Map a b) c
-makeAntiHKeys y =
-  let allKeysAsSets = Set.map mapToSet (Map.keysSet y)
-  in Map.filterWithKey
-         (\x -> \_ ->
-              not (any (flip Set.isProperSubsetOf (mapToSet x)) allKeysAsSets)) y
-
--- this removes Subsets that are SMALL
-makeAntiH2 :: Ord a => Set.Set (Set.Set a) -> Set.Set (Set.Set a)
-makeAntiH2 y = Set.filter (\x -> not (any (Set.isProperSubsetOf x) y)) y
 
  
 unsafeMin e1 e2 =  (makeAntiH $ Set.map (uncurry $ Set.union) $ Set.cartesianProduct e1 e2) 

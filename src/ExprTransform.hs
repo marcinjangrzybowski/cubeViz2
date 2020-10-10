@@ -31,11 +31,12 @@ import Abstract
 data CubTransformation a =
      ReplaceAt Address a
    | RemoveCell Address
+   | RemoveCellLeaveFaces Address
    | SplitCell Address
 
 
 
-applyTransform ::  CubTransformation a -> Cub () a -> Either String (Cub () a)
+applyTransform ::  CubTransformation (Either Int a) -> Cub () (Either Int a) -> Either String (Cub () (Either Int a))
 
 applyTransform (ReplaceAt addrToReplace valToPut) =
    flip cubMapMayReplace [] $ 
@@ -56,15 +57,32 @@ applyTransform (SplitCell addrToSplit ) =
              in Just $ Right $ (Hcomp () "splitVar" sides x)
        else Nothing
      )
+
+applyTransform (RemoveCell [] ) = Right
+applyTransform (RemoveCell (addrToRemoveHead : addrToRemoveTail) ) =
+   flip cubMapMayReplace [] $ 
+    (\n addr x ->
+       if addr == addrToRemoveTail
+       then case x of
+               Hcomp () nm sides x ->
+                  Just $ Right $ Hcomp () nm (Map.delete addrToRemoveHead sides) x
+               _ -> Nothing
+       else Nothing
+     )
+
+applyTransform (RemoveCellLeaveFaces [] ) = Right
+applyTransform (RemoveCellLeaveFaces (addrToRemoveHead : addrToRemoveTail) ) =
+   flip cubMapMayReplace [] $ 
+    (\n addr x ->
+       if addr == addrToRemoveTail
+       then case x of
+               Hcomp () nm sides x ->
+                  Just $ Right $ Hcomp () nm
+                            (deleteButLeaveFaces
+                               (const (Cub undefined (Left 0)))
+                                addrToRemoveHead sides) x
+               _ -> Nothing
+       else Nothing
+     )
+
     
--- applyTransform (SplitCell addrToSplit ) =
---    flip cubMapOld [] $ 
---     ((\n addr x ->
---        if addr == addrToSplit
---        then (let newSides = undefined
---              in Right $ Hcomp () "splitVar" newSides (Cub x
---             )
---        else Right $ x
---      ))
-    
-applyTransform _ = Right

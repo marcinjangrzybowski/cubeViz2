@@ -171,14 +171,14 @@ cubFace fc@(Face n (i , b))  cub@(Hcomp bb nam pa a)
   where
 
     subfaces =
-      (Set.map (SubFace (n - 1) . Map.fromList .
+          Set.map (SubFace (n - 1) . Map.fromList . Set.toList)
+        $ makeAntiH
+        $ (Set.map (Set.fromList .
                 mapMaybe (\(ii , bb) -> (flip (,) bb) <$> punchOut i ii
                          )
-                . Set.toList )
-        $ makeAntiH2 $
-         (Set.map (Set.fromList . Map.toList . (\(SubFace sfN sm) -> sm))
+                . Set.toList )        
+        $ (Set.map (Set.fromList . Map.toList . (\(SubFace sfN sm) -> sm))
             (Set.filter (\(SubFace sfN sm) -> Map.lookup i sm /= Just (not b)) (Map.keysSet pa))))
-
 
     sidesFace :: Map.Map SubFace (Cub b a)
     sidesFace = 
@@ -190,7 +190,10 @@ cubFace fc@(Face n (i , b))  cub@(Hcomp bb nam pa a)
              smEnd = Map.insert i b sm1
          
          in case (Map.lookup (SubFace (sfN + 1) smMid) pa , Map.lookup (SubFace (sfN + 1) smEnd) pa) of
-             (Just _ , Just _) -> error "imposible!"
+             (Just _ , Just _) ->
+                (error $ "imposible! partial with comparable subfaces!! "
+                           ++ show (SubFace (sfN + 1) smMid) ++ " "
+                           ++ show (SubFace (sfN + 1) smEnd) ++ " ")
              (Nothing , Nothing) -> error "imposible!"
              (Just x , _) ->
                     cubFace

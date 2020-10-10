@@ -20,6 +20,11 @@ punchIn :: Int -> Int -> Int
 punchIn k i | i < k = i
             | i >= k = i + 1
 
+
+punchInMany :: Set.Set Int -> Int -> Int
+punchInMany ks i =
+  foldl (flip punchIn) i (Set.toAscList ks)
+
 rotate :: Int -> [a] -> [a]
 rotate _ [] = []
 rotate n xs = zipWith const (drop n (cycle xs)) xs

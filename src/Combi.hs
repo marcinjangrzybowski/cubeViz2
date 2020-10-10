@@ -21,7 +21,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 
 import Data.Tuple
-
+import Data.Function
 import Data.Maybe
 
 import qualified Data.Bifunctor as Bf
@@ -31,6 +31,8 @@ import Data.Bool
 import DataExtra
 
 import Data.Semigroup
+
+import Debug.Trace
 
 factorial :: Int -> Int
 factorial n = 
@@ -87,6 +89,9 @@ sf2map (SubFace _ x) = x
 
 subFaceCodim :: SubFace -> Int
 subFaceCodim (SubFace _ m) = Map.size m
+
+subFaceDimEmb :: SubFace -> Int
+subFaceDimEmb (SubFace n m) = (n - Map.size m)
 
 data Never a = Never
 
@@ -269,7 +274,7 @@ instance ListInterpretable SubFace (Maybe Bool) where
 
 instance Show SubFace where
   show sf =
-    intercalate ","
+    intercalate "|"
     $ map (uncurry (++))
     $ map (Bf.bimap show (maybe "_" (bool "-" "+"))) $ zip [0..] (toListLI sf)
     -- concat
@@ -422,3 +427,58 @@ intoRuns = foldr (flip f) []
 
 fromRuns :: [ Either [b] [c] ] ->  [ Either b c ]
 fromRuns = concat . fmap (either (fmap Left) (fmap Right))
+
+
+-- about families of sets
+
+-- this removes Subsets that are BIG
+makeAntiH :: Ord a => Set.Set (Set.Set a) -> Set.Set (Set.Set a)
+makeAntiH y = Set.filter (\x -> not (any (flip Set.isProperSubsetOf x) y)) y
+
+makeAntiHKeys :: (Ord a , Ord b) => Map.Map (Map.Map a b) c -> Map.Map (Map.Map a b) c
+makeAntiHKeys y =
+  let allKeysAsSets = Set.map mapToSet (Map.keysSet y)
+  in Map.filterWithKey
+         (\x -> \_ ->
+              not (any (flip Set.isProperSubsetOf (mapToSet x)) allKeysAsSets)) y
+
+-- this removes Subsets that are SMALL
+makeAntiH2 :: Ord a => Set.Set (Set.Set a) -> Set.Set (Set.Set a)
+makeAntiH2 y = Set.filter (\x -> not (any (Set.isProperSubsetOf x) y)) y
+
+
+
+--- subface specyfic code
+
+injFace :: SubFace -> Face ->  SubFace
+injFace sf@(SubFace n m) f@(Face _ (k , b))
+             | getDim f /= (subFaceDimEmb sf) = error "fece dimension do not mathc subfaceEmbdDim"
+             | otherwise =
+                let k2 = (punchInMany (Map.keysSet m) k)
+                in SubFace n (Map.insert k2 b m)
+                
+isSubFaceOf :: SubFace -> SubFace -> Bool
+isSubFaceOf (SubFace n1 m1) (SubFace n2 m2)
+   | n1 /= n2 = error "cannot comapre subfaces od diferent dimension!"
+   | otherwise = (Map.isSubmapOf m2 m1) 
+  
+
+deleteButLeaveFaces :: (Face -> a) -> SubFace -> Map.Map SubFace a -> Map.Map SubFace a
+deleteButLeaveFaces fcs sf@(SubFace n _) m = 
+  let keys = Map.keysSet m
+
+  in if not $ Set.member sf keys
+     then m
+     else           
+          let shouldBeIncluded sfF =
+                 not (any (isSubFaceOf sfF) (Set.delete sf keys)) 
+              toAdd =
+                  Map.fromList
+                $ filter (shouldBeIncluded . fst)
+                $ map (\f -> (injFace sf f ,  fcs f))
+                $ genAllLI (subFaceDimEmb sf)
+              u = Map.union (Map.delete sf m) toAdd 
+          in --trace ((show $ (Map.keysSet (Map.delete sf m) )) ++ (show $ Map.keysSet toAdd))
+             --trace ((show $ (Map.keysSet u )))
+             u
+          

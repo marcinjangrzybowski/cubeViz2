@@ -92,13 +92,13 @@ data DrawExprMode = Stripes | StripesNoFill | Scaffold | Scaffold2
   deriving (Show , Eq)
 
 drawExprModes = [
-  Stripes , StripesNoFill ,
+  -- Stripes ,
   Scaffold  ]
 
 drawExpr :: AppState -> DrawExprMode -> ((Env , Context) , Expr)
                   -> Either String ([Drawing (([String] , ExtrudeMode) , Color)])
-drawExpr _ Stripes = fmap pure . mkDrawExprFill DefaultPT
-drawExpr _ StripesNoFill = fmap pure . mkDrawExpr DefaultPT
+-- drawExpr _ Stripes = fmap pure . mkDrawExprFill DefaultPT
+-- drawExpr _ StripesNoFill = fmap pure . mkDrawExpr DefaultPT 
 -- drawExpr _ Scaffold = \e ->
 --    sequence $  [
 --                 mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True , sptCursorAddress = Nothing })
@@ -111,7 +111,8 @@ drawExpr as Scaffold = \e ->
               [ mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True
                                            , sptCursorAddress = (asCursorAddress as)
                                            , sptScaffDim = 1})
-              , mkDrawExprFill DefaultPT
+              , mkDrawExprFill (DefaultPT { dptCursorAddress = (asCursorAddress as)
+                                           })
               ]
                -- ++
                -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
@@ -300,8 +301,12 @@ main =
                         when (k == GLFW.Key'C) $ do
                           appS <- UI.getAppState
                           case (asCursorAddress appS , asCub appS)  of
-                            (Just addr , Just cub) -> 
-                                 UI.sendMsg $ EditCub (RemoveCell addr)
+                            (Just addr , Just cub) -> do
+                                 if (GLFW.modifierKeysControl mk)
+                                 then UI.sendMsg $ EditCub (RemoveCell addr)
+                                 else UI.sendMsg $ EditCub (RemoveCellLeaveFaces addr)
+                                 UI.modifyAppState (\s ->                               
+                                   s { asCursorAddress = Just (tailAlways addr) })
                             _ -> return ()
                             
                         when (k == GLFW.Key'S) $ do

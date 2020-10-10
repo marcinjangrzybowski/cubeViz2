@@ -56,17 +56,14 @@ main()
    float boost = 0.5 ;
    float ambient = 0.3;
 
+   float allLightFactor = 1.0;
+
    vec3 finalRGB;
 
-   if (shade > 0.5){
-	finalRGB = vCol.rgb * (ambient + boost * abs(dot(lightDir,normal)));  
-   } else {
-	finalRGB = vCol.rgb * (ambient + boost * 0.5);
-   }
 
    if(vMode == 0.0){
 
-   }else if(vMode == 1.0){
+   }else if(vMode == 1.0){ // cursor
       if (stripper(worldPos , 10.0 , 0.2  , float(time*0.1) ) < 0.5)
       {
        discard;
@@ -76,7 +73,19 @@ main()
       {
        discard;
       }
+   }else if(vMode == 3.0){ // selected primitive
+      if (stripper(worldPos , 10.0 , 0.5  , float(time*0.1) ) < 0.5)
+      {
+       allLightFactor = 1.7;
+      }
    }
+
+   if (shade > 0.5){
+	finalRGB = vCol.rgb * allLightFactor * (ambient + boost * abs(dot(lightDir,normal)));  
+   } else {
+	finalRGB = vCol.rgb * allLightFactor * (ambient + boost * 0.5);
+   }
+
 
    // if (dotter(worldPos , 1000.0 ) < 0.5)
    // {

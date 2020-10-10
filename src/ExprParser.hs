@@ -247,9 +247,13 @@ hcomp =
      y <- exprArg
      return (HComp (fromMaybe "V" v) x y)
 
+hole :: Parsec String Context Expr
+hole =
+  do string "{!!}"
+     return (Hole 0)
 
 expr0 :: Parsec String Context Expr
-expr0 = spaces *> ((try hcomp) <|> var0 )
+expr0 = spaces *> ((try hcomp) <|> var0 <|> hole )
 
 expr :: Parsec String Context Expr
 expr = expr0 <* spaces <* eof
