@@ -29,6 +29,7 @@ import Combi
 
 import FloatTools
 
+import Data.Function
 import Data.Bool
 import Data.List
 import qualified Data.Set as Set
@@ -69,7 +70,7 @@ subFaceTrans sf@(SubFace n m) drw =
     -- _ : [] -> emptyDrawing 
     (i , b)  : js ->
       let
-          -- putting subface in one of the adjant face to execute face transform
+          -- putting subface in one of the adjacent face to execute face transform
           augmentedWithMissingTail =
              foldl (flip (\(i , b) -> embed (i - 1) (const $ if b then 1.0 else 0.0)))
                (drw) js
@@ -79,11 +80,7 @@ subFaceTrans sf@(SubFace n m) drw =
              $ (sideTransInv defaultCompPar STSubFace) (Face n (i , b)))
              $ transposeDrw i (augmentedWithMissingTail)
 
-          -- extruded :: Drawing a
-          -- extruded = undefined 
-          --   -- foldl (flip
-          --   --    (\ (k , (i , b)) -> extrude (fmap ((*) (-0.1)) (versor n i)) ))
-          --   --   transformed (zip [0..] js)
+
       in transformed
 
 hcompDrawings :: (Drawing a)
@@ -292,6 +289,7 @@ data ScaffoldPT = ScaffoldPT
   { sptDrawFillSkelet :: Bool
   , sptCursorAddress :: Maybe Address
   , sptScaffDim :: Int
+  , sptMissingSubFaceCursor :: Maybe (Address , SubFace)
   }
 
 
@@ -324,11 +322,24 @@ instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where
   --       )
 
   nodePainter spt ee dctx n addr () nm si center = Right $
-          if (sptCursorAddress spt == Just addr)
-          then fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 0.0 1.0 0.0 0.3))
-                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 2
-          else []
-    
+          let cursor = if (sptCursorAddress spt == Just addr)
+                       then fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 0.0 1.0 0.0 0.3))
+                            $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 2
+                       else []
+              sfCursor =
+                   (sptMissingSubFaceCursor spt)
+                   & maybe [] 
+                     (\(addrM , sf) ->
+                         if addrM == addr
+                         then 
+                               subFaceTrans sf
+                              $ fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 0.0 0.0 1.0 0.3))
+                              $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel (subFaceDimEmb sf + 1) 2 
+                         else []
+                     )
+
+                            
+          in cursor ++ sfCursor
   drawCellCommon spt _ n addr _ =
     let g = if ( sptDrawFillSkelet spt) then 0.85 else 0.0
     
@@ -340,7 +351,7 @@ instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where
 
         cursor =
           if (sptCursorAddress spt == Just addr)
-          then fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 1.0 0.0 0.0 0.3))
+          then fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 0.0 1.0 0.0 0.3))
                 $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 2
           else []
 

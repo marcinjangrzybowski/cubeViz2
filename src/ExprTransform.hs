@@ -33,6 +33,7 @@ data CubTransformation a =
    | RemoveCell Address
    | RemoveCellLeaveFaces Address
    | SplitCell Address
+   | AddSubFace (Address , SubFace)
 
 
 
@@ -86,3 +87,16 @@ applyTransform (RemoveCellLeaveFaces (addrToRemoveHead : addrToRemoveTail) ) =
      )
 
     
+applyTransform (AddSubFace (addrToAdd , sf)) = 
+   flip cubMapMayReplace [] $ 
+    (\n addr x ->
+       if addr == addrToAdd
+       then case x of
+               Hcomp () nm sides x ->
+                  Just $ Right $ Hcomp () nm
+                            (addSubFace
+                               (Cub undefined (Left 0))
+                               sf sides) x
+               _ -> Nothing
+       else Nothing
+     )

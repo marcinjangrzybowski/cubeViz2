@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3a355750e287bc0fb414fe7d1e8796a6676b38e411614f339afac8c032b5b94d
+-- hash: 281c3975dbfebe03b8187233d5e012625ebacd189418ffb03f7bc84ae57c9f1d
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -29,6 +29,7 @@ library
   exposed-modules:
       Abstract
       Combi
+      ConsolePrint
       ContextParser
       DataExtra
       DrawData
@@ -59,6 +60,7 @@ library
   build-depends:
       GLFW-b
     , OpenGL
+    , ansi-terminal
     , base >=4.7 && <5
     , bytestring
     , containers
@@ -66,6 +68,7 @@ library
     , mtl
     , parsec
     , pretty
+    , pretty-terminal
     , raw-strings-qq
     , sort
     , split
@@ -84,6 +87,7 @@ executable cubeViz2-exe
   build-depends:
       GLFW-b
     , OpenGL
+    , ansi-terminal
     , base >=4.7 && <5
     , bytestring
     , containers
@@ -92,6 +96,7 @@ executable cubeViz2-exe
     , mtl
     , parsec
     , pretty
+    , pretty-terminal
     , raw-strings-qq
     , sort
     , split
@@ -111,6 +116,7 @@ test-suite cubeViz2-test
   build-depends:
       GLFW-b
     , OpenGL
+    , ansi-terminal
     , base >=4.7 && <5
     , bytestring
     , containers
@@ -119,6 +125,7 @@ test-suite cubeViz2-test
     , mtl
     , parsec
     , pretty
+    , pretty-terminal
     , raw-strings-qq
     , sort
     , split

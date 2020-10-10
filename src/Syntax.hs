@@ -730,6 +730,16 @@ instance Codelike IExpr where
 parr :: String -> String
 parr x = "(" ++ x ++ ")" 
 
+instance Codelike Partial where
+  toCode c pa =
+     do l <- traverse (\(f , e) -> do bo <- toCode c e
+                                      fc <- toCode c f
+                                      return ( (parr $ parr fc ++ " = i1") ++ " → " ++ bo ++ "\n")
+
+                       ) (Map.toList pa)
+        return (intercalate ";" l)
+
+
 instance Codelike Expr where
   toCode (ee , c) (HComp v pa e) =
      do x <- (toCode (ee , (addDimToContext c (Just v))) pa)
@@ -783,14 +793,6 @@ instance Codelike SubFace2 where
     do l <- traverse (toCode ce) (Map.toList f)
        return (intercalate " ∧ " l) 
        
-instance Codelike Partial where
-  toCode c pa =
-     do l <- traverse (\(f , e) -> do bo <- toCode c e
-                                      fc <- toCode c f
-                                      return ( (parr $ parr fc ++ " = i1") ++ " → " ++ bo ++ "\n")
-
-                       ) (Map.toList pa)
-        return (intercalate ";" l)
 
   
 -- ppIExpr :: IExpr -> String

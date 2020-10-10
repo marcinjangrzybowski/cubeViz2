@@ -84,6 +84,9 @@ toSubFace (Face n fc) = SubFace n (Map.fromList [fc])
 fullSF :: Int -> SubFace 
 fullSF = flip SubFace (Map.empty)
 
+isFullSF :: SubFace -> Bool
+isFullSF (SubFace _ m) = Map.null m 
+
 sf2map :: SubFace -> Map.Map Int Bool
 sf2map (SubFace _ x) = x
 
@@ -431,6 +434,8 @@ fromRuns = concat . fmap (either (fmap Left) (fmap Right))
 
 -- about families of sets
 
+-- TODO : type of hereditary sets, and maybe tyoe of hereditary maps
+
 -- this removes Subsets that are BIG
 makeAntiH :: Ord a => Set.Set (Set.Set a) -> Set.Set (Set.Set a)
 makeAntiH y = Set.filter (\x -> not (any (flip Set.isProperSubsetOf x) y)) y
@@ -463,6 +468,9 @@ isSubFaceOf (SubFace n1 m1) (SubFace n2 m2)
    | otherwise = (Map.isSubmapOf m2 m1) 
   
 
+isIncludedIn :: Set.Set SubFace -> SubFace -> Bool
+isIncludedIn sfcs sf = (any (isSubFaceOf sf) (sfcs)) 
+
 deleteButLeaveFaces :: (Face -> a) -> SubFace -> Map.Map SubFace a -> Map.Map SubFace a
 deleteButLeaveFaces fcs sf@(SubFace n _) m = 
   let keys = Map.keysSet m
@@ -471,7 +479,7 @@ deleteButLeaveFaces fcs sf@(SubFace n _) m =
      then m
      else           
           let shouldBeIncluded sfF =
-                 not (any (isSubFaceOf sfF) (Set.delete sf keys)) 
+                 not $ isIncludedIn (Set.delete sf keys) sfF 
               toAdd =
                   Map.fromList
                 $ filter (shouldBeIncluded . fst)
@@ -481,4 +489,29 @@ deleteButLeaveFaces fcs sf@(SubFace n _) m =
           in --trace ((show $ (Map.keysSet (Map.delete sf m) )) ++ (show $ Map.keysSet toAdd))
              --trace ((show $ (Map.keysSet u )))
              u
+
           
+missingSubFaces :: Int -> Set.Set SubFace -> Set.Set SubFace
+missingSubFaces n sfcs =
+   Set.filter (\x -> (not $ isIncludedIn sfcs x) && (not (isFullSF x)) ) $ Set.fromList (genAllLI n)
+
+
+-- TODO : make it safer
+addSubFace :: a -> SubFace -> Map.Map SubFace a -> Map.Map SubFace a
+addSubFace a sf@(SubFace n _) m = Map.insert sf a m 
+  -- let keys = Map.keysSet m
+
+  -- in if not $ Set.member sf keys
+  --    then m
+  --    else           
+  --         let shouldBeIncluded sfF =
+  --                not $ isIncludedIn (Set.delete sf keys) sfF 
+  --             toAdd =
+  --                 Map.fromList
+  --               $ filter (shouldBeIncluded . fst)
+  --               $ map (\f -> (injFace sf f ,  fcs f))
+  --               $ genAllLI (subFaceDimEmb sf)
+  --             u = Map.union (Map.delete sf m) toAdd 
+  --         in --trace ((show $ (Map.keysSet (Map.delete sf m) )) ++ (show $ Map.keysSet toAdd))
+  --            --trace ((show $ (Map.keysSet u )))
+  --            u

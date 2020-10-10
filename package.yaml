@@ -35,6 +35,9 @@ dependencies:
 - stm
 - transformers
 - pretty
+- pretty-terminal
+- ansi-terminal
+
 
 library:
   source-dirs: src

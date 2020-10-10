@@ -30,6 +30,7 @@ rotate _ [] = []
 rotate n xs = zipWith const (drop n (cycle xs)) xs
 
 rotateFrom :: (Eq a) => a -> [a] -> a
+rotateFrom a (x : y : ys) | not $ elem a (x : y : ys) = error "unalbe to rotate, arg is missing from array"
 rotateFrom a (x : y : ys) | x == a = y
 rotateFrom a (x : y : ys) | otherwise = rotateFrom a (y : ys ++ [x]) 
 rotateFrom a _ = a

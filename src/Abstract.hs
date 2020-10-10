@@ -15,7 +15,8 @@ import Data.Maybe
 import Data.Bifunctor
 import Data.Traversable
 import Data.Functor
-
+import Data.Function
+import Data.List
 import Control.Applicative
 
 import Combi
@@ -296,3 +297,10 @@ cubNav c addr dir =
                      _ -> error "imposible"
              in Right (x2 : xs)
          _ -> error "bad address, parent cell is leaf!!"
+
+
+vaccantSubFaces :: Cub a b -> Address -> Set.Set SubFace
+vaccantSubFaces cub addr =
+  case (cubPick addr cub) of
+    Just (Hcomp _ _ pa a) -> missingSubFaces (getDim a) (Map.keysSet pa)
+    _ -> Set.empty

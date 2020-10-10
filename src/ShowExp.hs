@@ -23,9 +23,14 @@ import Drawing.GL
 import Drawing.Example
 import Data.List
 
+import qualified System.Console.Pretty as SCP
+import qualified System.Console.ANSI as SCA
+
 import Data.Tuple.Extra
 
 
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import Data.Maybe
 
@@ -45,8 +50,11 @@ import Combi
 import qualified UI.UI as UI
 
 import Abstract
+import ConsolePrint
 
 import ExprTransform
+
+import Debug.Trace
 
 asExpression = fmap ssEnvExpr . asSession
 
@@ -76,6 +84,8 @@ data Msg =
   | LoadGrid
   | CycleDrawMode
   | EditCub (CubTransformation (Either Int CellExpr))
+  | TermInput
+  | ToggleSubfaceAdding Address
 
 data AppState = AppState
    { fileName          :: Maybe String
@@ -84,6 +94,7 @@ data AppState = AppState
    , asViewport        :: Viewport 
    , asDragStartVP     :: Maybe Viewport
    , asCursorAddress   :: Maybe Address
+   , asSubFaceToAdd    :: Maybe (Address , SubFace)
    }
 
 
@@ -106,12 +117,19 @@ drawExpr :: AppState -> DrawExprMode -> ((Env , Context) , Expr)
 --               ] <*> pure e
    
 drawExpr as Scaffold = \e ->
-   sequence $ (
+
+   let (sptCA , sptMSFC) =
+          case (asSubFaceToAdd as) of
+             Nothing -> (asCursorAddress as , Nothing)
+             Just x -> (Nothing , Just x)
+  
+   in sequence $ (
 
               [ mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True
-                                           , sptCursorAddress = (asCursorAddress as)
+                                           , sptCursorAddress = sptCA
+                                           , sptMissingSubFaceCursor = sptMSFC
                                            , sptScaffDim = 1})
-              , mkDrawExprFill (DefaultPT { dptCursorAddress = (asCursorAddress as)
+              , mkDrawExprFill (DefaultPT { dptCursorAddress = sptCA
                                            })
               ]
                -- ++
@@ -122,9 +140,27 @@ type UIApp = UI.UI AppState [Descriptor] Msg
 
 printExpr :: UIApp ()
 printExpr =
+  do mbCub <- UI.getsAppState asCub
+     mbExpr <- UI.getsAppState asExpression
+     addrs <- UI.getsAppState asCursorAddress
+     case (mbCub , mbExpr) of
+       (Just cub , Just (ee , expr)) ->
+             liftIO
+           $ do SCA.clearScreen
+                (putStrLn 
+                  $ 
+                      (printCub ee (CubPrintData {cpdCursorAddress = addrs}) [] cub))
+       _ -> return ()
+
+printExprCode :: UIApp ()
+printExprCode =
   do mbExpr <- UI.getsAppState asExpression
      case mbExpr of
-       Just (ee , expr) -> liftIO $ (putStrLn $ fromRight "error while printing expr" (toCode ee expr))
+       Just (ee , expr) ->
+             liftIO
+           $ do SCA.clearScreen
+                (putStrLn 
+                  $ fromRight "error while printing expr" (toCode ee expr))
        _ -> return ()
 
 main :: IO ()
@@ -161,6 +197,7 @@ main =
             , asDragStartVP     = Nothing
             , asSession         = Nothing
             , asCursorAddress   = Nothing --Just ( (enumerate 3 2 ) : (enumerate 3 1 )  : [])
+            , asSubFaceToAdd    = Nothing 
             }
 
       updateView = 
@@ -172,6 +209,7 @@ main =
                           do
                              desc <- liftIO $ initResources $ concat (map toRenderablesForce drawings)
                              UI.sendMsg $ SetDescriptor desc
+                   printExpr
                              
       printAddress :: UIApp ()
       printAddress = do
@@ -251,7 +289,25 @@ main =
                  Just (Left err) -> consolePrint $ "transform error: " ++ err
                  Just (Right newCub) -> setFromCub newCub
                  Nothing -> return ()
-                 
+
+          TermInput -> do
+            s <- liftIO getLine 
+            consolePrint s
+
+          ToggleSubfaceAdding addr -> do
+            appS <- UI.getAppState
+            case (asSubFaceToAdd appS) of
+               Nothing ->
+                  case (asCub appS) of
+                     Nothing -> return ()
+                     Just cub -> do 
+                        let vsf = Set.toList $ vaccantSubFaces cub addr
+                        case vsf of
+                          [] -> return ()
+                          (x : _) -> do UI.modifyAppState $ \s -> s { asSubFaceToAdd = Just (addr , x) }
+                                        updateView
+               Just _ -> do UI.modifyAppState $ \s -> s { asSubFaceToAdd = Nothing }
+                            updateView
       processEvent ev =
             case ev of
               (UI.EventCursorPos _ x y) -> do
@@ -295,9 +351,28 @@ main =
                         when (k == GLFW.Key'D) $ do
                           UI.sendMsg $ CycleDrawMode
                         when (k == GLFW.Key'P) $ 
-                          printExpr
+                          printExprCode
 
+                        when (k == GLFW.Key'T) $ do
+                          UI.sendMsg $ TermInput
                           
+                        when (k == GLFW.Key'Enter) $ do
+                          appS <- UI.getAppState
+                          case (asSubFaceToAdd appS)  of
+                            (Just (addr , sf)) -> do
+                                 UI.setAppState (appS { asSubFaceToAdd = Nothing , asCursorAddress = Just (sf : addr)})
+                                 UI.sendMsg $ EditCub (AddSubFace (addr , sf)) 
+                            _ -> return ()
+
+                        when (k == GLFW.Key'A) $ do
+                          appS <- UI.getAppState
+                          case (asCursorAddress appS , asCub appS)  of
+                            (Just addr , Just cub) -> do
+                                 UI.sendMsg $ ToggleSubfaceAdding addr
+                            _ -> return ()
+                          
+  
+
                         when (k == GLFW.Key'C) $ do
                           appS <- UI.getAppState
                           case (asCursorAddress appS , asCub appS)  of
@@ -325,23 +400,37 @@ main =
                             
                         when (isArrowKey k) $ do
                           appS <- UI.getAppState
-                          case (asCursorAddress appS , asCub appS)  of
-                            
-                            (Just addr , Just cub) -> do
-                               UI.modifyAppState (\s ->
-                                  let nav = fromJust (arrowKey2nav k)
-                                      jna = fromRight (addr) (cubNav cub addr nav)  
-                                         
-                                  in s { asCursorAddress = Just jna })
-                               -- printAddress
-                               updateView
-                            (Nothing , Just cub) -> do
-                               UI.modifyAppState (\s ->
-                                   s { asCursorAddress = Just [] })
-                               -- printAddress
-                               updateView
-                            _ -> return ()
-                        
+                          case (asSubFaceToAdd appS , asCub appS) of
+                             (Nothing , _) ->
+                               case (asCursorAddress appS , asCub appS)  of                            
+                                 (Just addr , Just cub) -> do
+                                    UI.modifyAppState (\s ->
+                                       let nav = fromJust (arrowKey2nav k)
+                                           jna = fromRight (addr) (cubNav cub addr nav)  
+
+                                       in s { asCursorAddress = Just jna })
+                                    -- printAddress
+                                    updateView
+                                 (Nothing , Just cub) -> do
+                                    UI.modifyAppState (\s ->
+                                        s { asCursorAddress = Just [] })
+                                    -- printAddress
+                                    updateView
+                                 _ -> return ()
+
+                             (Just (addr , sf) , Just cub) -> do
+                                       (UI.modifyAppState (\s ->
+                                            let nav = fromJust (arrowKey2nav k)
+                                                vcnt = Set.toList $ vaccantSubFaces cub addr
+                                                sfNext =
+                                                   case nav of
+                                                      DNext -> rotateFrom sf vcnt
+                                                      DPrev -> rotateFrom sf $ reverse vcnt
+                                                      _ -> sf
+
+                                            in s { asSubFaceToAdd = Just (addr , sfNext) }))                                       
+                                       updateView
+                             _ -> return ()
 
                             -- fullSF
                           -- modify $ \s -> s { stateLogEvents = not ( stateLogEvents s) }           
@@ -372,3 +461,12 @@ arrowKey2nav k =
     GLFW.Key'Down -> Just DChild
     GLFW.Key'Left -> Just DNext
     GLFW.Key'Right -> Just DPrev
+
+
+
+-- TODO :
+-- add curent goal to context
+-- type ITail
+-- for ITail defined
+
+-- "zoom" into cell
