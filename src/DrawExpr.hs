@@ -133,8 +133,10 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
   -- "rendering" internal cell representation to drawing in pieces
   drawD :: d -> a -> c -> ZDrawing b
 
-  drawCellCommon :: d -> (Env , Context) -> Int -> Address -> a -> Drawing b
-  drawCellCommon _ _ _ _ _ = []
+  drawCellCommon :: d -> (Env , Context) -> Int -> Address -> a ->
+                       FromLI Face (Cub () (Either Int CellExpr))
+                    -> Either Int CellExpr -> Drawing b
+  drawCellCommon _ _ _ _ _ _ _ = []
   
   drawCellPiece :: d -> (Env , Context) -> Int -> Address -> a -> PieceExpr -> (Piece -> Drawing b)  
   drawCellPiece d ee n adr a (PieceExpr h t) =  
@@ -151,7 +153,7 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
              Right ce -> evalLI (fmap (FromLI n . (drawCellPiece d ee n adr dctx)) (piecesEval n ce))
              Left hI -> drawHole d ee n adr dctx hI
      in Right $
-          drawCellCommon d ee n adr dctx
+          drawCellCommon d ee n adr dctx fcs x
             ++
           ((cellStyleProcess d ee dctx n adr fcs x) zz)
             
@@ -238,7 +240,7 @@ instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int SimplePT where
 
   
   
-  drawCellCommon _ _ n _ _ = 
+  drawCellCommon _ _ n _ _ _ _ = 
        if n > 1
        then  fmap (Bf.second $ const $ ( (["cellBorder"] , ExtrudeLines) , gray 0.5))
                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
@@ -271,7 +273,7 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
     then mapStyle (addTag "selected") drw
     else drw
   
-  drawCellCommon _ _ n _ _ = 
+  drawCellCommon _ _ n _ _ _ _ = 
        if n > 1
        then  fmap (Bf.second $ const $ ( (["cellBorder"] , ExtrudeLines) , gray 0.5))
                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
@@ -337,10 +339,10 @@ instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where
                               $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel (subFaceDimEmb sf + 1) 2 
                          else []
                      )
-
                             
           in cursor ++ sfCursor
-  drawCellCommon spt _ n addr _ =
+          
+  drawCellCommon spt _ n addr _ _ x =
     let g = if ( sptDrawFillSkelet spt) then 0.85 else 0.0
     
     
@@ -349,12 +351,13 @@ instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where
                        $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
                 else []
 
-        cursor =
-          if (sptCursorAddress spt == Just addr)
-          then fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 0.0 1.0 0.0 0.3))
+        cursor = 
+          if (sptCursorAddress spt == Just addr && isLeft x )
+          then fmap (Bf.second $ const $ (( ["cursor" , "hole"] , Basic) , Rgba 1.0 0.0 0.0 0.3))
                 $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 2
           else []
 
+    
     
     in case (n , (sptCursorAddress spt == Just addr)) of
          (1 , True) -> cursor

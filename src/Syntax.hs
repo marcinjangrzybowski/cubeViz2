@@ -437,6 +437,9 @@ exprCorners ctx e =
       . flip substProj e
       . subsetToSubFace2 ctx) 
 
+isHoleExpr (Hole _) = True
+isHoleExpr _ = False
+
 substProj :: SubFace2 -> Expr -> Expr
 substProj sf = \case 
     HComp nm pa e ->

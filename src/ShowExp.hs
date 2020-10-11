@@ -366,8 +366,8 @@ main =
 
                         when (k == GLFW.Key'A) $ do
                           appS <- UI.getAppState
-                          case (asCursorAddress appS , asCub appS)  of
-                            (Just addr , Just cub) -> do
+                          case ((asCursorAddress appS) >>= uncons , asCub appS)  of
+                            (Just ( _ , addr) , Just cub) -> do
                                  UI.sendMsg $ ToggleSubfaceAdding addr
                             _ -> return ()
                           
@@ -465,6 +465,7 @@ arrowKey2nav k =
 
 
 -- TODO :
+-- show context
 -- add curent goal to context
 -- type ITail
 -- for ITail defined
