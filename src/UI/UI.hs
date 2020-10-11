@@ -12,6 +12,8 @@ import Data.List                 (intercalate)
 import Data.Maybe                (catMaybes)
 import Text.PrettyPrint   hiding ((<>))
 
+import Data.Function
+
 import qualified Graphics.Rendering.OpenGL as GL
 import qualified Graphics.UI.GLFW          as GLFW
 
@@ -61,11 +63,12 @@ data Event =
 type UI uiState glDesc uiMsg = RWST Env [uiMsg] (State uiState glDesc uiMsg) IO
 
 data UIDesc uiState glDesc uiMsg = UIDescription
-  { uiDescInit                   :: WriterT [uiMsg] IO uiState
+  { uiDescInit                   :: WriterT [uiMsg] IO (Maybe uiState)
   -- , uiDescRenderInit             :: IO glDesc
   , uiDescRenderFrame            :: GLFW.Window -> Int -> Int -> glDesc -> UI uiState glDesc uiMsg () -- -> glDesc -> IO ()
   , uiDescUpdate                 :: uiMsg -> UI uiState glDesc uiMsg ()
   , uiListeners                  :: Event -> UI uiState glDesc uiMsg ()
+  , uiUpdateGLDescriptor         :: UI uiState glDesc uiMsg glDesc
   }
 
 
@@ -108,26 +111,28 @@ main uiDesc =
         -- GLFW.setWindowAttrib win GLFW.WindowAttrib'Resizable False
 
 
-        (initialState , msgs) <- runWriterT (uiDescInit uiDesc)
+        (mbInitialState , msgs) <- runWriterT (uiDescInit uiDesc)
         -- descriptors <- uiDescRenderInit uiDesc
+        (mbInitialState) & (maybe (putStrLn "unable to initialize - exiting...")
+         (\initialState -> do
 
-        let env = Env
-              { envEventsChan    = eventsChan
-              , envWindow        = win
-              }
-            state = State
-              { stateWindowWidth     = fbWidth
-              , stateWindowHeight    = fbHeight
-              , stateLogEvents       = False
-              , stateMouseDown       = False
-              , stateDragging        = False
-              , stateDragStartX      = 0
-              , stateDragStartY      = 0
-              , stateUI              = initialState
-              , stateGLDesc          = Nothing --descriptors
-              , stateMsgsQueue       = msgs
-              }
-        runUI uiDesc env state
+          let env = Env
+                      { envEventsChan    = eventsChan
+                      , envWindow        = win
+                      }
+          let state = State
+                      { stateWindowWidth     = fbWidth
+                      , stateWindowHeight    = fbHeight
+                      , stateLogEvents       = False
+                      , stateMouseDown       = False
+                      , stateDragging        = False
+                      , stateDragStartX      = 0
+                      , stateDragStartY      = 0
+                      , stateUI              = initialState
+                      , stateGLDesc          = Nothing --descriptors
+                      , stateMsgsQueue       = msgs
+                      }
+          runUI uiDesc env state))
 
     putStrLn "ended!"
 
@@ -236,7 +241,7 @@ run uiDesc =
       
       win <- asks envWindow
 
-      mbDescriptors <- gets stateGLDesc 
+
 
 
       let width  = stateWindowWidth  state
@@ -245,11 +250,19 @@ run uiDesc =
       liftIO $ do GL.clearColor GL.$= GL.Color4 1 1 1 1
                   -- GLFW.swapInterval 0
                   GL.clear [GL.ColorBuffer , GL.DepthBuffer]
-                  
-      case mbDescriptors of
-          Just descriptors ->
-             (uiDescRenderFrame uiDesc) win width height descriptors
-          Nothing -> return ()
+
+      mbDescriptors <- gets stateGLDesc 
+
+      descriptors <-             
+          case mbDescriptors of
+              Just dsc ->
+                 return dsc
+              Nothing -> do  newDesc <- uiUpdateGLDescriptor uiDesc
+                             modify $ \s -> s { stateGLDesc = Just newDesc}
+                             return newDesc
+
+      (uiDescRenderFrame uiDesc) win width height descriptors
+          
       -- draw
       liftIO $ do
           GLFW.swapBuffers win
@@ -288,6 +301,10 @@ run uiDesc =
 
       q <- liftIO $ GLFW.windowShouldClose win
       unless q (run uiDesc)
+
+flushDisplay :: UI uiState glDesc uiMsg ()  
+flushDisplay =
+  modify $ \s -> s { stateGLDesc = Nothing}
 
 processEvents :: (Event -> UI uiState glDesc uiMsg ()) -> UI uiState glDesc uiMsg ()
 processEvents appListeners = pe
@@ -378,22 +395,7 @@ processEvent ev =
           
           adjustWindow
 
-      (EventKey win k scancode ks mk) -> do
-          printEvent "key" [show k, show scancode, show ks, showModifierKeys mk]
-          when (ks == GLFW.KeyState'Pressed) $ do
-              -- Q, Esc: exit
-              when (k == GLFW.Key'Q || k == GLFW.Key'Escape) $
-                liftIO $ GLFW.setWindowShouldClose win True
-              -- ?: print instructions
-              when (k == GLFW.Key'Slash && GLFW.modifierKeysShift mk) $
-                liftIO printInstructions
-              -- i: print GLFW information
-              when (k == GLFW.Key'I) $
-                liftIO $ printInformation win
-              when (k == GLFW.Key'E) $
-                modify $ \s -> s { stateLogEvents = not ( stateLogEvents s) }
-              -- when (k == GLFW.Key'F) $
-                -- liftIO $ GLFW.setWindowAttrib win GLFW.WindowAttrib'Resizable False
+            
 
       -- (EventChar _ c) ->
       --     printEvent "char" [show c]

@@ -34,7 +34,7 @@ data CubTransformation a =
    | RemoveCellLeaveFaces Address
    | SplitCell Address
    | AddSubFace (Address , SubFace)
-
+  deriving (Show)
 
 
 applyTransform ::  CubTransformation (Either Int a) -> Cub () (Either Int a) -> Either String (Cub () (Either Int a))
@@ -74,13 +74,14 @@ applyTransform (RemoveCell (addrToRemoveHead : addrToRemoveTail) ) =
 applyTransform (RemoveCellLeaveFaces [] ) = Right
 applyTransform (RemoveCellLeaveFaces (addrToRemoveHead : addrToRemoveTail) ) =
    flip cubMapMayReplace [] $ 
-    (\n addr x ->
+    (\n addr parX ->
        if addr == addrToRemoveTail
-       then case x of
+       then case parX of
                Hcomp () nm sides x ->
                   Just $ Right $ Hcomp () nm
                             (deleteButLeaveFaces
-                               (const (Cub undefined (Left 0)))
+                               -- (const (Cub undefined (Left 0)))
+                                (\fc -> cubFace (injFaceSide fc) )
                                 addrToRemoveHead sides) x
                _ -> Nothing
        else Nothing

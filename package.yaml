@@ -37,7 +37,7 @@ dependencies:
 - pretty
 - pretty-terminal
 - ansi-terminal
-
+- time
 
 library:
   source-dirs: src

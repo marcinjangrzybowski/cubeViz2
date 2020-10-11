@@ -510,6 +510,10 @@ mkCellExpr :: (Env , Context) -> VarIndex -> [IArg] -> CellExpr
 mkCellExpr (ee@(env , ctx)) vI tl = 
   ( CellExpr vI (map (second (remapIExpr (toDimI ctx))) tl) )
 
+toCellExpr :: (Env , Context) -> Expr -> CellExpr
+toCellExpr ee (Var vi tl) = mkCellExpr ee vi tl 
+toCellExpr _ _ = error "fatal, expected Var!"
+  
 fromCellExpr :: (Env , Context) -> CellExpr -> Expr 
 fromCellExpr (ee@(env , ctx)) (CellExpr vI tl) = 
   ( Var vI (map (second (remapIExpr (fromDimI ctx))) tl) )

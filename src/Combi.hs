@@ -471,19 +471,23 @@ isSubFaceOf (SubFace n1 m1) (SubFace n2 m2)
 isIncludedIn :: Set.Set SubFace -> SubFace -> Bool
 isIncludedIn sfcs sf = (any (isSubFaceOf sf) (sfcs)) 
 
-deleteButLeaveFaces :: (Face -> a) -> SubFace -> Map.Map SubFace a -> Map.Map SubFace a
+
+injFaceSide :: Face -> Face
+injFaceSide (Face n (i , b)) = (Face (n + 1) (i , b))
+
+deleteButLeaveFaces :: (Face -> a -> a) -> SubFace -> Map.Map SubFace a -> Map.Map SubFace a
 deleteButLeaveFaces fcs sf@(SubFace n _) m = 
   let keys = Map.keysSet m
 
-  in if not $ Set.member sf keys
-     then m
-     else           
+  in case (Map.lookup sf m) of
+        Nothing -> m
+        Just toDelete ->
           let shouldBeIncluded sfF =
                  not $ isIncludedIn (Set.delete sf keys) sfF 
               toAdd =
                   Map.fromList
                 $ filter (shouldBeIncluded . fst)
-                $ map (\f -> (injFace sf f ,  fcs f))
+                $ map (\f -> (injFace sf f ,  fcs f toDelete))
                 $ genAllLI (subFaceDimEmb sf)
               u = Map.union (Map.delete sf m) toAdd 
           in --trace ((show $ (Map.keysSet (Map.delete sf m) )) ++ (show $ Map.keysSet toAdd))
@@ -498,7 +502,11 @@ missingSubFaces n sfcs =
 
 -- TODO : make it safer
 addSubFace :: a -> SubFace -> Map.Map SubFace a -> Map.Map SubFace a
-addSubFace a sf@(SubFace n _) m = Map.insert sf a m 
+addSubFace a sf@(SubFace n _) m =
+      Map.mapKeys (SubFace n)
+    $ makeAntiHKeys
+    $ Map.mapKeys (\(SubFace _ ma) -> ma)
+    $ Map.insert sf a m 
   -- let keys = Map.keysSet m
 
   -- in if not $ Set.member sf keys

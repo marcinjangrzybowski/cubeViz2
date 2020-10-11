@@ -4,6 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module DrawExpr where
 
@@ -47,6 +48,7 @@ import GenericCell
 import Debug.Trace
 
 defaultCompPar = 0.3      
+
 
 hcompDrawingsOnlyFaces :: (Drawing a , SideTransMode ) -> (FromLI Face (Drawing a  , SideTransMode)) -> Drawing a 
 hcompDrawingsOnlyFaces (bot , _) sides =
@@ -183,6 +185,9 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
   finalProcess :: d -> Drawing b -> Drawing b
   finalProcess d = id
 
+  fillFactor :: d -> Float
+  fillFactor _ = 1.0
+
   -- TODO :: raczej zrezygnowac z Either w calej tej klasie...
   mkDrawExprFill :: d -> ((Env , Context) , Expr) -> Either String (Drawing b)
   mkDrawExprFill d w@( envCtx , _ ) = 
@@ -197,7 +202,11 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
              $ Map.fromSet
                (\fc -> (
                    let d0 = fromRight [] $ (drawCub (cubFace fc (Hcomp () nm sides bot)))
-                       d1 = extrude (getDim bot) (piramFn defaultCompPar , const 1) d0
+                       pmf = piramFn defaultCompPar
+                       d1 = extrude (getDim bot)
+                            -- (pmf , const 1.0)
+                            (pmf , \x -> interp (pmf x) 1.0 (fillFactor d))
+                            d0
 
                    in Cub (FromLI (getDim bot) undefined) (fillStyleProcess d $ d1 , STFill)
                    ) )
@@ -247,7 +256,9 @@ instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int SimplePT where
        else []
 
 data DefaultPT = DefaultPT { dptCursorAddress ::  Maybe Address
-                                           }
+                           , dptShowFill      :: Bool
+                           , dptFillFactor       :: Float
+                           }
 
 addTag :: String -> ColorType -> ColorType
 addTag s = first (first (addIfNotIn s))  
@@ -266,7 +277,12 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
     --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
     --            . fst . head . toListLI)
 
-  fillStyleProcess _ = mapStyle (addTag "filling") 
+  fillFactor = dptFillFactor
+
+  fillStyleProcess d drw =    
+    if (dptShowFill d)
+    then mapStyle (addTag "filling") drw
+    else []   
 
   cellStyleProcess d ee dctx n addr fcs ce drw =
     if (dptCursorAddress d == Just addr)
@@ -352,8 +368,10 @@ instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where
                 else []
 
         cursor = 
-          if (sptCursorAddress spt == Just addr && isLeft x )
-          then fmap (Bf.second $ const $ (( ["cursor" , "hole"] , Basic) , Rgba 1.0 0.0 0.0 0.3))
+          if (sptCursorAddress spt == Just addr)
+          then fmap (Bf.second $ const $
+                       (( ["cursor" , "hole" , either (const "hole") (const "cell") x] , Basic)
+                          , Rgba 1.0 0.0 0.0 0.3))
                 $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 2
           else []
 

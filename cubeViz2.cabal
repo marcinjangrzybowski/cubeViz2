@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 281c3975dbfebe03b8187233d5e012625ebacd189418ffb03f7bc84ae57c9f1d
+-- hash: 43f9a4181dd734e673553483835ca74182b2026dd3ba34d7f68aa3d7abb7d90b
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -51,6 +51,7 @@ library
       Proc
       Reorientable
       ShowExp
+      ShowExpOld
       Syntax
       UI.UI
   other-modules:
@@ -74,6 +75,7 @@ library
     , split
     , stm
     , text
+    , time
     , transformers
   default-language: Haskell2010
 
@@ -102,6 +104,7 @@ executable cubeViz2-exe
     , split
     , stm
     , text
+    , time
     , transformers
   default-language: Haskell2010
 
@@ -131,5 +134,6 @@ test-suite cubeViz2-test
     , split
     , stm
     , text
+    , time
     , transformers
   default-language: Haskell2010

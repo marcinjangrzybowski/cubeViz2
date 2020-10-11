@@ -13,6 +13,7 @@ import Control.Monad
 import System.Exit ( exitWith, ExitCode(..) )
 import System.IO  
 import System.Environment
+import Data.Time.Clock
 
 import qualified Graphics.Rendering.OpenGL as GL
 import qualified Graphics.UI.GLFW          as GLFW
@@ -56,48 +57,59 @@ import ExprTransform
 
 import Debug.Trace
 
-asExpression = fmap ssEnvExpr . asSession
-
-asCub :: AppState -> Maybe (Cub () (Either Int CellExpr))
-asCub = fmap toCub . asExpression
-
-termDrawing :: UIApp (Maybe (Either String [Drawing ColorType]))
-termDrawing =
-   do appState <- UI.getAppState
-      let drawings = fmap (drawExpr appState (asDrawMode appState)) $ (asExpression appState)
-      return drawings
---           dim = getDim ee
-      
---       in bimap
---             id
---             (case dim of
---                2 -> map (embed 1 (const 0))
---                3 -> map (id)
---             )
---             drawings
-
--- data EditCommand = ClearCell
+import ExprParser (parseExpr)
 
 data Msg =
-    SetDescriptor [Descriptor]
-  | LoadFile String
+    LoadFile String
   | LoadGrid
-  | CycleDrawMode
-  | EditCub (CubTransformation (Either Int CellExpr))
   | TermInput
-  | ToggleSubfaceAdding Address
+ deriving (Show)
 
-data AppState = AppState
-   { fileName          :: Maybe String
-   , asSession         :: Maybe SessionState
-   , asDrawMode        :: DrawExprMode
-   , asViewport        :: Viewport 
-   , asDragStartVP     :: Maybe Viewport
-   , asCursorAddress   :: Maybe Address
-   , asSubFaceToAdd    :: Maybe (Address , SubFace)
+
+data DisplayPreferences = DisplayPreferences
+   { dpShowFilling       :: Bool
    }
 
+defaultDisplayPreferences = DisplayPreferences
+   { dpShowFilling        = True
+   }
+   
+data AppState = AppState
+   { fileName             :: Maybe String
+   , asSession            :: SessionState
+   , asDrawMode           :: DrawExprMode
+   , asViewport           :: Viewport 
+   , asDragStartVP        :: Maybe Viewport
+   , asUserMode           :: UserMode
+   , asKeyPressed         :: Bool
+   , asMessage            :: String
+   , asDisplayPreferences :: DisplayPreferences
+   , asTime               :: DiffTime
+   }
 
+asCursorAddress :: AppState -> Maybe Address
+asCursorAddress as = 
+  case (asUserMode as) of
+    UMNavigation x -> Just x
+    _ -> Nothing
+
+asSubFaceToAdd :: AppState -> Maybe (Address , SubFace)
+asSubFaceToAdd as =
+    case (asUserMode as) of
+      UMAddSubFace x -> Just x
+      _ -> Nothing
+
+asExpression = ssEnvExpr . asSession
+
+asCub :: AppState -> (Cub () (Either Int CellExpr))
+asCub = toCub . asExpression
+
+
+data UserMode =
+    Idle
+  | UMNavigation { umCoursorAddress :: Address }
+  | UMAddSubFace { umSubFaceToAdd :: (Address , SubFace) }
+  | UMEditCell { umEditedCell :: Address }
 
 data DrawExprMode = Stripes | StripesNoFill | Scaffold | Scaffold2
   deriving (Show , Eq)
@@ -130,7 +142,11 @@ drawExpr as Scaffold = \e ->
                                            , sptMissingSubFaceCursor = sptMSFC
                                            , sptScaffDim = 1})
               , mkDrawExprFill (DefaultPT { dptCursorAddress = sptCA
-                                           })
+                                          , dptShowFill = dpShowFilling $ asDisplayPreferences as
+                                          , dptFillFactor = 1.0
+                                              -- 0.5 * (sin (realToFrac $ asTime as) + 1)
+
+                                          })
               ]
                -- ++
                -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
@@ -138,304 +154,345 @@ drawExpr as Scaffold = \e ->
 
 type UIApp = UI.UI AppState [Descriptor] Msg
 
-printExpr :: UIApp ()
-printExpr =
-  do mbCub <- UI.getsAppState asCub
-     mbExpr <- UI.getsAppState asExpression
-     addrs <- UI.getsAppState asCursorAddress
-     case (mbCub , mbExpr) of
-       (Just cub , Just (ee , expr)) ->
-             liftIO
-           $ do SCA.clearScreen
-                (putStrLn 
-                  $ 
-                      (printCub ee (CubPrintData {cpdCursorAddress = addrs}) [] cub))
-       _ -> return ()
-
-printExprCode :: UIApp ()
-printExprCode =
-  do mbExpr <- UI.getsAppState asExpression
-     case mbExpr of
-       Just (ee , expr) ->
-             liftIO
-           $ do SCA.clearScreen
-                (putStrLn 
-                  $ fromRight "error while printing expr" (toCode ee expr))
-       _ -> return ()
 
 main :: IO ()
 main =
     UI.main $ UI.UIDescription
-       { UI.uiDescInit                   = init 
+       { UI.uiDescInit                   = initialize 
        , UI.uiDescRenderFrame            = render
        , UI.uiDescUpdate                 = update
        , UI.uiListeners                  = processEvent
+       , UI.uiUpdateGLDescriptor         = updateGL
        }
 
-    where
-
-      render win w h descriptors =
-         do
-            viewport <- UI.getsAppState asViewport
-            liftIO $ onDisplayAll win w h viewport descriptors 
-        
+render win w h descriptors =
+   do
+      viewport <- UI.getsAppState asViewport
+      liftIO $ onDisplayAll win w h viewport descriptors 
+      currTime <- fmap utctDayTime $ liftIO $ getCurrentTime
+      UI.modifyAppState (\s -> s { asTime = currTime })
+      -- UI.flushDisplay
+      return ()
       
-      init =
-        do args <- liftIO getArgs
-           let fName = head args
-           
-           -- dsc <- liftIO $ initResources $ toRenderablesForce ex1drw
-           tell $ pure (LoadFile fName)
+initialize =
+  do args <- liftIO getArgs
+     let fName = head args
 
-           -- testB <- liftIO getLine
-           -- liftIO $ putStr $ show testB
+     mbInitialSessionState <- liftIO (loadFile fName)
+
+     currTime <- fmap utctDayTime $ liftIO $ getCurrentTime
+     
+     case mbInitialSessionState of
+       Right initialSessionState -> return $ Just $ 
+             AppState
+              { fileName          = Just fName
+              , asViewport        = Viewport { vpAlpha = 1/5 , vpBeta = 0 , vpGamma = -0.1 }
+              , asDrawMode        = Scaffold -- Stripes --   --head drawExprModes
+              , asDragStartVP     = Nothing
+              , asSession         = initialSessionState
+              , asUserMode        = UMNavigation []
+              , asKeyPressed      = False
+              , asMessage         = ""
+              , asDisplayPreferences = defaultDisplayPreferences
+              , asTime            = currTime
+              }
+       Left errorMsg -> do
+          liftIO $ putStrLn errorMsg
+          return Nothing
              
-           return $ AppState
-            { fileName          = Nothing
-            , asViewport        = Viewport { vpAlpha = 1/5 , vpBeta = 0 , vpGamma = -0.1 }
-            , asDrawMode        = Scaffold -- Stripes --   --head drawExprModes
-            , asDragStartVP     = Nothing
-            , asSession         = Nothing
-            , asCursorAddress   = Nothing --Just ( (enumerate 3 2 ) : (enumerate 3 1 )  : [])
-            , asSubFaceToAdd    = Nothing 
-            }
 
-      updateView = 
-                do tdRes <- termDrawing
-                   case tdRes of
-                        Nothing -> UI.sendMsg $ SetDescriptor []
-                        Just (Left errMsg) -> liftIO $ putStrLn errMsg
-                        Just (Right drawings) ->
-                          do
-                             desc <- liftIO $ initResources $ concat (map toRenderablesForce drawings)
-                             UI.sendMsg $ SetDescriptor desc
-                   printExpr
-                             
-      printAddress :: UIApp ()
-      printAddress = do
-           aSt <- UI.getAppState
-           liftIO $ putStrLn (show (asCursorAddress aSt))
+updateView :: UIApp ()     
+updateView = return ()
+
+update msg = return ()
 
 
-      consolePrint :: String -> UIApp ()
-      consolePrint str = do
-           liftIO $ putStrLn (str)
+inputTerm :: (Env , Context) ->  UIApp (Maybe CellExpr)
+inputTerm (env , ctx) =
+  do let dimsInCtx = unConstrainedDimsOnly ctx
+     consolePrint $ "inputTerm: " ++ "dims in context : " ++ intercalate "," dimsInCtx
+     
+     exprR <- fmap (parseExpr ctx) $ liftIO (getLine)
+     case exprR of
+       Right expr -> do let ce = toCellExpr (env , ctx) expr
+                        consolePrint $ toString (env , ctx) expr
+                        return $ Just ce
+       Left err -> do consolePrint $ show err
+                      return Nothing    
+     
+     
+setUserMode :: UserMode -> UIApp ()
+setUserMode um = do
+   UI.modifyAppState (\s ->
+    s { asUserMode = um })
+   UI.flushDisplay
 
-      setFromCub :: Cub () (Either Int CellExpr) -> UIApp () 
-      setFromCub newCub = do
-           UI.modifyAppState (\s ->
-                    case (asSession s) of
-                      Nothing -> s
-                      Just (ss) -> s {
-                            asSession = Just $
-                              ssSetExpression ss (fromCub (fst (ssEnvExpr ss) ) newCub)
-                                       }
+processEvent :: UI.Event -> UIApp ()         
+processEvent ev = do
+  eventsGlobal ev
+  mode <- UI.getsAppState asUserMode
+  modesEvents mode ev
+   
+consolePrint :: String -> UIApp ()
+consolePrint str = do
+  UI.modifyAppState (\s ->
+    s { asMessage = str })
+  printConsoleView
 
-                   )
-           updateView
-           return ()
 
-            
-       
-      
-      update msg =
-        case msg of
-          SetDescriptor dsc -> 
-            do modify $ \s -> s
-                  { UI.stateGLDesc  = Just dsc 
-                  }
-          LoadFile fName ->
-            do UI.modifyAppState $ \s -> s
-                  { fileName = Just fName 
-                  }
+printExpr :: UIApp ()
+printExpr =
+  do cub <- UI.getsAppState asCub
+     (ee , expr) <- UI.getsAppState asExpression
+     addrs <- UI.getsAppState asCursorAddress
 
-               fileLoadingResult <-
-                    liftIO $
-                      do
-                         handle <- (openFile fName ReadMode)
-                         contents <- hGetContents handle
-                         return $ parseInteractive contents 
-                         
-               case fileLoadingResult of
-                  Left errMsg -> liftIO $ putStrLn errMsg
-                  Right sessionState -> do
-                         UI.modifyAppState $ (\s -> s
-                             { asSession = Just sessionState
-                             , asCursorAddress = Nothing
-                              })
-                         liftIO $ putStrLn (show sessionState)
-                         updateView
-                         return ()
+     liftIO
+          $ do SCA.clearScreen
+               (putStrLn $ 
+                 (printCub ee (CubPrintData {cpdCursorAddress = addrs}) [] cub))
 
-          LoadGrid ->
-            do 
-               UI.modifyAppState $ (\s -> s
-                   { asSession =
-                      let (ee , expr) = (mkExprGrid 3 2)
-                      in Just $ SessionState ee [] (BType 0) expr
 
-                     , asCursorAddress = Just []
-                    })
-               updateView
-                         
-          CycleDrawMode -> do
-               UI.modifyAppState $ \s -> s
-                  { asDrawMode = rotateFrom (asDrawMode s) drawExprModes 
-                  }                
-               updateView
-          EditCub trns -> do
-               appS <- UI.getAppState
-               case fmap (applyTransform trns) (asCub appS) of
-                 Just (Left err) -> consolePrint $ "transform error: " ++ err
-                 Just (Right newCub) -> setFromCub newCub
-                 Nothing -> return ()
+printConsoleView :: UIApp ()
+printConsoleView = do
+    printExpr
+    liftIO $ putStrLn ""
+    uMsg <- UI.getsAppState asMessage
+    liftIO $ putStrLn uMsg
 
-          TermInput -> do
-            s <- liftIO getLine 
-            consolePrint s
 
-          ToggleSubfaceAdding addr -> do
-            appS <- UI.getAppState
-            case (asSubFaceToAdd appS) of
-               Nothing ->
-                  case (asCub appS) of
-                     Nothing -> return ()
-                     Just cub -> do 
-                        let vsf = Set.toList $ vaccantSubFaces cub addr
-                        case vsf of
-                          [] -> return ()
-                          (x : _) -> do UI.modifyAppState $ \s -> s { asSubFaceToAdd = Just (addr , x) }
-                                        updateView
-               Just _ -> do UI.modifyAppState $ \s -> s { asSubFaceToAdd = Nothing }
-                            updateView
-      processEvent ev =
-            case ev of
-              (UI.EventCursorPos _ x y) -> do
-                let x' = round x :: Int
-                    y' = round y :: Int
-                -- printEvent "cursor pos" [show x', show y']
-                mouseD <- gets UI.stateMouseDown
-                x0 <- gets UI.stateDragStartX
-                y0 <- gets UI.stateDragStartY
-                
-                when mouseD
-                  (do s <- UI.getsAppState id 
-                      case asDragStartVP s of
-                         Nothing -> return ()
-                         Just vp0 -> do
-                           let newV  = (asViewport s)
-                                   { vpAlpha = vpAlpha vp0 - ((realToFrac (y - y0)) / 2000.0)
-                                   , vpGamma = vpGamma vp0 + ((realToFrac (x - x0)) / 2000.0) }
-                           -- liftIO $ putStrLn $ show newV 
-                           UI.setAppState $ s { asViewport = newV } 
-                  )
-              (UI.EventMouseButton _ mb mbs mk) -> do
-                 when (mb == GLFW.MouseButton'1) $ do
-                     let pressed = mbs == GLFW.MouseButtonState'Pressed
-                     when pressed $
-                       do UI.modifyAppState $ \s -> s
-                            { asDragStartVP = Just (asViewport s)
-                            }
-                          
-                     unless pressed $
-                       UI.modifyAppState $ \s -> s
-                         { asDragStartVP = Nothing
-                         }
-              (UI.EventKey win k scancode ks mk) -> do
-                    when (ks == GLFW.KeyState'Pressed) $ do
-                        -- Q, Esc: exit
-                        when (k == GLFW.Key'O) $
-                          UI.sendMsg $ LoadFile "data/input-to-viz/expr3d1-fill"
-                        when (k == GLFW.Key'G) $
-                          UI.sendMsg $ LoadGrid 
-                        when (k == GLFW.Key'D) $ do
-                          UI.sendMsg $ CycleDrawMode
-                        when (k == GLFW.Key'P) $ 
-                          printExprCode
+modifyDrawingPreferences :: (DisplayPreferences -> DisplayPreferences) -> UIApp ()
+modifyDrawingPreferences f = do
+    UI.modifyAppState (\s ->
+               let ss = (asDisplayPreferences s)
+               in s {
+                       asDisplayPreferences = 
+                       f ss
+                                })
+    UI.flushDisplay
 
-                        when (k == GLFW.Key'T) $ do
-                          UI.sendMsg $ TermInput
-                          
-                        when (k == GLFW.Key'Enter) $ do
-                          appS <- UI.getAppState
-                          case (asSubFaceToAdd appS)  of
-                            (Just (addr , sf)) -> do
-                                 UI.setAppState (appS { asSubFaceToAdd = Nothing , asCursorAddress = Just (sf : addr)})
-                                 UI.sendMsg $ EditCub (AddSubFace (addr , sf)) 
-                            _ -> return ()
-
-                        when (k == GLFW.Key'A) $ do
-                          appS <- UI.getAppState
-                          case ((asCursorAddress appS) >>= uncons , asCub appS)  of
-                            (Just ( _ , addr) , Just cub) -> do
-                                 UI.sendMsg $ ToggleSubfaceAdding addr
-                            _ -> return ()
-                          
   
 
-                        when (k == GLFW.Key'C) $ do
-                          appS <- UI.getAppState
-                          case (asCursorAddress appS , asCub appS)  of
-                            (Just addr , Just cub) -> do
-                                 if (GLFW.modifierKeysControl mk)
-                                 then UI.sendMsg $ EditCub (RemoveCell addr)
-                                 else UI.sendMsg $ EditCub (RemoveCellLeaveFaces addr)
-                                 UI.modifyAppState (\s ->                               
-                                   s { asCursorAddress = Just (tailAlways addr) })
-                            _ -> return ()
+setFromCub :: Cub () (Either Int CellExpr) -> UIApp () 
+setFromCub newCub = do
+    UI.modifyAppState (\s ->
+               let ss = (asSession s)
+               in s {
+                       asSession = 
+                       ssSetExpression ss (fromCub (fst (ssEnvExpr ss) ) newCub)
+                                })
+    UI.flushDisplay
+
+transformExpr :: CubTransformation (Either Int CellExpr) -> UIApp ()
+transformExpr trns =
+   do
+      appS <- UI.getAppState
+      case (applyTransform trns) (asCub appS) of
+        (Left err) -> consolePrint $ "transform error: " ++ err
+        (Right newCub) -> setFromCub newCub
+        
+
+printExprCode :: UIApp ()
+printExprCode =
+  do (ee , expr) <- UI.getsAppState asExpression
+     liftIO $ do SCA.clearScreen
+                 (putStrLn 
+                    $ fromRight "error while printing expr" (toCode ee expr))
+
+setAddSubFaceMode :: Address -> UIApp ()
+setAddSubFaceMode addr = do
+            appS <- UI.getAppState
+            let cub = asCub appS
+            let vsf = Set.toList $ vaccantSubFaces cub addr
+            case vsf of
+                 [] -> return ()
+                 (x : _) -> setUserMode (UMAddSubFace (addr , x))
+
+               -- Just _ -> do UI.modifyAppState $ \s -> s { asSubFaceToAdd = Nothing }
+               --              updateView
+
+setNavMode :: Address -> UIApp ()
+setNavMode addr = setUserMode (UMNavigation addr)
+
+eventsGlobal :: UI.Event -> UIApp ()
+eventsGlobal ev = 
+      case ev of
+        (UI.EventCursorPos _ x y) -> do
+          let x' = round x :: Int
+              y' = round y :: Int
+          -- printEvent "cursor pos" [show x', show y']
+          mouseD <- gets UI.stateMouseDown
+          x0 <- gets UI.stateDragStartX
+          y0 <- gets UI.stateDragStartY
+
+          when mouseD
+            (do s <- UI.getsAppState id 
+                case asDragStartVP s of
+                   Nothing -> return ()
+                   Just vp0 -> do
+                     let newV  = (asViewport s)
+                             { vpAlpha = vpAlpha vp0 - ((realToFrac (y - y0)) / 2000.0)
+                             , vpGamma = vpGamma vp0 + ((realToFrac (x - x0)) / 2000.0) }
+                     -- liftIO $ putStrLn $ show newV 
+                     UI.setAppState $ s { asViewport = newV } 
+            )
+        (UI.EventMouseButton _ mb mbs mk) -> do
+           when (mb == GLFW.MouseButton'1) $ do
+               let pressed = mbs == GLFW.MouseButtonState'Pressed
+               when pressed $
+                 do UI.modifyAppState $ \s -> s
+                      { asDragStartVP = Just (asViewport s)
+                      }
+
+               unless pressed $
+                 UI.modifyAppState $ \s -> s
+                   { asDragStartVP = Nothing
+                   }
+        (UI.EventKey win k scancode ks mk) -> do
+              when (ks == GLFW.KeyState'Pressed) $ do
+                                -- Q, Esc: exit
+                  when (k == GLFW.Key'Q || k == GLFW.Key'Escape) $
+                    liftIO $ GLFW.setWindowShouldClose win True
+                  -- ?: print instructions
+                  -- when (k == GLFW.Key'Slash && GLFW.modifierKeysShift mk) $
+                  --   liftIO printInstructions
+                  -- -- i: print GLFW information
+                  -- when (k == GLFW.Key'I) $
+                  --   liftIO $ putStrLn "x"
+                  -- when (k == GLFW.Key'E) $
+                    -- modify $ \s -> s { stateLogEvents = not ( stateLogEvents s) }
+                  -- when (k == GLFW.Key'F) $
+                    -- liftIO $ GLFW.setWindowAttrib win GLFW.WindowAttrib'Resizable False
+
+
+                  -- when (k == GLFW.Key'O) $
+                  --   UI.sendMsg $ LoadFile "data/input-to-viz/expr3d1-fill"
+                  -- when (k == GLFW.Key'G) $
+                  --   UI.sendMsg $ LoadGrid 
+                  -- when (k == GLFW.Key'D) $ do
+                  --   UI.sendMsg $ CycleDrawMode
+                  when (k == GLFW.Key'P) $ 
+                    printExprCode
+                  when (k == GLFW.Key'F) $
+                    modifyDrawingPreferences
+                      (\dp ->
+                         dp { dpShowFilling = not $ dpShowFilling dp })
+        _ -> return ()    
+
+
+
+
+
+modesEvents :: UserMode -> UI.Event -> UIApp ()         
+
+modesEvents Idle ev = return ()
+
+modesEvents um@(UMNavigation { umCoursorAddress = addr }) ev = do 
+     appS <- UI.getAppState
+     let cub = asCub appS     
+     case ev of
+        (UI.EventKey win k scancode ks mk) -> do
+             when (ks == GLFW.KeyState'Pressed) $ do
+                  when (k == GLFW.Key'T) $ do
+                    UI.sendMsg $ TermInput
+
+                  when (k == GLFW.Key'Enter) $ do
+                     let ((env , ctx) , _) = asExpression appS
+                     mbTerm <- inputTerm (env , contextAt ctx addr cub)
+                     let toPut = maybe (Left 0) Right mbTerm
+                     transformExpr (ReplaceAt addr toPut)
+
+                    
+                  when (k == GLFW.Key'A) $ do
+                    case (uncons addr) of
+                      Just (_ , addrTail) -> setAddSubFaceMode addrTail
+                      Nothing -> return ()
+                    
+                    
+                  when (k == GLFW.Key'C) $ do
+                    if (GLFW.modifierKeysControl mk)
+                    then transformExpr (RemoveCell addr)
                             
-                        when (k == GLFW.Key'S) $ do
-                          appS <- UI.getAppState
-                          case (asCursorAddress appS , asCub appS)  of
-                            (Just addr , Just cub) -> 
-                                 UI.sendMsg $ EditCub (SplitCell addr)
-                            _ -> return ()
+                    else transformExpr (RemoveCellLeaveFaces addr)
+                    setNavMode (fullSF (getDim (head addr)) : (tailAlways addr))
 
-                        when (k == GLFW.Key'H) $ do
-                          appS <- UI.getAppState
-                          case (asCursorAddress appS , asCub appS)  of
-                            (Just addr , Just cub) -> 
-                                 UI.sendMsg $ EditCub (ReplaceAt addr (Left 0))
-                            _ -> return ()
-                            
-                        when (isArrowKey k) $ do
-                          appS <- UI.getAppState
-                          case (asSubFaceToAdd appS , asCub appS) of
-                             (Nothing , _) ->
-                               case (asCursorAddress appS , asCub appS)  of                            
-                                 (Just addr , Just cub) -> do
-                                    UI.modifyAppState (\s ->
-                                       let nav = fromJust (arrowKey2nav k)
-                                           jna = fromRight (addr) (cubNav cub addr nav)  
+                  when (k == GLFW.Key'S) $ do
+                    transformExpr (SplitCell addr)
+                    
+                  when (k == GLFW.Key'H) $ do
+                    transformExpr (ReplaceAt addr (Left 0))
+                    
 
-                                       in s { asCursorAddress = Just jna })
-                                    -- printAddress
-                                    updateView
-                                 (Nothing , Just cub) -> do
-                                    UI.modifyAppState (\s ->
-                                        s { asCursorAddress = Just [] })
-                                    -- printAddress
-                                    updateView
-                                 _ -> return ()
+                  when (isArrowKey k) $ do                                        
+                    UI.modifyAppState (\s ->
+                       let nav = fromJust (arrowKey2nav k)
+                           jna = fromRight (addr) (cubNav (asCub appS) addr nav)  
 
-                             (Just (addr , sf) , Just cub) -> do
-                                       (UI.modifyAppState (\s ->
-                                            let nav = fromJust (arrowKey2nav k)
-                                                vcnt = Set.toList $ vaccantSubFaces cub addr
-                                                sfNext =
-                                                   case nav of
-                                                      DNext -> rotateFrom sf vcnt
-                                                      DPrev -> rotateFrom sf $ reverse vcnt
-                                                      _ -> sf
+                       in s { asUserMode = UMNavigation jna })
+                    UI.flushDisplay
 
-                                            in s { asSubFaceToAdd = Just (addr , sfNext) }))                                       
-                                       updateView
-                             _ -> return ()
+       
+        _ -> return ()
 
-                            -- fullSF
-                          -- modify $ \s -> s { stateLogEvents = not ( stateLogEvents s) }           
-              _ -> return ()
-              
+
+modesEvents um@(UMEditCell addr  ) ev = undefined
+
+modesEvents um@(UMAddSubFace (addr , sf) ) ev = do
+     appS <- UI.getAppState
+     let cub = asCub appS
+     
+     case ev of
+        (UI.EventKey win k scancode ks mk) -> do
+            when (ks == GLFW.KeyState'Pressed) $ do
+                  when (k == GLFW.Key'Enter) $ do
+                     transformExpr (AddSubFace (addr , sf))
+                     setUserMode (UMNavigation { umCoursorAddress = sf : addr })
+
+                  when (k == GLFW.Key'A) $ do
+                    setUserMode $ UMNavigation addr
+
+
+                  when (isArrowKey k) $ do
+                
+                     let nav = fromJust (arrowKey2nav k)
+                         vcnt = Set.toList $ vaccantSubFaces cub addr
+                         sfNext =
+                            case nav of
+                               DNext -> rotateFrom sf vcnt
+                               DPrev -> rotateFrom sf $ reverse vcnt
+                               _ -> sf
+                                         
+                     setUserMode $ UMAddSubFace (addr , sfNext)
+                
+       
+        _ -> return ()
+
+updateGL :: UIApp [Descriptor]
+updateGL = 
+   do appState <- UI.getAppState
+      let dRes = drawExpr appState (asDrawMode appState) $ (asExpression appState)
+      printConsoleView
+      case dRes of
+        (Left errMsg) -> do
+             liftIO $ putStrLn errMsg
+             return []
+        (Right drawings) -> do
+             desc <- liftIO $ initResources $ concat (map toRenderablesForce drawings)
+             return desc
+      
+      
+----
+
+loadFile :: String -> IO (Either String SessionState) 
+loadFile fName =   
+   liftIO $ do          
+       handle <- (openFile fName ReadMode)
+       contents <- hGetContents handle
+       return $ parseInteractive contents 
+
+   
+
+
+--
               
   -- let (init , render) = renderTask $ toRenderablesForce ex1drw
 
