@@ -3,9 +3,9 @@ module ShowExp where
 
 
 import Control.Monad             (unless, when, void)
-import Control.Monad.Reader      (ReaderT , ask)
-import Control.Monad.Writer      (WriterT , tell)
-import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, gets, liftIO, modify, put)
+import Control.Monad.Reader      (ReaderT , ask , reader)
+import Control.Monad.Writer      (WriterT , tell , mapWriterT , listen)
+import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, gets, liftIO, modify, put , mapRWST)
 import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 
 import Control.Monad
@@ -38,7 +38,7 @@ import Data.Maybe
 import Syntax
 import InteractiveParse
 
-import Data.Bifunctor
+import qualified Data.Bifunctor as Bf
 
 import DrawExpr
 
@@ -154,6 +154,8 @@ drawExpr as Scaffold = \e ->
 
 type UIApp = UI.UI AppState [Descriptor] Msg
 
+type UIAppDesc  = UI.UIWithInfo AppState [Descriptor] Msg
+
 
 main :: IO ()
 main =
@@ -227,12 +229,55 @@ setUserMode um = do
     s { asUserMode = um })
    UI.flushDisplay
 
+
+data PEMode = PERuntime | PEInfo
+
+
 processEvent :: UI.Event -> UIApp ()         
 processEvent ev = do
-  eventsGlobal ev
+  mapRWST (fmap (\(a , b , (_ , c) ) -> (a , b , c))) $ eventsGlobal PERuntime ev
   mode <- UI.getsAppState asUserMode
-  modesEvents mode ev
-   
+  mapRWST (fmap (\(a , b , (_ , c) ) -> (a , b , c))) $ modesEvents PERuntime mode ev
+
+
+
+extractInfo = mapRWST (fmap (\((_ , (a , _)) , b , (_ , c) ) -> (a , b , c))) . listen
+
+
+-- mkEventsInfo :: UI.Event -> UIApp String        
+-- mkEventsInfo ev = do
+--   globalInfo <- extractInfo $ eventsGlobal PEInfo ev
+--   mode <- UI.getsAppState asUserMode
+--   modalInfo <- extractInfo $ modesEvents PEInfo mode ev
+--   return $ ("g: " ++ globalInfo ++ "\nm: " ++ modalInfo)  
+
+
+eventsInfo :: UIApp String
+eventsInfo =
+  do
+     globalInfo <- appDescHelp $ eventsGlobal PEInfo
+     mode <- UI.getsAppState asUserMode
+     modalInfo <- appDescHelp $  modesEvents PEInfo mode
+     return $ (globalInfo  ++ "\n" ++ modalInfo)  
+
+  where
+    
+
+    keHelp :: (UI.Event -> UIAppDesc ()) -> (GLFW.Key -> UIAppDesc ())
+    keHelp f k = do 
+        win <- reader UI.envWindow
+        f (UI.EventKey win k 0 (GLFW.KeyState'Pressed)
+                          (GLFW.ModifierKeys False False False False False False) ) 
+
+    appDescHelp x =
+        fmap (intercalate "\n")
+      $ fmap (fmap (\(k , inf) -> "[" ++ k ++ "]: " ++ inf))
+      $ fmap (fmap (first (drop 4 . show)) . (filter (not . null . snd)))
+      $ UI.collect allKeys (extractInfo . (keHelp $ x) )
+    
+    infoStr :: (GLFW.Key , String) -> String
+    infoStr = show
+      
 consolePrint :: String -> UIApp ()
 consolePrint str = do
   UI.modifyAppState (\s ->
@@ -247,13 +292,16 @@ printExpr =
      addrs <- UI.getsAppState asCursorAddress
 
      liftIO
-          $ do SCA.clearScreen
-               (putStrLn $ 
+          $ do (putStrLn $ 
                  (printCub ee (CubPrintData {cpdCursorAddress = addrs}) [] cub))
 
 
 printConsoleView :: UIApp ()
 printConsoleView = do
+    liftIO SCA.clearScreen
+    ei <- eventsInfo
+    liftIO $ putStrLn ei
+    liftIO $ putStrLn ""
     printExpr
     liftIO $ putStrLn ""
     uMsg <- UI.getsAppState asMessage
@@ -313,10 +361,16 @@ setAddSubFaceMode addr = do
 setNavMode :: Address -> UIApp ()
 setNavMode addr = setUserMode (UMNavigation addr)
 
-eventsGlobal :: UI.Event -> UIApp ()
-eventsGlobal ev = 
+
+helperPEM :: PEMode -> String -> UIApp () ->  UIAppDesc ()
+helperPEM PERuntime _ x = mapRWST (fmap (\(a , b , c ) -> (a , b , ("" , c)))) x 
+helperPEM PEInfo x _ = tell (x , []) 
+
+eventsGlobal :: PEMode -> UI.Event -> UIAppDesc ()
+eventsGlobal pem ev =
+      let inf = helperPEM pem in
       case ev of
-        (UI.EventCursorPos _ x y) -> do
+        (UI.EventCursorPos _ x y) -> inf "" $ do
           let x' = round x :: Int
               y' = round y :: Int
           -- printEvent "cursor pos" [show x', show y']
@@ -335,7 +389,7 @@ eventsGlobal ev =
                      -- liftIO $ putStrLn $ show newV 
                      UI.setAppState $ s { asViewport = newV } 
             )
-        (UI.EventMouseButton _ mb mbs mk) -> do
+        (UI.EventMouseButton _ mb mbs mk) -> inf "" $ do
            when (mb == GLFW.MouseButton'1) $ do
                let pressed = mbs == GLFW.MouseButtonState'Pressed
                when pressed $
@@ -350,7 +404,7 @@ eventsGlobal ev =
         (UI.EventKey win k scancode ks mk) -> do
               when (ks == GLFW.KeyState'Pressed) $ do
                                 -- Q, Esc: exit
-                  when (k == GLFW.Key'Q || k == GLFW.Key'Escape) $
+                  when (k == GLFW.Key'Q || k == GLFW.Key'Escape) $ inf "Quit" $
                     liftIO $ GLFW.setWindowShouldClose win True
                   -- ?: print instructions
                   -- when (k == GLFW.Key'Slash && GLFW.modifierKeysShift mk) $
@@ -370,9 +424,9 @@ eventsGlobal ev =
                   --   UI.sendMsg $ LoadGrid 
                   -- when (k == GLFW.Key'D) $ do
                   --   UI.sendMsg $ CycleDrawMode
-                  when (k == GLFW.Key'P) $ 
+                  when (k == GLFW.Key'P) $ inf "Print Expression" $
                     printExprCode
-                  when (k == GLFW.Key'F) $
+                  when (k == GLFW.Key'F) $ inf "Toggle Fillings" $
                     modifyDrawingPreferences
                       (\dp ->
                          dp { dpShowFilling = not $ dpShowFilling dp })
@@ -382,20 +436,21 @@ eventsGlobal ev =
 
 
 
-modesEvents :: UserMode -> UI.Event -> UIApp ()         
+modesEvents :: PEMode -> UserMode -> UI.Event -> UIAppDesc ()         
 
-modesEvents Idle ev = return ()
+modesEvents _ Idle ev = return ()
 
-modesEvents um@(UMNavigation { umCoursorAddress = addr }) ev = do 
+modesEvents pem um@(UMNavigation { umCoursorAddress = addr }) ev = do 
      appS <- UI.getAppState
-     let cub = asCub appS     
+     let cub = asCub appS
+         inf = helperPEM pem 
      case ev of
         (UI.EventKey win k scancode ks mk) -> do
              when (ks == GLFW.KeyState'Pressed) $ do
-                  when (k == GLFW.Key'T) $ do
+                  when (k == GLFW.Key'T) $ inf "Enter term" $ do
                     UI.sendMsg $ TermInput
 
-                  when (k == GLFW.Key'Enter) $ do
+                  when (k == GLFW.Key'Enter) $ inf "Confirm" $ do 
                      let ((env , ctx) , _) = asExpression appS
                      mbTerm <- inputTerm (env , contextAt ctx addr cub)
                      let toPut = maybe (Left 0) Right mbTerm
@@ -404,25 +459,25 @@ modesEvents um@(UMNavigation { umCoursorAddress = addr }) ev = do
                     
                   when (k == GLFW.Key'A) $ do
                     case (uncons addr) of
-                      Just (_ , addrTail) -> setAddSubFaceMode addrTail
+                      Just (_ , addrTail) -> inf "Add sub-face" $ setAddSubFaceMode addrTail
                       Nothing -> return ()
                     
                     
                   when (k == GLFW.Key'C) $ do
                     if (GLFW.modifierKeysControl mk)
-                    then transformExpr (RemoveCell addr)
+                    then inf "Delete sub-face with subfaces" $ transformExpr (RemoveCell addr)
                             
-                    else transformExpr (RemoveCellLeaveFaces addr)
-                    setNavMode (fullSF (getDim (head addr)) : (tailAlways addr))
+                    else inf "Delete sub-face" $ transformExpr (RemoveCellLeaveFaces addr)
+                    inf "" $ setNavMode (fullSF (getDim (head addr)) : (tailAlways addr))
 
-                  when (k == GLFW.Key'S) $ do
+                  when (k == GLFW.Key'S) $ inf "Split cell" $ do
                     transformExpr (SplitCell addr)
                     
-                  when (k == GLFW.Key'H) $ do
+                  when (k == GLFW.Key'H) $ inf "Insert Hole" $ do
                     transformExpr (ReplaceAt addr (Left 0))
                     
 
-                  when (isArrowKey k) $ do                                        
+                  when (isArrowKey k) $ inf "" $ do                                        
                     UI.modifyAppState (\s ->
                        let nav = fromJust (arrowKey2nav k)
                            jna = fromRight (addr) (cubNav (asCub appS) addr nav)  
@@ -434,24 +489,24 @@ modesEvents um@(UMNavigation { umCoursorAddress = addr }) ev = do
         _ -> return ()
 
 
-modesEvents um@(UMEditCell addr  ) ev = undefined
+modesEvents pem um@(UMEditCell addr  ) ev = undefined
 
-modesEvents um@(UMAddSubFace (addr , sf) ) ev = do
+modesEvents pem um@(UMAddSubFace (addr , sf) ) ev = do
      appS <- UI.getAppState
      let cub = asCub appS
-     
+         inf = helperPEM pem
      case ev of
         (UI.EventKey win k scancode ks mk) -> do
             when (ks == GLFW.KeyState'Pressed) $ do
-                  when (k == GLFW.Key'Enter) $ do
+                  when (k == GLFW.Key'Enter) $ inf "Confirm" $ do
                      transformExpr (AddSubFace (addr , sf))
                      setUserMode (UMNavigation { umCoursorAddress = sf : addr })
 
-                  when (k == GLFW.Key'A) $ do
+                  when (k == GLFW.Key'A) $ inf "Abort" $ do
                     setUserMode $ UMNavigation addr
 
 
-                  when (isArrowKey k) $ do
+                  when (isArrowKey k) $ inf "nav" $ do
                 
                      let nav = fromJust (arrowKey2nav k)
                          vcnt = Set.toList $ vaccantSubFaces cub addr
@@ -528,3 +583,9 @@ arrowKey2nav k =
 -- for ITail defined
 
 -- "zoom" into cell
+
+
+
+
+allKeys :: [GLFW.Key]
+allKeys = [minBound .. maxBound]

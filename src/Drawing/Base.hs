@@ -79,6 +79,10 @@ toRenderable ([([ x0 , y0 , z0 ]) , ([ x1 , y1 , z1]) , ([ x2 , y2 , z2])]) =
     Just $ Triangle ((x0 , y0 , z0) , (x1 , y1 , z1) , (x2 , y2 , z2)) 
 toRenderable ([([ x0 , y0 , z0 ]) , ([ x1 , y1 , z1])]) = Just $ Line ((x0 , y0 , z0) , (x1 , y1 , z1))
 toRenderable ([[ x0 , y0 , z0 ]]) = Just $ Point (x0 , y0 , z0)
+toRenderable ([([ x0 , y0]) , ([ x1 , y1]) , ([ x2 , y2])]) =
+    Just $ Triangle ((x0 , y0 , 0) , (x1 , y1 , 0) , (x2 , y2 , 0)) 
+toRenderable ([([ x0 , y0 ]) , ([ x1 , y1 ])]) = Just $ Line ((x0 , y0 , 0) , (x1 , y1 , 0))
+toRenderable ([[ x0 , y0 ]]) = Just $ Point (x0 , y0 , 0)
 toRenderable _ = Nothing
 
 

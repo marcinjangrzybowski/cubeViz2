@@ -4,9 +4,9 @@ module UI.UI where
 
 import Control.Concurrent.STM    (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue)
 import Control.Monad             (unless, when, void)
-import Control.Monad.Reader      (ReaderT , ask , runReaderT)
-import Control.Monad.Writer      (WriterT, tell , runWriterT)
-import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, gets, liftIO, modify, put)
+import Control.Monad.Reader      (ReaderT , ask , runReaderT, reader)
+import Control.Monad.Writer      (WriterT, tell , runWriterT, listen)
+import Control.Monad.RWS.Strict  (RWST, ask, asks, evalRWST, get, gets, liftIO, modify, put, mapRWST)
 import Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 import Data.List                 (intercalate)
 import Data.Maybe                (catMaybes)
@@ -61,6 +61,8 @@ data Event =
 --------------------------------------------------------------------------------
 
 type UI uiState glDesc uiMsg = RWST Env [uiMsg] (State uiState glDesc uiMsg) IO
+
+type UIWithInfo uiState glDesc uiMsg = RWST Env (String , [uiMsg]) (State uiState glDesc uiMsg) IO
 
 data UIDesc uiState glDesc uiMsg = UIDescription
   { uiDescInit                   :: WriterT [uiMsg] IO (Maybe uiState)
@@ -206,7 +208,7 @@ getsAppState :: (uiState -> a) -> UI uiState glDesc uiMsg a
 getsAppState f =
   gets (f . stateUI)
 
-getAppState :: UI uiState glDesc uiMsg uiState
+getAppState :: Monoid b => RWST a b (State uiState glDesc uiMsg) IO uiState
 getAppState =
   gets (stateUI)
 
@@ -594,4 +596,9 @@ showModifierKeys mk =
          , if GLFW.modifierKeysSuper   mk then Just "super"   else Nothing
          ]
 
+-----------------------------
 
+collect :: (Monad m , Monoid c , Monoid e) => [a] ->
+             (a -> RWST b c d m e) ->
+               RWST b c d m [(a , e)]
+collect l f = sequence (fmap (\a -> (fmap ((,) a)) (f a)) l)
