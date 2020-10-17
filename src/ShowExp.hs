@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 module ShowExp where
 
@@ -34,6 +35,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import Data.Maybe
+import Data.Function
 
 import Syntax
 import InteractiveParse
@@ -91,7 +93,7 @@ asCursorAddress :: AppState -> Maybe Address
 asCursorAddress as = 
   case (asUserMode as) of
     UMNavigation x -> Just x
-    _ -> Nothing
+    UMSelectGrid {} -> Just $ umEditedCell (asUserMode as)
 
 asSubFaceToAdd :: AppState -> Maybe (Address , SubFace)
 asSubFaceToAdd as =
@@ -104,12 +106,20 @@ asExpression = ssEnvExpr . asSession
 asCub :: AppState -> (Cub () (Either Int CellExpr))
 asCub = toCub . asExpression
 
+asViewportProc :: AppState -> Viewport
+asViewportProc appS =
+  case getDim $ asCub appS of
+    2 -> Viewport 0 0 0
+    _ -> asViewport appS
 
+    
 data UserMode =
     Idle
   | UMNavigation { umCoursorAddress :: Address }
   | UMAddSubFace { umSubFaceToAdd :: (Address , SubFace) }
   | UMEditCell { umEditedCell :: Address }
+  | UMSelectGrid { umEditedCell :: Address , umGSD :: GridSelectionDesc }
+
 
 data DrawExprMode = Stripes | StripesNoFill | Scaffold | Scaffold2
   deriving (Show , Eq)
@@ -169,7 +179,7 @@ main =
 
 render win w h descriptors =
    do
-      viewport <- UI.getsAppState asViewport
+      viewport <- UI.getsAppState asViewportProc
       liftIO $ onDisplayAll win w h viewport descriptors 
       currTime <- fmap utctDayTime $ liftIO $ getCurrentTime
       UI.modifyAppState (\s -> s { asTime = currTime })
@@ -305,6 +315,7 @@ printConsoleView = do
     printExpr
     liftIO $ putStrLn ""
     uMsg <- UI.getsAppState asMessage
+    UI.getsAppState asUserMode >>= modalConsoleView
     liftIO $ putStrLn uMsg
 
 
@@ -447,10 +458,10 @@ modesEvents pem um@(UMNavigation { umCoursorAddress = addr }) ev = do
      case ev of
         (UI.EventKey win k scancode ks mk) -> do
              when (ks == GLFW.KeyState'Pressed) $ do
-                  when (k == GLFW.Key'T) $ inf "Enter term" $ do
-                    UI.sendMsg $ TermInput
+                  when (k == GLFW.Key'Enter) $ inf "Put term" $ do
+                    initPutTerm addr 
 
-                  when (k == GLFW.Key'Enter) $ inf "Confirm" $ do 
+                  when (k == GLFW.Key'T) $ inf "Enter term" $ do 
                      let ((env , ctx) , _) = asExpression appS
                      mbTerm <- inputTerm (env , contextAt ctx addr cub)
                      let toPut = maybe (Left 0) Right mbTerm
@@ -521,6 +532,50 @@ modesEvents pem um@(UMAddSubFace (addr , sf) ) ev = do
        
         _ -> return ()
 
+modesEvents pem um@(UMSelectGrid addr gsd ) ev = do
+     appS <- UI.getAppState
+     let cub = asCub appS
+         inf = helperPEM pem
+     case ev of
+        (UI.EventKey win k scancode ks mk) -> do
+            when (ks == GLFW.KeyState'Pressed) $ do
+                  when (k == GLFW.Key'Enter) $ inf "Confirm" $ do
+                    gsdRunFinalAction gsd
+
+                  -- when (k == GLFW.Key'A) $ inf "Abort" $ do
+                  --   setUserMode $ UMNavigation addr
+
+
+                  when (isArrowKey k) $ inf "nav" $ do
+                
+                     let nav = fromJust (arrowKey2nav k)
+                     
+                     gsdRunDirection gsd nav 
+                
+       
+        _ -> return ()
+
+
+modalConsoleView :: UserMode -> UIApp ()
+modalConsoleView um@(UMSelectGrid addr gsd ) = do
+  let cho = gridMapWithIndex (\ij -> if ij == gsdPosition gsd then SCP.bgColor SCP.Yellow else id ) (gsdChoices gsd)
+      choStr = concat $ fmap ((++) "\n" . concat . fmap ((++) " ") ) $  cho
+  liftIO $ putStrLn choStr
+  
+
+modalConsoleView _ = return ()
+                 
+drawingInterpreter :: DrawingInterpreter ColorType
+drawingInterpreter =
+  DrawingInterpreter [] 
+   (\case
+      2 -> Just (toRenderablesIgnore . embed 2 (const 0))
+      3 -> Just toRenderablesForce
+      
+
+      
+      _ -> Nothing)
+
 updateGL :: UIApp [Descriptor]
 updateGL = 
    do appState <- UI.getAppState
@@ -531,9 +586,13 @@ updateGL =
              liftIO $ putStrLn errMsg
              return []
         (Right drawings) -> do
-             desc <- liftIO $ initResources $ concat (map toRenderablesForce drawings)
-             return desc
-      
+             let tryToRen = toRenderableDI drawingInterpreter (concat drawings)
+             case tryToRen of
+               Left msg -> error msg
+               Right rens ->
+
+                 liftIO $ initResources $ snd rens
+
       
 ----
 
@@ -544,9 +603,87 @@ loadFile fName =
        contents <- hGetContents handle
        return $ parseInteractive contents 
 
+
+initPutTerm :: Address -> UIApp ()
+initPutTerm addr = do
+  appS <- UI.getAppState
+  let initPos = (0,0)
+  let (ee0@(env , ctx0@(Context vars _)) , _) = asExpression appS
+  let ctx = contextAt ctx0 addr (asCub appS)
+  let varsInCtx = binsBy (getCTyDim env ctx . snd . fst) $ zip (reverse vars) [0..]
+  let varsInCtxGrid = (fmap snd $ Map.toList varsInCtx)   
+      gsd = GridSelectionDesc
+       { gsdChoices = fmap (fmap (fst . fst)) varsInCtxGrid 
+       , gsdPosition = initPos
+       , gsdAction =
+           \_ nPos -> do
+             let newVi = VarIndex $ snd $ gridLookup nPos varsInCtxGrid 
+             let newCell = mkCellExprForce (env , ctx) newVi
+             transformExpr (ReplaceAt addr (Right newCell))
+       , gsdFinalAction = \_ _ -> return ()
+       }
+  gsdAction gsd (gridLookup initPos (gsdChoices gsd)) initPos
+  setUserMode $ UMSelectGrid addr gsd
+  
+
+
+data GridSelectionDesc =
+  GridSelectionDesc
+  { gsdChoices :: [[String]]
+  , gsdPosition :: (Int , Int)
+  , gsdAction :: String -> (Int , Int) -> UIApp()
+  , gsdFinalAction :: String -> (Int , Int) -> UIApp ()
+  }
+      
+
+gridLookup :: (Int , Int) -> [[a]] -> a
+gridLookup (i , j) x = (x !! i) !! j
+
+
+gridMapWithIndex :: ((Int , Int) -> a -> a) -> [[a]] -> [[a]]
+gridMapWithIndex f l = zipWith (\i -> zipWith (\j -> f (i , j) ) [0..]) [0..] l
+
+gsdRunFinalAction :: GridSelectionDesc -> UIApp ()
+gsdRunFinalAction gsd =
+  gsdFinalAction gsd (gridLookup (gsdPosition gsd) (gsdChoices gsd)) (gsdPosition gsd)
+
+-- gsdRunAction :: GridSelectionDesc -> AppState
+-- gsdRunAction gsd =
+--   gsdAction gsd (gridLookup (gsdPosition gsd) (gsdChoices gsd)) (gsdPosition gsd)
+
+gsdRunDirection :: GridSelectionDesc -> Direction -> UIApp ()
+gsdRunDirection gsd d =
+  let newPos = mv d
+      
+       
+  in do  
+        gsdAction gsd (gridLookup newPos (gsdChoices gsd)) newPos                 
+        UI.modifyAppState (\appS -> appS { asUserMode =
+                                (\(UMSelectGrid addr gsd) ->
+                                     UMSelectGrid addr
+                                      (gsd { gsdPosition = newPos } ) )
+                                 (asUserMode appS) } )
+        UI.flushDisplay
+          
+  where
+
+    (i , j) = gsdPosition gsd
+    
+    cho = gsdChoices gsd
+    
+    mv DNext = (i , mod (j + 1) (length (cho !! i))) 
+    mv DPrev = (i , mod (j - 1) (length (cho !! i)))
+    mv DParent = (mod (i - 1) (length cho) , 0)               
+    mv DChild = (mod (i + 1) (length cho) , 0)              
+                 
+-- gsdTest :: AppState -> GridSelectionDesc
+-- gsdTest appS =
+--   GridSelectionDesc
+--    [explode "abcde" , explode "marcin" , explode "grzybowski" ]
+--    (1 , 2)
+--    (\_ _ -> return ())
+--    (\_ _ -> return ())
    
-
-
 --
               
   -- let (init , render) = renderTask $ toRenderablesForce ex1drw
@@ -571,8 +708,8 @@ arrowKey2nav k =
   case k of
     GLFW.Key'Up -> Just DParent
     GLFW.Key'Down -> Just DChild
-    GLFW.Key'Left -> Just DNext
-    GLFW.Key'Right -> Just DPrev
+    GLFW.Key'Right -> Just DNext
+    GLFW.Key'Left -> Just DPrev
 
 
 

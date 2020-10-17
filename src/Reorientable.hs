@@ -103,7 +103,7 @@ instance DiaDeg (FromLI Subset a) where
   
   appDiags l (FromLI n f) = 
      let isDupe = not . (flip elem) (fmap fst l)
-     in (FromLI n (f . fromListLI . map snd . (filter (isDupe . fst ) )  . (zip [0..]) . toListLI ))
+     in (FromLI (n - length l) (f . fromListLI . map snd . (filter (isDupe . fst ) )  . (zip [0..]) . toListLI ))
 
   appPerm prm (FromLI n f) = (FromLI n (f . fromListLI . listPermute prm . toListLI )) 
 

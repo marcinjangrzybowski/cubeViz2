@@ -265,14 +265,16 @@ cubPick addr (Hcomp _ _ si a) =
 contextAt :: Context -> Address -> Cub b a -> Context
 contextAt ctx [] _ = ctx
 contextAt ctx (_ : _) (Cub _ _) = error "unable to dig into cell!" 
-contextAt ctx (x : xs) (Hcomp b nam pa a)
-   | isFullSF x = contextAt ctx xs a 
-   | otherwise = case Map.lookup x pa of
+contextAt ctx addr@(_ : _) (Hcomp b nam pa a) = h $ reverse addr
+  where
+
+   h (x : xs) | isFullSF x = contextAt ctx (reverse xs) a 
+   h (x : xs) | otherwise = case Map.lookup x pa of
                     Nothing -> error "bad address"
                     Just y -> let c2 = addDimToContext ctx (Just nam)
                                      & addSFConstraintToContext
                                          (((Map.mapKeys (fromDimI ctx)) . (\(SubFace _ sf2) -> sf2)) x )
-                              in contextAt c2 xs y
+                              in contextAt c2 (reverse xs) y
      
 data Direction = DParent | DChild | DNext | DPrev
 

@@ -19,6 +19,8 @@ import Drawing.Color
 
 import DataExtra
 
+import Control.Applicative
+
 -- type NPoint = [ Float ]
 
 -- data Seg = Pt Float | Seg Float Float
@@ -50,7 +52,7 @@ instance InSpace a  => InSpace (a , b) where
 
 
 
-
+--todo Smplx should be non empty!
 type Smplx = [[ Float ]]     
 
 
@@ -71,8 +73,6 @@ type Renderables = [(Renderable,Shade)]
 
 
 
-  
-
 
 toRenderable :: Smplx -> Maybe Renderable
 toRenderable ([([ x0 , y0 , z0 ]) , ([ x1 , y1 , z1]) , ([ x2 , y2 , z2])]) =
@@ -92,6 +92,20 @@ toRenderableForce :: Smplx -> [Renderable]
 toRenderableForce l =
   maybe (explode l >>= toRenderableForce) pure $ (toRenderable l) 
 
+data DrawingInterpreter a =  
+  DrawingInterpreter
+   { ifEmpty :: Renderables
+   , fromDrawing :: Int -> Maybe (Drawing a -> Renderables)    
+   }
+
+toRenderableDI :: Shadelike a => DrawingInterpreter a -> Drawing a -> Either String (Maybe Int , Renderables)
+toRenderableDI di dr =
+  case (ensureFold (length . head . fst) dr) of
+    EFREmpty -> Right $ (Nothing , ifEmpty di)
+    EFREvery dim -> case (fromDrawing di dim) <*> pure dr of
+                       Nothing -> Left ("not implementedDimInDrawingInterpreter " ++ show dim)
+                       Just re -> Right (Just dim , re)
+    
 
 mapStyle :: (a -> a) -> Drawing a -> Drawing a
 mapStyle = fmap . fmap
@@ -99,6 +113,11 @@ mapStyle = fmap . fmap
 -- throws error when aproching unrenderable
 toRenderables :: Shadelike a => Drawing a -> Renderables
 toRenderables = fmap $ bimap (fromJust . toRenderable) toShade
+
+toRenderablesIgnore :: Shadelike a => Drawing a -> Renderables
+toRenderablesIgnore =  catMaybes . fmap (\(x , y) -> fmap (flip (,) y) x ) . (fmap $ bimap toRenderable toShade)
+
+
 
 toRenderablesForce :: Shadelike a => Drawing a -> Renderables
 toRenderablesForce l =

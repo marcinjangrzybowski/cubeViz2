@@ -1,10 +1,14 @@
+{-# LANGUAGE LambdaCase #-}
 module DataExtra where
 
 import Data.Bifunctor
 
+import Data.Function
 import Data.List
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import qualified Data.Foldable
 
 tpl2arr (x , y) = [x , y]
 trpl2arr (x , y , z) = [x , y , z]
@@ -131,4 +135,29 @@ addIfNotIn a l =
   if (elem a l)
   then l
   else a : l
-  
+
+data EnsureFoldResult a b =
+    EFREmpty
+  | EFREvery b
+  | EFRException
+     { efreAllBefore :: b
+     , efreExceptionalElement :: a
+     , efreExceptionalValue :: b
+     }
+  deriving (Show , Eq)
+
+ensureFold :: (Foldable f , Eq b) => (a -> b) -> f a -> EnsureFoldResult a b 
+ensureFold y x
+  | null x         = EFREmpty
+  | otherwise      =
+      let firstB = y (Maybe.fromJust (Data.Foldable.find (const True) x))
+      in foldl (\case
+                   EFREvery b -> (\z -> if y z == b then EFREvery b else EFRException b z (y z))
+                   y -> const y
+                   )
+         (EFREvery firstB) x
+
+
+
+binsBy :: (Ord b , Bounded b) => (a -> b) -> [a] -> Map.Map b [a]
+binsBy f = foldr (\a -> Map.insertWith (++) (f a) [a]) Map.empty  

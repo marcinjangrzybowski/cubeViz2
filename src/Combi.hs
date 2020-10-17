@@ -523,3 +523,4 @@ addSubFace a sf@(SubFace n _) m =
   --         in --trace ((show $ (Map.keysSet (Map.delete sf m) )) ++ (show $ Map.keysSet toAdd))
   --            --trace ((show $ (Map.keysSet u )))
   --            u
+

@@ -510,6 +510,30 @@ mkCellExpr :: (Env , Context) -> VarIndex -> [IArg] -> CellExpr
 mkCellExpr (ee@(env , ctx)) vI tl = 
   ( CellExpr vI (map (second (remapIExpr (toDimI ctx))) tl) )
 
+
+
+-- mkCellExprForce :: (Env , Context) -> VarIndex -> [IArg] -> CellExpr
+-- mkCellExprForce (ee@(env , ctx)) vI tl = 
+--   let ct = getVarType ctx vI in
+--       case (compare (getCTypeDim ct) (length tl)) of
+--         EQ -> mkCellExpr ee vI tl
+--         LT -> mkCellExpr ee vI (take (getCTypeDim ct) tl)
+--         GT -> if (ctxDim ctx == 0)
+--               then let firstCornerVI = head $ toListFLI $ (varCorners env ctx vI)
+--                    in mkCellExpr ee firstCornerVI []
+--               else let tailEnd = range 
+--                    in mkCellExpr ee vI (tl ++ 
+
+
+-- ctx MUST by at last of dimension one here
+mkCellExprForce :: (Env , Context) -> VarIndex -> CellExpr
+mkCellExprForce ee@(env , ctx) vI
+   | getDim ctx == 0 = error "Ctx MUST be at last of dimension 1 here!" 
+   | otherwise =
+       let tl = fmap (dim . (fromDimI ctx)) (take (getCTypeDim (getVarType ctx vI))
+                                               ( (range (getDim ctx)) ++ repeat ((getDim ctx) - 1))  ) 
+       in toCellExpr ee (mkVar ctx vI  tl )
+ 
 toCellExpr :: (Env , Context) -> Expr -> CellExpr
 toCellExpr ee (Var vi tl) = mkCellExpr ee vi tl 
 toCellExpr _ _ = error "fatal, expected Var!"
@@ -666,7 +690,12 @@ getVarType (Context l _) (VarIndex i) =
         id
         (snd <$> (indexS ((length l - 1) - i) l))
 
-
+varCorners :: Env -> Context -> VarIndex -> FromLI Subset VarIndex
+varCorners ee ctx0 vi =
+        let ct = getVarType ctx0 vi
+            n = getCTyDim ee ctx0 ct
+            ctx = foldl addDimToContext ctx0 (replicate n Nothing )
+        in exprCorners ctx (mkVar ctx vi (fmap dim $ range n))
 
 printCTypeCorners :: Env -> Context -> CType -> Int -> String 
 printCTypeCorners ee ctx0 ct i =
