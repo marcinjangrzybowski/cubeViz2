@@ -29,12 +29,13 @@ import Abstract
 
 
 data CubTransformation a =
-     ReplaceAt Address a
+     ReplaceAt Address (Cub () a)
    | RemoveCell Address
    | RemoveCellLeaveFaces Address
    | SplitCell Address
    | AddSubFace (Address , SubFace)
-  deriving (Show)
+   | MapAt Address (Cub () a -> Either String (Cub () a))
+  -- deriving (Show)
 
 
 applyTransform ::  CubTransformation (Either Int a) -> Cub () (Either Int a) -> Either String (Cub () (Either Int a))
@@ -43,7 +44,7 @@ applyTransform (ReplaceAt addrToReplace valToPut) =
    flip cubMapMayReplace [] $ 
     (\n addr x ->
        if addr == addrToReplace
-       then Just $ Right $ (Cub undefined valToPut)
+       then Just $ Right $ valToPut
        else Nothing
      ) 
 
@@ -101,3 +102,12 @@ applyTransform (AddSubFace (addrToAdd , sf)) =
                _ -> Nothing
        else Nothing
      )
+
+
+applyTransform (MapAt addrToMap f) =
+   flip cubMapMayReplace [] $ 
+    (\n addr x ->
+       if addr == addrToMap
+       then Just $ f x
+       else Nothing
+     ) 

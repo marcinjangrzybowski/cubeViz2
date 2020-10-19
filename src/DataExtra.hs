@@ -29,6 +29,10 @@ punchInMany :: Set.Set Int -> Int -> Int
 punchInMany ks i =
   foldl (flip punchIn) i (Set.toAscList ks)
 
+punchOutMany :: Set.Set Int -> Int -> Maybe Int
+punchOutMany ks i =
+  foldl (\mbj j -> mbj >>= (punchOut j) ) (Just i) (Set.toDescList ks)
+
 rotate :: Int -> [a] -> [a]
 rotate _ [] = []
 rotate n xs = zipWith const (drop n (cycle xs)) xs
@@ -46,6 +50,7 @@ explode [a] = [[]]
 explode l =
   let z = zip [0..] l
   in fmap (\(i , _) -> fmap snd $ filter (\(j , _) -> j /= i) z ) z
+
 
 
 mapHead :: (a -> a) -> [a] -> [a]
@@ -161,3 +166,6 @@ ensureFold y x
 
 binsBy :: (Ord b , Bounded b) => (a -> b) -> [a] -> Map.Map b [a]
 binsBy f = foldr (\a -> Map.insertWith (++) (f a) [a]) Map.empty  
+
+setMapMaybe :: (Ord a , Ord b) => (a -> Maybe b) -> Set.Set a -> Set.Set b
+setMapMaybe f = Set.fromList . Maybe.mapMaybe f . Set.toList

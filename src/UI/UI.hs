@@ -12,6 +12,8 @@ import Data.List                 (intercalate)
 import Data.Maybe                (catMaybes)
 import Text.PrettyPrint   hiding ((<>))
 
+import qualified Data.Set as Set
+
 import Data.Function
 
 import qualified Graphics.Rendering.OpenGL as GL
@@ -37,6 +39,7 @@ data State uiState glDesc uiMsg = State
     , stateUI              :: uiState
     , stateGLDesc          :: Maybe glDesc
     , stateMsgsQueue       :: [uiMsg]
+    , statePressedKeys     :: Set.Set GLFW.Key
     }
 
 --------------------------------------------------------------------------------
@@ -133,6 +136,7 @@ main uiDesc =
                       , stateUI              = initialState
                       , stateGLDesc          = Nothing --descriptors
                       , stateMsgsQueue       = msgs
+                      , statePressedKeys     = Set.empty
                       }
           runUI uiDesc env state))
 
@@ -397,11 +401,28 @@ processEvent ev =
           
           adjustWindow
 
-            
+      (EventKey win k scancode ks mk) -> do
+            s <- get
+            let pKeys = statePressedKeys s
+            when ((ks == GLFW.KeyState'Pressed || ks == GLFW.KeyState'Repeating) && (not $ Set.member k pKeys)) $ do
+               put $ s
+                  { statePressedKeys = Set.insert k $ pKeys
+                  }
+               flushDisplay
+            when (ks == GLFW.KeyState'Released && (Set.member k pKeys)) $ do
+               put $ s
+                  { statePressedKeys = Set.delete k $ pKeys
+                  }
+               flushDisplay
+          
+
 
       -- (EventChar _ c) ->
       --     printEvent "char" [show c]
       _ -> liftIO $ return ()
+
+pressedKeys :: UI uiState glDesc uiMsg (Set.Set GLFW.Key)
+pressedKeys = gets statePressedKeys
       
 adjustWindow :: UI uiState glDesc uiMsg ()
 adjustWindow = do

@@ -48,6 +48,8 @@ instance Show IExpr where
 remapIExpr :: (Int -> Int) -> IExpr -> IExpr
 remapIExpr f (IExpr x) = IExpr (Set.map (Set.map (first f)) x) 
 
+remapIExprDir :: Set.Set Int -> IExpr -> IExpr
+remapIExprDir dims (IExpr x) = IExpr (Set.map (Set.map (\(i,b) -> if Set.member i dims then (i , not b) else (i , b) )) x) 
 
 
 
@@ -296,7 +298,7 @@ primPOr ei ei1 ei2 pa1 pa2 =
                                ++ "\n\n" ++ (show $ Syntax.max ei1 ei2) 
 
 data VarIndex = VarIndex Int
-  deriving (Eq , Show)
+  deriving (Eq , Show, Ord)
 
 data DimIndex = DimIndex Int
   deriving (Eq , Show)
@@ -533,7 +535,18 @@ mkCellExprForce ee@(env , ctx) vI
        let tl = fmap (dim . (fromDimI ctx)) (take (getCTypeDim (getVarType ctx vI))
                                                ( (range (getDim ctx)) ++ repeat ((getDim ctx) - 1))  ) 
        in toCellExpr ee (mkVar ctx vI  tl )
- 
+
+-- tail is refering to dimIndexes!
+mkCellExprForceDefTail :: (Env , Context) -> VarIndex -> [IExpr] -> CellExpr
+mkCellExprForceDefTail ee@(env , ctx) vI dTail
+   | getDim ctx == 0 = error "Ctx MUST be at last of dimension 1 here!" 
+   | otherwise =
+       let dTailLong = fmap (remapIExpr (fromDimI ctx)) $
+                          dTail ++ fmap dim  ((range (getDim ctx)) ++ repeat ((getDim ctx) - 1))
+           tl =  (take (getCTypeDim (getVarType ctx vI))
+                                               (dTailLong)  ) 
+       in toCellExpr ee (mkVar ctx vI  tl )
+   
 toCellExpr :: (Env , Context) -> Expr -> CellExpr
 toCellExpr ee (Var vi tl) = mkCellExpr ee vi tl 
 toCellExpr _ _ = error "fatal, expected Var!"
@@ -541,9 +554,21 @@ toCellExpr _ _ = error "fatal, expected Var!"
 fromCellExpr :: (Env , Context) -> CellExpr -> Expr 
 fromCellExpr (ee@(env , ctx)) (CellExpr vI tl) = 
   ( Var vI (map (second (remapIExpr (fromDimI ctx))) tl) )
+
+fromCellExprSafe :: (Env , Context) -> CellExpr -> Expr 
+fromCellExprSafe (ee@(env , ctx)) (CellExpr vI tl) = 
+  mkVar ctx vI (map ( (remapIExpr (fromDimI ctx)) . snd) tl)
+
   
--- remapCE :: (Int -> Int) -> CellExpr -> CellExpr
--- remapCE f (CellExpr x y) = CellExpr x (map (remapIExpr f) y) 
+negateCellExpr :: (Set.Set Int ) -> CellExpr -> CellExpr
+negateCellExpr dims (CellExpr x y) =
+  CellExpr x $
+    fmap (second (remapIExprDir dims)) y
+
+remapCellExprShallow :: (Int -> Int) -> CellExpr -> CellExpr
+remapCellExprShallow f (CellExpr x y) =
+  CellExpr x $
+    fmap (second (remapIExpr f)) y     
 
 -- NNF - not normal form
 data PieceExprNNF = PieceExprNNF VarIndex ([Either Bool (Int , Bool)])

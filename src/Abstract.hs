@@ -232,7 +232,7 @@ instance FromCub (Env , Context) Expr () (Either Int CellExpr) where
   fromCub ee (Cub _ a) =
     case a of
       Left k -> Hole k
-      Right ce -> fromCellExpr ee ce 
+      Right ce -> fromCellExprSafe ee ce 
   fromCub ee@(env , ct) (Hcomp () nam sides x) =
        let ct2 = addDimToContext ct (Just nam)
            dim = getDim ee
@@ -262,6 +262,7 @@ cubPick addr (Hcomp _ _ si a) =
     _ -> error "imposible"
 
 
+
 contextAt :: Context -> Address -> Cub b a -> Context
 contextAt ctx [] _ = ctx
 contextAt ctx (_ : _) (Cub _ _) = error "unable to dig into cell!" 
@@ -279,6 +280,68 @@ contextAt ctx addr@(_ : _) (Hcomp b nam pa a) = h $ reverse addr
 data Direction = DParent | DChild | DNext | DPrev
 
 data ImposibleMove = ImposibleMove
+
+
+negateDimIndexes :: Set.Set Int -> Cub () (Either Int CellExpr) -> Cub () (Either Int CellExpr)
+negateDimIndexes dims (Cub _ a) =
+  Cub undefined
+   (bimap id (negateCellExpr dims) a)
+   
+-- negateDimIndexes dims (Hcomp b nam pa a) =
+  
+--   let n = getDim a
+--       pa2 = (Map.mapWithKey
+--              (\(SubFace _ sfm) -> 
+--                 negateDimIndexes $ (Set.map ( fromMaybe (n - Set.size dims ) . punchOutMany (Map.keysSet sfm)) dims)
+--              ) pa)
+--       pa3 = (Map.mapKeys (fromListLI . zipWith (\i -> fmap $ xor (Set.member i dims) ) [0..] . toListLI ) pa2)
+--   in (Hcomp b nam pa3 (negateDimIndexes dims a))
+
+negateDimIndexes dims (Hcomp b nam pa a) =
+  
+  let n = getDim a
+      pa2 = (Map.mapWithKey
+             (\(SubFace _ sfm) -> 
+                negateDimIndexes $ (setMapMaybe id $ Set.map (punchOutMany (Map.keysSet sfm)) dims)
+             ) pa)
+      pa3 = (Map.mapKeys (fromListLI . zipWith (\i -> fmap $ xor (Set.member i dims) ) [0..] . toListLI ) pa2)
+  in (Hcomp b nam pa3 (negateDimIndexes dims a))
+
+
+rotateDimIndexes :: (Int , Int) -> Cub () (Either Int CellExpr) -> Cub () (Either Int CellExpr)
+rotateDimIndexes ( i , j ) =    
+   permuteDimIndexes (Set.fromList [i , j])
+ . negateDimIndexes (Set.fromList [i])
+
+permuteDimIndexes :: Set.Set Int -> Cub () (Either Int CellExpr) -> Cub () (Either Int CellExpr)
+permuteDimIndexes dims cub
+  | Set.size dims <= 1  = cub
+  | otherwise = remapDimIndexes
+       (\k ->
+         if Set.member k dims
+         then rotateFrom k (Set.toList dims)
+         else k) cub
+  
+remapDimIndexes :: (Int -> Int) -> Cub () (Either Int CellExpr) -> Cub () (Either Int CellExpr)
+remapDimIndexes f (Cub _ a) =
+  Cub undefined
+   (bimap id (remapCellExprShallow f) a)
+   
+remapDimIndexes f (Hcomp b nam pa a) =
+  
+  let n = getDim a
+      pa2 = (Map.mapWithKey
+             (\(SubFace _ sfm) ->
+           remapDimIndexes $ (
+                   (fromJust . punchOutMany (Set.map f $ Map.keysSet sfm))
+                 . f
+                 . (punchInMany (Map.keysSet sfm))
+                 )
+             ) pa)
+            
+      pa3 = (Map.mapKeys (\(SubFace n sfm) ->  (SubFace n (Map.mapKeys f sfm)) ) pa2)
+  in (Hcomp b nam pa3 (remapDimIndexes f a))
+
 
 
 cubNav :: Cub b a -> Address -> Direction -> Either ImposibleMove Address

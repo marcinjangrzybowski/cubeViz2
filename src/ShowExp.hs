@@ -248,7 +248,7 @@ processEvent ev = do
   mapRWST (fmap (\(a , b , (_ , c) ) -> (a , b , c))) $ eventsGlobal PERuntime ev
   mode <- UI.getsAppState asUserMode
   mapRWST (fmap (\(a , b , (_ , c) ) -> (a , b , c))) $ modesEvents PERuntime mode ev
-
+   
 
 
 extractInfo = mapRWST (fmap (\((_ , (a , _)) , b , (_ , c) ) -> (a , b , c))) . listen
@@ -292,7 +292,7 @@ consolePrint :: String -> UIApp ()
 consolePrint str = do
   UI.modifyAppState (\s ->
     s { asMessage = str })
-  printConsoleView
+  UI.flushDisplay
 
 
 printExpr :: UIApp ()
@@ -306,17 +306,6 @@ printExpr =
                  (printCub ee (CubPrintData {cpdCursorAddress = addrs}) [] cub))
 
 
-printConsoleView :: UIApp ()
-printConsoleView = do
-    liftIO SCA.clearScreen
-    ei <- eventsInfo
-    liftIO $ putStrLn ei
-    liftIO $ putStrLn ""
-    printExpr
-    liftIO $ putStrLn ""
-    uMsg <- UI.getsAppState asMessage
-    UI.getsAppState asUserMode >>= modalConsoleView
-    liftIO $ putStrLn uMsg
 
 
 modifyDrawingPreferences :: (DisplayPreferences -> DisplayPreferences) -> UIApp ()
@@ -373,8 +362,12 @@ setNavMode :: Address -> UIApp ()
 setNavMode addr = setUserMode (UMNavigation addr)
 
 
+liftPEM :: UIApp a -> UIAppDesc a
+liftPEM = mapRWST (fmap (\(a , b , c ) -> (a , b , ("" , c))))
+  
+
 helperPEM :: PEMode -> String -> UIApp () ->  UIAppDesc ()
-helperPEM PERuntime _ x = mapRWST (fmap (\(a , b , c ) -> (a , b , ("" , c)))) x 
+helperPEM PERuntime _ x = liftPEM x 
 helperPEM PEInfo x _ = tell (x , []) 
 
 eventsGlobal :: PEMode -> UI.Event -> UIAppDesc ()
@@ -415,7 +408,7 @@ eventsGlobal pem ev =
         (UI.EventKey win k scancode ks mk) -> do
               when (ks == GLFW.KeyState'Pressed) $ do
                                 -- Q, Esc: exit
-                  when (k == GLFW.Key'Q || k == GLFW.Key'Escape) $ inf "Quit" $
+                  when (k == GLFW.Key'Escape) $ inf "Quit" $
                     liftIO $ GLFW.setWindowShouldClose win True
                   -- ?: print instructions
                   -- when (k == GLFW.Key'Slash && GLFW.modifierKeysShift mk) $
@@ -454,18 +447,19 @@ modesEvents _ Idle ev = return ()
 modesEvents pem um@(UMNavigation { umCoursorAddress = addr }) ev = do 
      appS <- UI.getAppState
      let cub = asCub appS
-         inf = helperPEM pem 
+         inf = helperPEM pem
+     handleCellManipulationEvents pem ev addr
      case ev of
         (UI.EventKey win k scancode ks mk) -> do
              when (ks == GLFW.KeyState'Pressed) $ do
-                  when (k == GLFW.Key'Enter) $ inf "Put term" $ do
-                    initPutTerm addr 
+                  when (k == GLFW.Key'H) $ inf "EditHead" $ do
+                    initEditHead addr 
 
-                  when (k == GLFW.Key'T) $ inf "Enter term" $ do 
-                     let ((env , ctx) , _) = asExpression appS
-                     mbTerm <- inputTerm (env , contextAt ctx addr cub)
-                     let toPut = maybe (Left 0) Right mbTerm
-                     transformExpr (ReplaceAt addr toPut)
+                  -- when (k == GLFW.Key'T) $ inf "Enter term" $ do 
+                  --    let ((env , ctx) , _) = asExpression appS
+                  --    mbTerm <- inputTerm (env , contextAt ctx addr cub)
+                  --    let toPut = maybe (Left 0) Right mbTerm
+                  --    transformExpr (ReplaceAt addr toPut)
 
                     
                   when (k == GLFW.Key'A) $ do
@@ -476,16 +470,15 @@ modesEvents pem um@(UMNavigation { umCoursorAddress = addr }) ev = do
                     
                   when (k == GLFW.Key'C) $ do
                     if (GLFW.modifierKeysControl mk)
-                    then inf "Delete sub-face with subfaces" $ transformExpr (RemoveCell addr)
-                            
+                    then inf "Delete sub-face with subfaces" $ transformExpr (RemoveCell addr)                            
                     else inf "Delete sub-face" $ transformExpr (RemoveCellLeaveFaces addr)
                     inf "" $ setNavMode (fullSF (getDim (head addr)) : (tailAlways addr))
 
                   when (k == GLFW.Key'S) $ inf "Split cell" $ do
                     transformExpr (SplitCell addr)
                     
-                  when (k == GLFW.Key'H) $ inf "Insert Hole" $ do
-                    transformExpr (ReplaceAt addr (Left 0))
+                  when (k == GLFW.Key'Backspace) $ inf "Insert Hole" $ do
+                    transformExpr (ReplaceAt addr (Cub undefined (Left 0)))
                     
 
                   when (isArrowKey k) $ inf "" $ do                                        
@@ -513,7 +506,7 @@ modesEvents pem um@(UMAddSubFace (addr , sf) ) ev = do
                      transformExpr (AddSubFace (addr , sf))
                      setUserMode (UMNavigation { umCoursorAddress = sf : addr })
 
-                  when (k == GLFW.Key'A) $ inf "Abort" $ do
+                  when (k == GLFW.Key'Q) $ inf "Abort" $ do
                     setUserMode $ UMNavigation addr
 
 
@@ -541,9 +534,11 @@ modesEvents pem um@(UMSelectGrid addr gsd ) ev = do
             when (ks == GLFW.KeyState'Pressed) $ do
                   when (k == GLFW.Key'Enter) $ inf "Confirm" $ do
                     gsdRunFinalAction gsd
+                    setUserMode (UMNavigation { umCoursorAddress = addr })
 
-                  -- when (k == GLFW.Key'A) $ inf "Abort" $ do
-                  --   setUserMode $ UMNavigation addr
+                  when (k == GLFW.Key'Q) $ inf "Abort" $ do
+                    gsdRunAbortAction gsd
+                    setUserMode $ UMNavigation addr
 
 
                   when (isArrowKey k) $ inf "nav" $ do
@@ -555,6 +550,60 @@ modesEvents pem um@(UMSelectGrid addr gsd ) ev = do
        
         _ -> return ()
 
+handleCellManipulationEvents :: PEMode -> UI.Event -> Address -> UIAppDesc ()
+handleCellManipulationEvents pem ev addr = do
+     appS <- UI.getAppState
+     let cub = asCub appS
+         inf = helperPEM pem
+
+     dimsL <- fmap (Set.map $ flip (-) 1) $ liftPEM pressedDigits
+
+     
+     when (not $ Set.null dimsL) $ do
+       case ev of
+          (UI.EventKey win k scancode ks mk) -> do
+               when (ks == GLFW.KeyState'Pressed) $ do
+                    when (k == GLFW.Key'I) $ inf "negate dimensions" $ do
+                        transformExpr (MapAt addr (Right . negateDimIndexes dimsL))
+                    when (k == GLFW.Key'R) $ inf "rotate dimensions" $ do
+                        transformExpr (MapAt addr (Right . rotateDimIndexes (1,0)))
+
+                    -- -- when (k == GLFW.Key'T) $ inf "Enter term" $ do 
+                    -- --    let ((env , ctx) , _) = asExpression appS
+                    -- --    mbTerm <- inputTerm (env , contextAt ctx addr cub)
+                    -- --    let toPut = maybe (Left 0) Right mbTerm
+                    -- --    transformExpr (ReplaceAt addr toPut)
+
+
+                    -- when (k == GLFW.Key'A) $ do
+                    --   case (uncons addr) of
+                    --     Just (_ , addrTail) -> inf "Add sub-face" $ setAddSubFaceMode addrTail
+                    --     Nothing -> return ()
+
+
+                    -- when (k == GLFW.Key'C) $ do
+                    --   if (GLFW.modifierKeysControl mk)
+                    --   then inf "Delete sub-face with subfaces" $ transformExpr (RemoveCell addr)                            
+                    --   else inf "Delete sub-face" $ transformExpr (RemoveCellLeaveFaces addr)
+                    --   inf "" $ setNavMode (fullSF (getDim (head addr)) : (tailAlways addr))
+
+                    -- when (k == GLFW.Key'S) $ inf "Split cell" $ do
+                    --   transformExpr (SplitCell addr)
+
+                    -- when (k == GLFW.Key'Backspace) $ inf "Insert Hole" $ do
+                    --   transformExpr (ReplaceAt addr (Cub undefined (Left 0)))
+
+
+                    -- when (isArrowKey k) $ inf "" $ do                                        
+                    --   UI.modifyAppState (\s ->
+                    --      let nav = fromJust (arrowKey2nav k)
+                    --          jna = fromRight (addr) (cubNav (asCub appS) addr nav)  
+
+                    --      in s { asUserMode = UMNavigation jna })
+                    --   UI.flushDisplay
+
+
+          _ -> return ()
 
 modalConsoleView :: UserMode -> UIApp ()
 modalConsoleView um@(UMSelectGrid addr gsd ) = do
@@ -593,6 +642,22 @@ updateGL =
 
                  liftIO $ initResources $ snd rens
 
+   where
+     printConsoleView :: UIApp ()
+     printConsoleView = do
+        liftIO SCA.clearScreen
+        ei <- eventsInfo
+        liftIO $ putStrLn ei
+        liftIO $ putStrLn ""
+        printExpr
+        liftIO $ putStrLn ""
+        pKS <- fmap (\pK -> show (Set.toList pK)) UI.pressedKeys
+        liftIO $ putStrLn pKS  
+        uMsg <- UI.getsAppState asMessage
+        UI.getsAppState asUserMode >>= modalConsoleView
+        liftIO $ putStrLn uMsg
+
+
       
 ----
 
@@ -604,23 +669,32 @@ loadFile fName =
        return $ parseInteractive contents 
 
 
-initPutTerm :: Address -> UIApp ()
-initPutTerm addr = do
+initEditHead :: Address -> UIApp ()
+initEditHead addr = do
   appS <- UI.getAppState
-  let initPos = (0,0)
   let (ee0@(env , ctx0@(Context vars _)) , _) = asExpression appS
-  let ctx = contextAt ctx0 addr (asCub appS)
-  let varsInCtx = binsBy (getCTyDim env ctx . snd . fst) $ zip (reverse vars) [0..]
-  let varsInCtxGrid = (fmap snd $ Map.toList varsInCtx)   
+      initialCub = fromJust $ cubPick addr (asCub appS)
+      ctx = contextAt ctx0 addr (asCub appS)
+      varsInCtx = binsBy (getCTyDim env ctx . snd . fst) $ zip (reverse vars) (fmap VarIndex [0..])
+      varsInCtxGrid = (fmap snd $ Map.toList varsInCtx)
+      
+      (initPos , initTail) =
+         case initialCub of
+            Cub _ (Right (CellExpr vI tail)) ->
+               (fromJust $ gridIndexOf vI $ fmap (fmap (snd)) varsInCtxGrid ,
+                 fmap snd tail)
+            _ -> ((0,0) , [])
+      
       gsd = GridSelectionDesc
        { gsdChoices = fmap (fmap (fst . fst)) varsInCtxGrid 
        , gsdPosition = initPos
        , gsdAction =
            \_ nPos -> do
-             let newVi = VarIndex $ snd $ gridLookup nPos varsInCtxGrid 
-             let newCell = mkCellExprForce (env , ctx) newVi
-             transformExpr (ReplaceAt addr (Right newCell))
+             let newVi = snd $ gridLookup nPos varsInCtxGrid 
+             let newCell = mkCellExprForceDefTail (env , ctx) newVi initTail
+             transformExpr (ReplaceAt addr (Cub undefined (Right newCell)))
        , gsdFinalAction = \_ _ -> return ()
+       , gsdAbortAction = transformExpr (ReplaceAt addr initialCub)
        }
   gsdAction gsd (gridLookup initPos (gsdChoices gsd)) initPos
   setUserMode $ UMSelectGrid addr gsd
@@ -633,12 +707,21 @@ data GridSelectionDesc =
   , gsdPosition :: (Int , Int)
   , gsdAction :: String -> (Int , Int) -> UIApp()
   , gsdFinalAction :: String -> (Int , Int) -> UIApp ()
+  , gsdAbortAction :: UIApp ()
   }
       
 
 gridLookup :: (Int , Int) -> [[a]] -> a
 gridLookup (i , j) x = (x !! i) !! j
 
+gridIndexOf :: (Eq a) => a -> [[a]] -> Maybe (Int , Int)
+gridIndexOf a [] = Nothing 
+gridIndexOf a ([] : xs) = fmap (first ((+) 1)) $ gridIndexOf a xs 
+gridIndexOf a (x : xs) =
+  case elemIndex a x of
+    Nothing -> gridIndexOf a ([] : xs)
+    Just j -> Just (0 , j)
+  
 
 gridMapWithIndex :: ((Int , Int) -> a -> a) -> [[a]] -> [[a]]
 gridMapWithIndex f l = zipWith (\i -> zipWith (\j -> f (i , j) ) [0..]) [0..] l
@@ -646,6 +729,10 @@ gridMapWithIndex f l = zipWith (\i -> zipWith (\j -> f (i , j) ) [0..]) [0..] l
 gsdRunFinalAction :: GridSelectionDesc -> UIApp ()
 gsdRunFinalAction gsd =
   gsdFinalAction gsd (gridLookup (gsdPosition gsd) (gsdChoices gsd)) (gsdPosition gsd)
+
+gsdRunAbortAction :: GridSelectionDesc -> UIApp ()
+gsdRunAbortAction gsd =
+  gsdAbortAction gsd
 
 -- gsdRunAction :: GridSelectionDesc -> AppState
 -- gsdRunAction gsd =
@@ -703,6 +790,33 @@ isArrowKey GLFW.Key'Up = True
 isArrowKey GLFW.Key'Left = True
 isArrowKey GLFW.Key'Right = True
 isArrowKey _ = False
+
+isDigitKey GLFW.Key'1 = True
+isDigitKey GLFW.Key'2 = True
+isDigitKey GLFW.Key'3 = True
+isDigitKey GLFW.Key'4 = True
+isDigitKey GLFW.Key'5 = True
+isDigitKey GLFW.Key'6 = True
+isDigitKey GLFW.Key'7 = True
+isDigitKey GLFW.Key'8 = True
+isDigitKey GLFW.Key'9 = True
+isDigitKey GLFW.Key'0 = True
+isDigitKey _ = False
+
+toDigitKey GLFW.Key'1 = Just 1
+toDigitKey GLFW.Key'2 = Just 2
+toDigitKey GLFW.Key'3 = Just 3
+toDigitKey GLFW.Key'4 = Just 4
+toDigitKey GLFW.Key'5 = Just 5
+toDigitKey GLFW.Key'6 = Just 6
+toDigitKey GLFW.Key'7 = Just 7
+toDigitKey GLFW.Key'8 = Just 8
+toDigitKey GLFW.Key'9 = Just 9
+toDigitKey GLFW.Key'0 = Just 10
+toDigitKey _ = Nothing
+
+pressedDigits :: UIApp (Set.Set Int)
+pressedDigits = fmap (Set.fromList  . mapMaybe toDigitKey . Set.toList) UI.pressedKeys
 
 arrowKey2nav k =
   case k of
