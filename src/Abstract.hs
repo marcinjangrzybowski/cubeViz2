@@ -41,6 +41,8 @@ data Cub b =
 data ValidAddrStatus =
     VASTerm
   | VASTermSubFace
+  | VASNode
+  | VASNodeSubFace
   | VASHole
   | VASHoleSubFace
   deriving (Show , Eq ,  Ord)

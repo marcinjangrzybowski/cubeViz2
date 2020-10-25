@@ -612,6 +612,7 @@ rotationIndexes addr = do
                         [ 1 ] -> Just (0,2)
                         [ 2 ] -> Just (0,1)
                         _ -> Nothing
+              _ -> Nothing          
                  
 pressedDims :: Address ->  UIApp (Set.Set Int)  
 pressedDims addr = do
