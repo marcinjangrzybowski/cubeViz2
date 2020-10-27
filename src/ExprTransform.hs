@@ -38,7 +38,8 @@ data CubTransformation a =
   -- deriving (Show)
 
 
-applyTransform ::  CubTransformation (Either Int a) -> Cub () (Either Int a) -> Either String (Cub () (Either Int a))
+applyTransform ::  CubTransformation (Either Int CellExpr)
+      -> Cub () (Either Int CellExpr) -> Either String (Cub () (Either Int CellExpr))
 
 applyTransform (ReplaceAt addrToReplace valToPut) =
    flip cubMapMayReplace [] $ 
@@ -55,7 +56,7 @@ applyTransform (SplitCell addrToSplit ) =
        then  let sides = Map.fromList
                     (map (\fc -> (toSubFace fc , cubHole n )) $ genAllLI n )
                     -- needs injectDim to work!
-                    -- (map (\fc -> (toSubFace fc , cubFace fc x )) $ genAllLI n )
+                    -- (map (\fc@(Face n (i , b)) -> (toSubFace fc , injDim i $ cubFace fc x )) $ genAllLI n )
 
              in Just $ Right $ (Hcomp () "splitVar" sides x)
        else Nothing

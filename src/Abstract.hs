@@ -379,6 +379,9 @@ remapDimIndexes f (Hcomp b nam pa a) =
 
 
 
+injDim :: Int -> Cub () (Either Int CellExpr) -> Cub () (Either Int CellExpr)
+injDim k = undefined
+
 cubNav :: Cub b a -> Address -> Direction -> Either ImposibleMove Address
 
 cubNav c addr dir =
