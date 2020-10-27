@@ -154,6 +154,19 @@ class FromCub env a b c where
 
 -- WARNING, node data (of b type), are simply copied without any processing!
 
+
+injectDim :: Int ->  Cub b a -> Cub b a
+injectDim = undefined
+-- injectDim k cub@(Hcomp bb nam pa a) =
+--   let paNew = Map.mapWithKey
+--               (\(SubFace sfN sm) -> \si -> undefined)
+--               pa
+
+--   in (Hcomp bb nam paNew (injectDim a))
+  
+-- injectDim k cub@(Cub fcs (Left h)) = Cub fcs (Left h) 
+-- injectDim k cub@(Cub fcs (Right ce)) = Cub fcs undefined 
+
 cubFace :: forall a b. Face -> Cub b a -> Cub b a
 cubFace fc (Cub fcs a) = appLI fc fcs
 cubFace fc@(Face n (i , b))  cub@(Hcomp bb nam pa a)
@@ -171,6 +184,7 @@ cubFace fc@(Face n (i , b))  cub@(Hcomp bb nam pa a)
 
   where
 
+    
     subfaces =
           Set.map (SubFace (n - 1) . Map.fromList . Set.toList)
         $ makeAntiH
@@ -190,21 +204,30 @@ cubFace fc@(Face n (i , b))  cub@(Hcomp bb nam pa a)
              smMid = sm1
              smEnd = Map.insert i b sm1
          
-         in case (Map.lookup (SubFace (sfN + 1) smMid) pa , Map.lookup (SubFace (sfN + 1) smEnd) pa) of
-             (Just _ , Just _) ->
-                (error $ "imposible! partial with comparable subfaces!! "
-                           ++ show (SubFace (sfN + 1) smMid) ++ " "
-                           ++ show (SubFace (sfN + 1) smEnd) ++ " ")
-             (Nothing , Nothing) -> error "imposible!"
-             (Just x , _) ->
-                    cubFace
-                    (Face (n - subFaceCodim sf + 1)  (i - (Set.size (Set.filter (\j -> j < i) $ Map.keysSet sm0) )  , b))
-                    x
-             (_ , Just x) -> x
+             ff =
+              case (Map.lookup (SubFace (sfN + 1) smMid) pa , Map.lookup (SubFace (sfN + 1) smEnd) pa) of
+                (Just _ , Just _) ->
+                   (error $ "imposible! partial with comparable subfaces!! "
+                              ++ show (SubFace (sfN + 1) smMid) ++ " "
+                              ++ show (SubFace (sfN + 1) smEnd) ++ " ")
+                (Nothing , Nothing) -> error "imposible!"
+                (Just x , _) ->
+                       cubFace
+                       (Face (n - subFaceCodim sf + 1)
+                             (i - (Set.size (Set.filter (\j -> j < i) $ Map.keysSet sm0) )  , b))
+                       x
+                (_ , Just x) -> x
+
+         in ff
       )
       subfaces
 
-    
+cubHole :: Int -> (Cub () (Either Int a))
+cubHole n =
+     let fcss = (FromLI n $ const (cubHole (n - 1))) 
+     in Cub fcss (Left 0) 
+
+        
 instance ToCub ((Env , Context) , Expr) () (Either Int CellExpr) where
   toCub ee@((env , ct) , (HComp nam pa e)) =
        let ct2 = addDimToContext ct (Just nam)
@@ -222,11 +245,7 @@ instance ToCub ((Env , Context) , Expr) () (Either Int CellExpr) where
      in Cub fcss (Right cell)  
   -- toCub ee@((env , ct) , (ILam nam x)) = toCub (first (second (flip addDimToContext nam)) ee)
 
-  toCub ee@((env , ct) , (Hole hI)) =
-     let fcss = fromLIppK
-                  (\fc -> \e -> toCub ((env , addFaceConstraintToContext fc ct) , e) )
-                  (FromLI (getDim ct) $ const (Hole hI)) 
-     in Cub fcss  (Left hI) 
+  toCub ee@((env , ct) , (Hole hI)) = cubHole (getDim ct)
 
 instance FromCub (Env , Context) Expr () (Either Int CellExpr) where
   fromCub ee (Cub _ a) =

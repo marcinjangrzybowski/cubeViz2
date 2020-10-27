@@ -79,6 +79,7 @@ defaultDisplayPreferences = DisplayPreferences
 data AppState = AppState
    { fileName             :: Maybe String
    , asSession            :: SessionState
+   , asCub                :: Cub () (Either Int CellExpr)
    , asDrawMode           :: DrawExprMode
    , asViewport           :: Viewport 
    , asDragStartVP        :: Maybe Viewport
@@ -105,8 +106,8 @@ asSubFaceToAdd as =
 
 asExpression = ssEnvExpr . asSession
 
-asCub :: AppState -> (Cub () (Either Int CellExpr))
-asCub = toCub . asExpression
+-- asCub :: AppState -> (Cub () (Either Int CellExpr))
+-- asCub = toCub . asExpression
 
 asViewportProc :: AppState -> Viewport
 asViewportProc appS =
@@ -205,6 +206,7 @@ initialize =
               , asDrawMode        = Scaffold -- Stripes --   --head drawExprModes
               , asDragStartVP     = Nothing
               , asSession         = initialSessionState
+              , asCub             = toCub $ ssEnvExpr initialSessionState
               , asUserMode        = UMNavigation []
               , asKeyPressed      = False
               , asMessage         = ""
@@ -334,9 +336,11 @@ setFromCub :: Cub () (Either Int CellExpr) -> UIApp ()
 setFromCub newCub = do
     UI.modifyAppState (\s ->
                let ss = (asSession s)
+                   newS = ssSetExpression ss (fromCub (fst (ssEnvExpr ss) ) newCub)
                in s {
                        asSession = 
-                       ssSetExpression ss (fromCub (fst (ssEnvExpr ss) ) newCub)
+                       newS
+                     , asCub = toCub $ ssEnvExpr newS
                                 })
     UI.flushDisplay
 
@@ -612,6 +616,7 @@ rotationIndexes addr = do
                         [ 1 ] -> Just (0,2)
                         [ 2 ] -> Just (0,1)
                         _ -> Nothing
+              _ -> Nothing
                  
 pressedDims :: Address ->  UIApp (Set.Set Int)  
 pressedDims addr = do

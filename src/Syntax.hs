@@ -559,16 +559,24 @@ fromCellExprSafe :: (Env , Context) -> CellExpr -> Expr
 fromCellExprSafe (ee@(env , ctx)) (CellExpr vI tl) = 
   mkVar ctx vI (map ( (remapIExpr (fromDimI ctx)) . snd) tl)
 
-  
-negateCellExpr :: (Set.Set Int ) -> CellExpr -> CellExpr
-negateCellExpr dims (CellExpr x y) =
+
+negateCellExprShallow :: (Set.Set Int ) -> CellExpr -> CellExpr
+negateCellExprShallow dims (CellExpr x y) =
   CellExpr x $
     fmap (second (remapIExprDir dims)) y
+  
+negateCellExpr :: (Set.Set Int ) -> CellExpr -> CellExpr
+negateCellExpr dims (CellExpr x y) = undefined
 
 remapCellExprShallow :: (Int -> Int) -> CellExpr -> CellExpr
 remapCellExprShallow f (CellExpr x y) =
   CellExpr x $
     fmap (second (remapIExpr f)) y     
+
+remapCellExpr :: (Int -> Int) -> CellExpr -> CellExpr
+remapCellExpr f (CellExpr x y) = undefined
+  -- CellExpr x $
+  --   fmap (second (remapIExpr f)) y     
 
 -- NNF - not normal form
 data PieceExprNNF = PieceExprNNF VarIndex ([Either Bool (Int , Bool)])

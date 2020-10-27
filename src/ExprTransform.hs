@@ -53,8 +53,9 @@ applyTransform (SplitCell addrToSplit ) =
     (\n addr x ->
        if addr == addrToSplit
        then  let sides = Map.fromList
-                    (map (\fc -> (toSubFace fc , cubFace fc x )) $ genAllLI n )
-
+                    (map (\fc -> (toSubFace fc , cubHole n )) $ genAllLI n )
+                    -- needs injectDim to work!
+                    -- (map (\fc -> (toSubFace fc , cubFace fc x )) $ genAllLI n )
 
              in Just $ Right $ (Hcomp () "splitVar" sides x)
        else Nothing
