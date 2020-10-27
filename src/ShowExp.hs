@@ -340,7 +340,7 @@ setFromCub newCub = do
                in s {
                        asSession = 
                        newS
-                     , asCub = toCub $ ssEnvExpr newS
+                     , asCub = newCub -- toCub $ ssEnvExpr newS
                                 })
     UI.flushDisplay
 

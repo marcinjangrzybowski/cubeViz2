@@ -98,7 +98,7 @@ applyTransform (AddSubFace (addrToAdd , sf)) =
                Hcomp () nm sides x ->
                   Just $ Right $ Hcomp () nm
                             (addSubFace
-                               (Cub undefined (Left 0))
+                               (cubHole n)
                                sf sides) x
                _ -> Nothing
        else Nothing

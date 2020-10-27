@@ -551,9 +551,9 @@ toCellExpr :: (Env , Context) -> Expr -> CellExpr
 toCellExpr ee (Var vi tl) = mkCellExpr ee vi tl 
 toCellExpr _ _ = error "fatal, expected Var!"
   
-fromCellExpr :: (Env , Context) -> CellExpr -> Expr 
-fromCellExpr (ee@(env , ctx)) (CellExpr vI tl) = 
-  ( Var vI (map (second (remapIExpr (fromDimI ctx))) tl) )
+-- fromCellExpr :: (Env , Context) -> CellExpr -> Expr 
+-- fromCellExpr (ee@(env , ctx)) (CellExpr vI tl) = 
+--   ( Var vI (map (second (remapIExpr (fromDimI ctx))) tl) )
 
 fromCellExprSafe :: (Env , Context) -> CellExpr -> Expr 
 fromCellExprSafe (ee@(env , ctx)) (CellExpr vI tl) = 
@@ -563,7 +563,7 @@ fromCellExprSafe (ee@(env , ctx)) (CellExpr vI tl) =
 negateCellExprShallow :: (Set.Set Int ) -> CellExpr -> CellExpr
 negateCellExprShallow dims (CellExpr x y) =
   CellExpr x $
-    fmap (second (remapIExprDir dims)) y
+    fmap (bimap (const undefined)  (remapIExprDir dims)) y
   
 negateCellExpr :: (Set.Set Int ) -> CellExpr -> CellExpr
 negateCellExpr dims (CellExpr x y) = undefined
@@ -571,7 +571,7 @@ negateCellExpr dims (CellExpr x y) = undefined
 remapCellExprShallow :: (Int -> Int) -> CellExpr -> CellExpr
 remapCellExprShallow f (CellExpr x y) =
   CellExpr x $
-    fmap (second (remapIExpr f)) y     
+    fmap (bimap (const undefined) (remapIExpr f)) y     
 
 remapCellExpr :: (Int -> Int) -> CellExpr -> CellExpr
 remapCellExpr f (CellExpr x y) = undefined

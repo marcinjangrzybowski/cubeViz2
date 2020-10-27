@@ -302,9 +302,11 @@ data ImposibleMove = ImposibleMove
 
 
 negateDimIndexes :: Set.Set Int -> Cub () (Either Int CellExpr) -> Cub () (Either Int CellExpr)
-negateDimIndexes dims (Cub _ a) =
-  Cub undefined
-   (bimap id (negateCellExpr dims) a)
+negateDimIndexes dims (Cub (FromLI n fcsM) a) =
+  Cub (FromLI n (\fc@(Face k (i , b)) ->
+          negateDimIndexes (setMapMaybe (punchOut i) dims) (fcsM (Face k (i , xor (Set.member i dims) b)))
+                   ))
+   (bimap id (negateCellExprShallow dims) a)
    
 -- negateDimIndexes dims (Hcomp b nam pa a) =
   
@@ -321,7 +323,7 @@ negateDimIndexes dims (Hcomp b nam pa a) =
   let n = getDim a
       pa2 = (Map.mapWithKey
              (\(SubFace _ sfm) -> 
-                negateDimIndexes $ (setMapMaybe id $ Set.map (punchOutMany (Map.keysSet sfm)) dims)
+                negateDimIndexes $ (setMapMaybe (punchOutMany (Map.keysSet sfm)) dims)
              ) pa)
       pa3 = (Map.mapKeys (fromListLI . zipWith (\i -> fmap $ xor (Set.member i dims) ) [0..] . toListLI ) pa2)
   in (Hcomp b nam pa3 (negateDimIndexes dims a))
@@ -340,11 +342,25 @@ permuteDimIndexes dims cub
          if Set.member k dims
          then rotateFrom k (Set.toList dims)
          else k) cub
-  
+
+
+-- f must be bijection !!! 
 remapDimIndexes :: (Int -> Int) -> Cub () (Either Int CellExpr) -> Cub () (Either Int CellExpr)
-remapDimIndexes f (Cub _ a) =
-  Cub undefined
-   (bimap id (remapCellExprShallow f) a)
+remapDimIndexes f (Cub fcs@(FromLI n fcsM) a) =
+  let fcs2 =
+         (Map.mapWithKey
+             (\(Face _ (i , b)) ->
+           remapDimIndexes $ (
+                   (fromJust . punchOut (f i))
+                 . f
+                 . (punchIn i)
+                 )
+             ) (toMapFLI fcs))
+            
+      fcs3 = (Map.mapKeys (\(Face n (i , b)) ->  (Face n (f i , b)) ) fcs3)
+  in Cub
+      (fromMapFLIUnsafe n fcs3)
+       (bimap id (remapCellExprShallow f) a)
    
 remapDimIndexes f (Hcomp b nam pa a) =
   
