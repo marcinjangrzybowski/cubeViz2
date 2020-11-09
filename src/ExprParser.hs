@@ -245,7 +245,7 @@ hcomp =
      (v , x) <- (spaces *> between (char '(') (spaces *> char ')') (abstr (partial0 ie)))
      space
      y <- exprArg
-     return (HComp (fromMaybe "V" v) x y)
+     return (HComp (v) x y)
 
 hole :: Parsec String Context Expr
 hole =

@@ -93,6 +93,12 @@ type SubFace2 = Map.Map Int Bool
 fcToSubFace2 :: Context -> Face -> SubFace2
 fcToSubFace2 ctx (Face _ (i , b)) = Map.fromList [(fromDimI ctx i , b)] 
 
+sfToSubFace2 :: Context -> SubFace -> SubFace2
+sfToSubFace2 ctx (SubFace _ sfm) = Map.mapKeys (fromDimI ctx) sfm
+
+sf2ToSubFace :: Context -> SubFace2 -> SubFace
+sf2ToSubFace ctx (sfm) = SubFace (getDim ctx) $ Map.mapKeys (toDimI ctx) sfm 
+
 
 
 iExprToSubFace2 :: IExpr -> [SubFace2]
@@ -276,6 +282,28 @@ toSubFace2 (IExpr x) =
 
 type Partial = Map.Map SubFace2 Expr
 
+properlyCoveredSubFaces2 :: Context -> Set.Set SubFace2 -> Set.Set SubFace2  
+properlyCoveredSubFaces2 ctx = Set.map (sfToSubFace2 ctx) . properlyCoveredSubFaces (getDim ctx) . Set.map (sf2ToSubFace ctx)
+
+
+
+--possible performance bootleneck,
+-- TODO create costless abstracton from SubFace and SubFace2
+partialWithSF :: Context -> Partial -> Map.Map SubFace2 Expr
+partialWithSF ctx pa =
+  let mkMissing :: SubFace2 -> Expr
+      mkMissing sf2 =
+        let sf = (sf2ToSubFace ctx sf2)
+            (sfParent , parent) =
+               
+                 head
+               $ filter ( (isSubFaceOf sf . fst))
+               $ (map (first $ sf2ToSubFace ctx) (Map.toList pa))
+          
+        in substProj (sfToSubFace2 ctx (jniSubFace sf sfParent)) parent
+  
+  in Map.union pa (Map.fromSet (mkMissing) (properlyCoveredSubFaces2 ctx (Map.keysSet pa)) )
+
 ensurePartial :: Map.Map SubFace2 Expr -> Either Expr Partial
 ensurePartial m =
   case fmap (first Map.toList) (Map.toList m) of
@@ -320,14 +348,14 @@ type IArg = ((Expr , Expr) , IExpr)
 
 
 data Expr =
-  HComp Name Partial Expr
+  HComp (Maybe Name) Partial Expr
   | Var VarIndex [IArg]
   | Hole Int
   deriving (Eq , Show)
 
 type LExpr = ([Maybe String] , Expr)  
 
-data CellExpr = CellExpr VarIndex [IArg]
+data CellExpr = CellExpr VarIndex [IExpr]
   deriving Show
 
 
@@ -423,6 +451,15 @@ exprFaces ctx e =
            substProj (fcToSubFace2 ctx fc) e
         ) 
 
+-- result is DimIndexed!
+exprSubFaces :: Context -> Expr -> FromLI SubFace Expr
+exprSubFaces ctx e = 
+   let n = getDim ctx
+   in FromLI n
+        (\sfc ->
+           substProj (sfToSubFace2 ctx sfc) e
+        ) 
+
 toVarIndexUnsafe :: Expr -> VarIndex
 toVarIndexUnsafe (Var vi []) = vi 
 toVarIndexUnsafe _ = error "not a term of dimension 0!"
@@ -508,9 +545,9 @@ mkVar ctx vi tl =
 
   in Var vi (zip tll tl)
 
-mkCellExpr :: (Env , Context) -> VarIndex -> [IArg] -> CellExpr
+mkCellExpr :: (Env , Context) -> VarIndex -> [IExpr] -> CellExpr
 mkCellExpr (ee@(env , ctx)) vI tl = 
-  ( CellExpr vI (map (second (remapIExpr (toDimI ctx))) tl) )
+  ( CellExpr vI (map ( (remapIExpr (toDimI ctx))) tl) )
 
 
 
@@ -548,7 +585,7 @@ mkCellExprForceDefTail ee@(env , ctx) vI dTail
        in toCellExpr ee (mkVar ctx vI  tl )
    
 toCellExpr :: (Env , Context) -> Expr -> CellExpr
-toCellExpr ee (Var vi tl) = mkCellExpr ee vi tl 
+toCellExpr ee (Var vi tl) = mkCellExpr ee vi (map snd tl) 
 toCellExpr _ _ = error "fatal, expected Var!"
   
 -- fromCellExpr :: (Env , Context) -> CellExpr -> Expr 
@@ -557,13 +594,13 @@ toCellExpr _ _ = error "fatal, expected Var!"
 
 fromCellExprSafe :: (Env , Context) -> CellExpr -> Expr 
 fromCellExprSafe (ee@(env , ctx)) (CellExpr vI tl) = 
-  mkVar ctx vI (map ( (remapIExpr (fromDimI ctx)) . snd) tl)
+  mkVar ctx vI (map ( (remapIExpr (fromDimI ctx))) tl)
 
 
 negateCellExprShallow :: (Set.Set Int ) -> CellExpr -> CellExpr
 negateCellExprShallow dims (CellExpr x y) =
   CellExpr x $
-    fmap (bimap (const undefined)  (remapIExprDir dims)) y
+    fmap (remapIExprDir dims) y
   
 negateCellExpr :: (Set.Set Int ) -> CellExpr -> CellExpr
 negateCellExpr dims (CellExpr x y) = undefined
@@ -571,7 +608,7 @@ negateCellExpr dims (CellExpr x y) = undefined
 remapCellExprShallow :: (Int -> Int) -> CellExpr -> CellExpr
 remapCellExprShallow f (CellExpr x y) =
   CellExpr x $
-    fmap (bimap (const undefined) (remapIExpr f)) y     
+    fmap (remapIExpr f) y     
 
 remapCellExpr :: (Int -> Int) -> CellExpr -> CellExpr
 remapCellExpr f (CellExpr x y) = undefined
@@ -634,13 +671,19 @@ mapAtMany ((0 , y) : ys) (x : xs) = y x : (mapAtMany (map (first (flip (-) 1)) y
 mapAtMany ys (x : xs) = x : (mapAtMany (map (first (flip (-) 1)) ys) xs)
 
 
-addSFConstraintToContext :: SubFace2 -> Context ->  Context
-addSFConstraintToContext sf (Context t d) =
+addSF2ConstraintToContext :: SubFace2 -> Context ->  Context
+addSF2ConstraintToContext sf (Context t d) =
    Context t
     $ reverse $ mapAtMany (map (second (second . const . Just )) (Map.toList sf)) $ reverse d
 
+addSFConstraintToContext :: SubFace -> Context ->  Context
+addSFConstraintToContext sf ct@(Context t d) =
+   Context t
+    $ reverse $ mapAtMany (map (second (second . const . Just )) (Map.toList (sfToSubFace2 ct sf))) $ reverse d
+
+
 addFaceConstraintToContext :: Face -> Context ->  Context
-addFaceConstraintToContext (Face _ (i , b)) ctx = addSFConstraintToContext (Map.fromList [(fromDimI ctx i , b)]) ctx
+addFaceConstraintToContext (Face _ (i , b)) ctx = addSF2ConstraintToContext (Map.fromList [(fromDimI ctx i , b)]) ctx
 
 lookupLevel :: Env -> String -> Maybe Int
 lookupLevel (Env ls _) x = ((length ls - 1)-) <$> elemIndex x (ls)
@@ -811,9 +854,9 @@ instance Codelike Partial where
 
 instance Codelike Expr where
   toCode (ee , c) (HComp v pa e) =
-     do x <- (toCode (ee , (addDimToContext c (Just v))) pa)
+     do x <- (toCode (ee , (addDimToContext c v)) pa)
         y <- (toCode (ee , c) e)
-        return ("hcomp " ++ "(λ " ++ v ++ " → λ { " ++ (indent 5 ("\n" ++ x)) ++ "})\n" ++ parr y )
+        return ("hcomp " ++ "(λ " ++ fromMaybe "todo" v ++ " → λ { " ++ (indent 5 ("\n" ++ x)) ++ "})\n" ++ parr y )
   -- toCode (ee , c) (ILam s e) =
   --    do x <- (toCode (ee , (addDimToContext c s)) e)
   --       return ("λ " ++ fromMaybe "_" s ++ " → " ++ (indent 5 ("\n" ++ x)) ++ "\n" )
@@ -922,7 +965,7 @@ mkCType e c (bTy , faces) =
 
 
 
-mkHcomp ::  Env -> Context -> (String , Partial , Expr) -> Either String Expr
+mkHcomp ::  Env -> Context -> (Maybe String , Partial , Expr) -> Either String Expr
 mkHcomp env c (s , pa , e) =
   if (getExprDim env c e == 0)
   then Right (HComp s pa e)
@@ -973,9 +1016,9 @@ mkExprGrid n k = ((env , ctxTop) , meg ctxTop k)
       let newVar = ( "z" ++ (show (k - 1)))
           newCtx = addDimToContext ctx (Just newVar)
       in  either ( \e -> error $ e ++ "imposible: " ++ (either id id $ toCode (env , ctxTop) ctx) )
-                 id (mkHcomp env ctx (newVar
+                 id (mkHcomp env ctx (Just newVar
                        , Map.fromSet (\sf2 ->
-                                        meg (addSFConstraintToContext sf2 newCtx) (k - 1)
+                                        meg (addSF2ConstraintToContext sf2 newCtx) (k - 1)
                                      ) (fExprAllFaces ctx)
 
                        , meg ctx (k - 1) ))

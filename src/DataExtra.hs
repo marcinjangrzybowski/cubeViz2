@@ -115,7 +115,13 @@ dot3 :: (d -> e) -> (a -> b -> c -> d) -> (a -> b -> c -> e)
 dot3 f g a b c = f $ g a b c 
 
 dot4 :: (e -> f) -> (a -> b -> c -> d -> e) -> (a -> b -> c -> d -> f)  
-dot4 f g a b c d = f $ g a b c d 
+dot4 f g a b c d = f $ g a b c d
+
+dot5 :: (f -> g) -> (a -> b -> c -> d -> e -> f) -> (a -> b -> c -> d -> e -> g)  
+dot5 f g a b c d e = f $ g a b c d e
+
+dot6 :: (g -> h) -> (a -> b -> c -> d -> e -> f -> g) -> (a -> b -> c -> d -> e -> f -> h)  
+dot6 ff g a b c d e f = ff $ g a b c d e f 
 
 curb :: Ord a => a -> a -> a -> a
 curb l h x

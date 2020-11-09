@@ -51,7 +51,7 @@ printCub (ee , c) cpd addr (Cub _ a) =
          let sym = fromRight (error "!!") $ getVarSymbol c k
              tailStr = concat $ intersperse (ifSel " ") $
                        zipWith (\i eI ->
-                                  let ss = toString (ee , c) $ (remapIExpr (fromDimI c)) $ snd eI
+                                  let ss = toString (ee , c) $ (remapIExpr (fromDimI c )) $ snd eI
                                   in    
                                      if isSelectedNode && (Just i == cpdTailAddress cpd)
                                      then (bgColor Red ss)  ++ (bgColor Green "")

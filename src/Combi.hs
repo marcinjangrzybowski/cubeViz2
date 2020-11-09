@@ -457,20 +457,47 @@ makeAntiH2 y = Set.filter (\x -> not (any (Set.isProperSubsetOf x) y)) y
 
 injFace :: SubFace -> Face ->  SubFace
 injFace sf@(SubFace n m) f@(Face _ (k , b))
-             | getDim f /= (subFaceDimEmb sf) = error "fece dimension do not mathc subfaceEmbdDim"
+             | getDim f /= (subFaceDimEmb sf) = error "face dimension do not match subfaceEmbdDim"
              | otherwise =
                 let k2 = (punchInMany (Map.keysSet m) k)
                 in SubFace n (Map.insert k2 b m)
-                
+
+injSubFace :: SubFace -> SubFace -> SubFace
+injSubFace sfL@(SubFace k sfLm) sf@(SubFace n m)
+   | getDim sfL /= (subFaceDimEmb sf) = error "subface dimension do not match subfaceEmbdDim"
+   | otherwise =
+       let sfLm2 = Map.mapKeys (punchInMany (Map.keysSet m)) sfLm
+                in SubFace n sfLm2
+
+jniSubFace :: SubFace -> SubFace -> SubFace
+jniSubFace sfL@(SubFace k sfLm) sf@(SubFace n m)
+   | getDim sfL /= getDim sf = error "subface dimension do not match"
+   | not $ isSubFaceOf sfL sf = error "not a subface!"
+   | otherwise =
+       let sfLm2 =   Map.fromList 
+                   $ map (Bf.first fromJust)
+                   $ filter (isJust . fst)
+                   $ map (Bf.first $ punchOutMany (Map.keysSet m))
+                   $ Map.toList sfLm
+                in SubFace (subFaceDimEmb sf) sfLm2
+                   
 isSubFaceOf :: SubFace -> SubFace -> Bool
 isSubFaceOf (SubFace n1 m1) (SubFace n2 m2)
    | n1 /= n2 = error "cannot comapre subfaces od diferent dimension!"
    | otherwise = (Map.isSubmapOf m2 m1) 
-  
+
+isProperSubFaceOf :: SubFace -> SubFace -> Bool
+isProperSubFaceOf (SubFace n1 m1) (SubFace n2 m2)
+   | n1 /= n2 = error "cannot comapre subfaces od diferent dimension!"
+   | otherwise = (Map.isProperSubmapOf m2 m1) 
+
+   
 
 isIncludedIn :: Set.Set SubFace -> SubFace -> Bool
 isIncludedIn sfcs sf = (any (isSubFaceOf sf) (sfcs)) 
 
+isProperlyIncludedIn :: Set.Set SubFace -> SubFace -> Bool
+isProperlyIncludedIn sfcs sf = isIncludedIn sfcs sf && (not $ Set.member sf sfcs)
 
 injFaceSide :: Face -> Face
 injFaceSide (Face n (i , b)) = (Face (n + 1) (i , b))
@@ -498,6 +525,10 @@ deleteButLeaveFaces fcs sf@(SubFace n _) m =
 missingSubFaces :: Int -> Set.Set SubFace -> Set.Set SubFace
 missingSubFaces n sfcs =
    Set.filter (\x -> (not $ isIncludedIn sfcs x) && (not (isFullSF x)) ) $ Set.fromList (genAllLI n)
+
+properlyCoveredSubFaces :: Int -> Set.Set SubFace -> Set.Set SubFace
+properlyCoveredSubFaces n sfcs =
+   Set.filter (\x -> (isProperlyIncludedIn sfcs x) && (not (isFullSF x)) ) $ Set.fromList (genAllLI n)
 
 
 -- TODO : make it safer

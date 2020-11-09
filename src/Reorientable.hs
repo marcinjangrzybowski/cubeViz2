@@ -87,6 +87,7 @@ class DiaDeg a where
 
   
 instance OfDim [a] where
+  
   getDim = length
 
 
