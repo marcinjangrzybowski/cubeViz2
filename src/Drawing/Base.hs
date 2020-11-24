@@ -1,5 +1,9 @@
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections #-}
+
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveFunctor #-}
+
 module Drawing.Base where
 
 import Data.Bifunctor
@@ -21,6 +25,10 @@ import DataExtra
 
 import Control.Applicative
 
+import Debug.Trace
+
+import qualified Data.Map as Map
+
 -- type NPoint = [ Float ]
 
 -- data Seg = Pt Float | Seg Float Float
@@ -30,13 +38,13 @@ class InSpace a where
   sMap :: ([Float] -> [Float]) -> a -> a
 
   scale :: Float -> a -> a
-  scale x = sMap (fmap ((*) x))
+  scale x = sMap (fmap (x *))
 
   translate :: [Float] -> a -> a
   translate x = sMap (zipWith (+) x)
-  
+
   scaleOrigin :: Float -> [Float] -> a -> a
-  scaleOrigin s o = (translate o) . scale s  . (translate $ (map negate) o)
+  scaleOrigin s o = translate o . scale s  . translate ((map negate) o)
 
 instance {-# OVERLAPPING #-} InSpace [Float] where
   sMap = id
@@ -45,7 +53,7 @@ instance (InSpace b)  => InSpace [b] where
   sMap = fmap . sMap
 
 instance InSpace a  => InSpace (a , b) where
-  sMap = first . sMap 
+  sMap = first . sMap
 
 -- instance Bi a => InSpace (a [ Float ]) where
 --   sMap = fmap   
@@ -53,7 +61,7 @@ instance InSpace a  => InSpace (a , b) where
 
 
 --todo Smplx should be non empty!
-type Smplx = [[ Float ]]     
+type Smplx = [[ Float ]]
 
 
 -- type MetaColor = [Maybe Color]
@@ -68,21 +76,21 @@ type Pt3D = (Float , Float , Float)
 
 data Renderable = Point Pt3D | Line (Pt3D , Pt3D) | Triangle (Pt3D , Pt3D , Pt3D)
 
-type Renderables = [(Renderable,Shade)]  
+type Renderables = [(Renderable,Shade)]
 
 
 
 
 
 toRenderable :: Smplx -> Maybe Renderable
-toRenderable ([([ x0 , y0 , z0 ]) , ([ x1 , y1 , z1]) , ([ x2 , y2 , z2])]) =
-    Just $ Triangle ((x0 , y0 , z0) , (x1 , y1 , z1) , (x2 , y2 , z2)) 
-toRenderable ([([ x0 , y0 , z0 ]) , ([ x1 , y1 , z1])]) = Just $ Line ((x0 , y0 , z0) , (x1 , y1 , z1))
-toRenderable ([[ x0 , y0 , z0 ]]) = Just $ Point (x0 , y0 , z0)
-toRenderable ([([ x0 , y0]) , ([ x1 , y1]) , ([ x2 , y2])]) =
-    Just $ Triangle ((x0 , y0 , 0) , (x1 , y1 , 0) , (x2 , y2 , 0)) 
-toRenderable ([([ x0 , y0 ]) , ([ x1 , y1 ])]) = Just $ Line ((x0 , y0 , 0) , (x1 , y1 , 0))
-toRenderable ([[ x0 , y0 ]]) = Just $ Point (x0 , y0 , 0)
+toRenderable [([ x0 , y0 , z0 ]) , ([ x1 , y1 , z1]) , ([ x2 , y2 , z2])] =
+    Just $ Triangle ((x0 , y0 , z0) , (x1 , y1 , z1) , (x2 , y2 , z2))
+toRenderable [([ x0 , y0 , z0 ]) , ([ x1 , y1 , z1])] = Just $ Line ((x0 , y0 , z0) , (x1 , y1 , z1))
+toRenderable [[ x0 , y0 , z0 ]] = Just $ Point (x0 , y0 , z0)
+toRenderable [([ x0 , y0]) , ([ x1 , y1]) , ([ x2 , y2])] =
+    Just $ Triangle ((x0 , y0 , 0) , (x1 , y1 , 0) , (x2 , y2 , 0))
+toRenderable [([ x0 , y0 ]) , ([ x1 , y1 ])] = Just $ Line ((x0 , y0 , 0) , (x1 , y1 , 0))
+toRenderable [[ x0 , y0 ]] = Just $ Point (x0 , y0 , 0)
 toRenderable _ = Nothing
 
 
@@ -90,22 +98,35 @@ toRenderable _ = Nothing
 
 toRenderableForce :: Smplx -> [Renderable]
 toRenderableForce l =
-  maybe (explode l >>= toRenderableForce) pure $ (toRenderable l) 
+  maybe (explode l >>= toRenderableForce) pure (toRenderable l)
 
-data DrawingInterpreter a =  
+data DrawingInterpreter a =
   DrawingInterpreter
    { ifEmpty :: Renderables
-   , fromDrawing :: Int -> Maybe (Drawing a -> Renderables)    
+   , fromDrawing :: Int -> Maybe (Drawing a -> Renderables)
    }
+
+simplexDim ::  Smplx -> Int
+simplexDim x = length $ head x
+
+
+drawingDim ::  Drawing a -> Maybe Int
+drawingDim [] = Nothing
+drawingDim ((x , _) : _) = Just (length (head x))
+
+traceDim :: Drawing a -> Drawing a
+traceDim x = trace
+    ("zz: " ++ show (fmap (simplexDim . fst) x))
+    x
 
 toRenderableDI :: Shadelike a => DrawingInterpreter a -> Drawing a -> Either String (Maybe Int , Renderables)
 toRenderableDI di dr =
-  case (ensureFold (length . head . fst) dr) of
-    EFREmpty -> Right $ (Nothing , ifEmpty di)
-    EFREvery dim -> case (fromDrawing di dim) <*> pure dr of
+  case ensureFold (length . head . fst) dr of
+    EFREmpty -> Right (Nothing , ifEmpty di)
+    EFREvery dim -> case fromDrawing di dim <*> pure dr of
                        Nothing -> Left ("not implementedDimInDrawingInterpreter " ++ show dim)
                        Just re -> Right (Just dim , re)
-    
+    _ -> error "mixed dimensions drawing"
 
 mapStyle :: (a -> a) -> Drawing a -> Drawing a
 mapStyle = fmap . fmap
@@ -115,28 +136,32 @@ toRenderables :: Shadelike a => Drawing a -> Renderables
 toRenderables = fmap $ bimap (fromJust . toRenderable) toShade
 
 toRenderablesIgnore :: Shadelike a => Drawing a -> Renderables
-toRenderablesIgnore =  catMaybes . fmap (\(x , y) -> fmap (flip (,) y) x ) . (fmap $ bimap toRenderable toShade)
+toRenderablesIgnore =  mapMaybe (\(x , y) -> fmap (flip (,) y) x ) . (fmap $ bimap toRenderable toShade)
 
 
 
 toRenderablesForce :: Shadelike a => Drawing a -> Renderables
 toRenderablesForce l =
-  fmap (bimap toRenderableForce toShade) l >>= (\(l , a) -> fmap (flip (,) a) l)
+  l >>= (\(l , a) -> fmap (flip (,) a) l) . (bimap toRenderableForce toShade)
 
 transposeDrw :: Int -> Drawing a -> Drawing a
 transposeDrw k = sMap (\l ->
                          case l of
                            [] -> error "attempt to tranpose 0 dimensional drawing"
-                           _ -> listInsert k (last l) (init l)) 
+                           _ -> listInsert k (last l) (init l))
 
 
 
 versor :: Int -> Int -> [Float]
-versor n k = fmap (\i -> if i == k then 1.0 else 0.0) $ range n
-       
-embed :: Int -> ([ Float ] -> Float) -> Drawing a -> Drawing a
-embed k f = sMap (\l -> listInsert k (f l) l)  
+versor n k = (\i -> if i == k then 1.0 else 0.0) <$> range n
 
+embed :: Int -> ([ Float ] -> Float) -> Drawing a -> Drawing a
+embed k f = sMap (\l -> listInsert k (f l) l)
+
+embedSF :: SubFace -> Drawing a -> Drawing a
+embedSF (SubFace n mp) =
+  let z = map ( \(k , b)  -> embed k (const (if b then 1.0 else 0.0))) (Map.toList mp)
+  in foldFL z
 
 -- extrudeNotMeta :: [Float] -> Drawing a -> Drawing a
 -- extrudeNotMeta v (Drawing l) =
@@ -150,24 +175,23 @@ extrudeBasicF k (f0 , f1) (s , a) =
     -- (=<<) (\(s , a) ->
      let ss = map
                (\i ->
-                 let s0 = fmap (\pt -> listInsert k (f0 pt) pt) $ take (i + 1) s
-                     s1 = fmap (\pt -> listInsert k (f1 pt) pt) $ drop i s
+                 let s0 = (\pt -> listInsert k (f0 pt) pt) <$> take (i + 1) s
+                     s1 = (\pt -> listInsert k (f1 pt) pt) <$> drop i s
                  in s0 ++ s1
                   )
-               $ fmap fst $ zip [0..] s
-         
-     in map (flip (,) a) (ss)
+               $ fst <$> zip [0..] s
+
+     in map ((, a)) ss
 
 extrudeLinesF :: Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a
 extrudeLinesF k (f0 , f1) (s , a) =
     -- (=<<) (\(s , a) ->
-     let ss = if (length s > 2) then error "dim>1 feeded to extrudeLinesF!!"
-              else ( map (\pt -> listInsert k (f0 pt) pt  ) s
+     let ss = if length s > 2 then error "dim>1 feeded to extrudeLinesF!!"
+              else map (\pt -> listInsert k (f0 pt) pt  ) s
                      :
                      map (\pt -> listInsert k (f1 pt) pt  ) s
                      :
                      map (\pt -> [listInsert k (f0 pt) pt , listInsert k (f1 pt) pt ]  ) s
-                   )
 
               -- map
               --  (\i ->
@@ -176,8 +200,8 @@ extrudeLinesF k (f0 , f1) (s , a) =
               --    in s0 ++ s1
               --     )
               --  $ fmap fst $ zip [0..] s
-         
-     in map (flip (,) a) (ss)
+
+     in map ((, a)) ss
 
 extrudePlanesF :: Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a
 extrudePlanesF k (f0 , f1) (s , a) =
@@ -194,19 +218,21 @@ class Extrudable a where
   extrudeMode _ = Basic
 
   extrudeFPriv :: Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a
-  extrudeFPriv k f (s , a) = extrudeF (extrudeMode a) k f (s , a) 
+  extrudeFPriv k f (s , a) = extrudeF (extrudeMode a) k f (s , a)
 
   extrude :: Int -> ([Float] -> Float , [Float] -> Float) -> Drawing a -> Drawing a
   extrude k f = (=<<) $ extrudeFPriv k f
-    
+
 instance Extrudable ([String],Color) where
 
-instance Extrudable (([String],ExtrudeMode),Color) where  
+type MColor = (([String],ExtrudeMode),Color)
+
+instance Extrudable (([String],ExtrudeMode),Color) where
   extrudeMode = snd . fst
 
 --first arg is dim of ambient, second dim of simplex
-mapWithDim :: (Int -> Int -> (Smplx , a) -> [(Smplx , a)]) -> Drawing a -> Drawing a 
-mapWithDim _ [] = [] 
+mapWithDim :: (Int -> Int -> (Smplx , a) -> [(Smplx , a)]) -> Drawing a -> Drawing a
+mapWithDim _ [] = []
 mapWithDim f xs =
  xs >>= (\(pts , a) -> f (length (head pts) ) (length pts - 1) (pts , a) )
 
@@ -221,7 +247,7 @@ getPoints l = undefined
 
 extrudeLines :: Int -> Int -> ([Float] -> Float , [Float] -> Float) -> Drawing a -> Drawing a
 extrudeLines k sk (f0 , f1) = undefined
-    
+
 
 
 
@@ -229,24 +255,24 @@ type ZDrawing a = FromLI Piece (Drawing a)
 
 type ColorType = (([String] , ExtrudeMode) , Color)
 
-     
-    
+
+
 -- dim is dimention of input,
 pieceHyperPlanes :: (Bool , Int) -> Piece -> ([Float] -> Float , [Float] -> Float)
-pieceHyperPlanes (b , j0) pc0@( (Subset dim _) , _) = ( hyperPlanes !! j , hyperPlanes !! (j + 1) ) 
+pieceHyperPlanes (b , j0) pc0@( Subset dim _ , _) = ( hyperPlanes !! j , hyperPlanes !! (j + 1) )
 
   where
 
     pc = pc0
-    
+
     hyperPlanes0 =
        sortBy (pieceComp pc)
-       ((fmap (flip (,) False) (range dim)) ++ (fmap (flip (,) True) (range dim)))
-    
-    
+       (fmap (flip (,) False) (range dim) ++ fmap (flip (,) True) (range dim))
+
+
     hyperPlanes1 :: [[Float] -> Float]
     hyperPlanes1 =
-       let (hF , hT) = halves $ fmap (\(k , bb) -> \pt -> evalNegFloat bb (pt !! k) )  hyperPlanes0
+       let (hF , hT) = halves $ fmap (\ (k , bb) pt -> evalNegFloat bb (pt !! k) )  hyperPlanes0
        in
        [const 0]
          ++
@@ -258,7 +284,7 @@ pieceHyperPlanes (b , j0) pc0@( (Subset dim _) , _) = ( hyperPlanes !! j , hyper
          ++
        [const 1.0]
 
-    hyperPlanes = 
+    hyperPlanes =
        if b then reverse hyperPlanes1 else hyperPlanes1
 
     j = dim - j0
@@ -267,12 +293,11 @@ degen :: (Extrudable a) => Int -> ZDrawing a -> ZDrawing a
 degen k (FromLI n f) =
 
    -- fmap (scaleRelToCenter 1.01)
-  
-   (FromLI (n + 1)
+
+   FromLI (n + 1)
      (\pc ->
-        let ((crnr , side) , pcPrj ) = projectSplit k ( pc)              
+        let ((crnr , side) , pcPrj ) = projectSplit k ( pc)
         in extrude k (pieceHyperPlanes (crnr , side) pcPrj) (f pcPrj) )
-   )
 
 
 
@@ -282,10 +307,10 @@ centerOf [] = error "illegal simplex"
 centerOf pts = map average $ transpose pts
 
 
-  
+
 scaleRelToCenter :: Float -> Drawing a -> Drawing a
 scaleRelToCenter f =
-  map $ first $
+  map $ first
     (\pts ->
        let center = centerOf pts
        in scaleOrigin f center pts
@@ -302,13 +327,13 @@ extrudeSeg =
   (=<<) (\(s , a) ->
      let ss = map
                (\i ->
-                 let s0 = fmap ((:) 0) $ take (i + 1) s
-                     s1 = fmap ((:) 1) $ drop i s
+                 let s0 = ((:) 0) <$> take (i + 1) s
+                     s1 = ((:) 1) <$> drop i s
                  in s0 ++ s1
                   )
-               $ fmap fst $ zip [0..] s
-         
-     in map (flip (,) a) (ss))
+               $ fst <$> zip [0..] s
+
+     in map ((, a)) ss)
 
 -- todo inline!
 unitHyCube :: Int -> Drawing ()
@@ -329,3 +354,5 @@ unitHyCubeSkel n k =
         embed 0 (const 1) (unitHyCubeSkel (n - 1) k)
           ++
         extrudeSeg (unitHyCubeSkel (n - 1) (k - 1))
+
+

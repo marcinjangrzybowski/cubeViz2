@@ -35,48 +35,27 @@ pieceComp (su@(Subset _ suS) , pm@(Permutation pmm)) (x , xb) (y , yb) =
         EQ -> negCompIf xB (compare (pmm ! y) (pmm ! x))
         z -> z
 
-iExprPE :: Piece -> IExpr -> Either Bool (Int , Bool)
+iExprPE :: Piece -> IExpr -> (Int , Bool)
 iExprPE pc =
-  elimIExpr
-    (Right . g)
+  elimIExpr g
   where
     
     cmp = pieceComp pc
     
     g :: [[(Int,Bool)]] -> (Int , Bool)
-    -- g = maximum . (fmap (minimum))
     g =  maximumBy cmp . (fmap (minimumBy cmp))  
      
--- (fmap (iExprPE . enumerate 1) [0 , 1]) <$> [end True , end False ]
 
--- reorientExpr :: CellExpr -> [ Either Bool (Int, Bool) ] -> PieceExpr
--- reorientExpr = undefined
-
-pieceEval :: CellExpr -> Piece -> PieceExprNNF
+pieceEval :: CellExpr -> Piece -> PieceExpr
 pieceEval (CellExpr vi tl) pc =
-  let tl2 = (fmap $ iExprPE (Bf.second id pc)) (fmap snd tl)
-  in PieceExprNNF vi tl2 
+  let tl2 = (fmap $ iExprPE pc) tl
+  in PieceExpr vi tl2 
 
-
--- handleFaceMaps :: (Env , Context) -> PieceExprNNF -> PieceExpr
--- handleFaceMaps = undefined  
-
-pieceExprNormal :: PieceExprNNF -> PieceExpr
-pieceExprNormal (PieceExprNNF vi tl) =
-    case (partitionEithers tl) of
-      ([] , tl2) -> (PieceExpr vi tl2)  
-      _ -> undefined
       
 piecesEval :: Int -> CellExpr -> FromLI Piece PieceExpr
--- piecesEval ec@(e , c) ce | trace ("myfun " ++ show ce) False = undefined
 piecesEval n ce =
   FromLI n (f)
 
   where
     f :: Piece -> PieceExpr 
-    f = pieceExprNormal . pieceEval ce
-
-    -- g :: PieceExpr -> PieceExpr
-    -- -- g _ (PieceExpr i [(0 , True)]) = (PieceExpr i [(1 , True)])
-    -- g x | trace ("myfun " ++ show ce ++ " " ++ show x) False = undefined
-    -- g x = x
+    f = pieceEval ce

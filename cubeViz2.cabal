@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 43f9a4181dd734e673553483835ca74182b2026dd3ba34d7f68aa3d7abb7d90b
+-- hash: a66dd624f9328c9763ca8199c9513b2e523a0bb898f8eae0aac582935781cf08
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -53,6 +53,7 @@ library
       ShowExp
       ShowExpOld
       Syntax
+      Test
       UI.UI
   other-modules:
       Paths_cubeViz2

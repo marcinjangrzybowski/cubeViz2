@@ -10,6 +10,8 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.Foldable
 
+import Control.Applicative
+
 tpl2arr (x , y) = [x , y]
 trpl2arr (x , y , z) = [x , y , z]
 
@@ -123,6 +125,10 @@ dot5 f g a b c d e = f $ g a b c d e
 dot6 :: (g -> h) -> (a -> b -> c -> d -> e -> f -> g) -> (a -> b -> c -> d -> e -> f -> h)  
 dot6 ff g a b c d e f = ff $ g a b c d e f 
 
+dot7 :: (h -> i) -> (a -> b -> c -> d -> e -> f -> g -> h) -> (a -> b -> c -> d -> e -> f -> g -> i)  
+dot7 ff h a b c d e f g = ff $ h a b c d e f g 
+
+
 curb :: Ord a => a -> a -> a -> a
 curb l h x
   | x < l     = l
@@ -175,3 +181,7 @@ binsBy f = foldr (\a -> Map.insertWith (++) (f a) [a]) Map.empty
 
 setMapMaybe :: (Ord a , Ord b) => (a -> Maybe b) -> Set.Set a -> Set.Set b
 setMapMaybe f = Set.fromList . Maybe.mapMaybe f . Set.toList
+
+
+foldFL :: [a -> a] -> a -> a
+foldFL l x = foldl (\x f -> f x) x l 

@@ -93,6 +93,8 @@ instance Shadelike Color where
             }  
 
 
+
+
 -- instance Shadelike a => Shadelike (b , a) where
 --   toShade = toShade . snd
 

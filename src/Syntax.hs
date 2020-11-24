@@ -24,6 +24,8 @@ import qualified Data.List.NonEmpty as Ne
 
 import DataExtra
 
+import Debug.Trace
+
 import Combi
 
 -- do przemyslenia:
@@ -65,6 +67,7 @@ setSetElim em emSing f s =
         -- if antihereditary property of s is assumed
         -- this branch is guaranted to not contain empty lists
 
+--- this is why IExpr should be implemented via NON EMPTY SETS/MAPS
 elimIExpr :: ([[(Int , Bool)]] -> b) -> IExpr -> b
 elimIExpr f (IExpr x) =
   (setSetElim (error "wrong IExpr") (error "wrong IExpr") f) x
@@ -117,12 +120,14 @@ subFace2ToIExpr sf2 =
     mapToSet sf2
   & Set.singleton
   & IExpr
+
+
   
 substSubFace2 :: (VarIndex -> Maybe IExpr) -> SubFace2 -> [SubFace2]
-substSubFace2 f = iExprToSubFace2 . substIExpr f . subFace2ToIExpr
+substSubFace2 f = (iExprToSubFace2 . substIExpr f . subFace2ToIExpr)
 
-projSubFace2 :: SubFace2 -> SubFace2 -> [SubFace2]
-projSubFace2 sf2 = either (\b -> if b then [Map.empty] else []) id . fmap iExprToSubFace2 . projIExpr sf2 . subFace2ToIExpr
+
+
 
 projIExpr :: SubFace2 -> IExpr -> Either Bool IExpr
 projIExpr sf2 x =
@@ -283,31 +288,37 @@ toSubFace2 (IExpr x) =
 type Partial = Map.Map SubFace2 Expr
 
 properlyCoveredSubFaces2 :: Context -> Set.Set SubFace2 -> Set.Set SubFace2  
-properlyCoveredSubFaces2 ctx = Set.map (sfToSubFace2 ctx) . properlyCoveredSubFaces (getDim ctx) . Set.map (sf2ToSubFace ctx)
+properlyCoveredSubFaces2 ctx =
+  (Set.map (sfToSubFace2 ctx) . properlyCoveredSubFaces (getDim ctx) . Set.map (sf2ToSubFace ctx))
 
 
 
 --possible performance bootleneck,
 -- TODO create costless abstracton from SubFace and SubFace2
-partialWithSF :: Context -> Partial -> Map.Map SubFace2 Expr
-partialWithSF ctx pa =
-  let mkMissing :: SubFace2 -> Expr
+partialWithSF :: Context -> Maybe Name -> Partial -> Map.Map SubFace2 Expr
+partialWithSF ctx nm pa = 
+  let ctx1 = addDimToContext ctx nm
+      mkMissing :: SubFace2 -> Expr
       mkMissing sf2 =
         let sf = (sf2ToSubFace ctx sf2)
-            (sfParent , parent) =
+            (sfParent , parent) =  
                
                  head
                $ filter ( (isSubFaceOf sf . fst))
                $ (map (first $ sf2ToSubFace ctx) (Map.toList pa))
-          
-        in substProj (sfToSubFace2 ctx (jniSubFace sf sfParent)) parent
-  
-  in Map.union pa (Map.fromSet (mkMissing) (properlyCoveredSubFaces2 ctx (Map.keysSet pa)) )
+            ctx2 = addSFConstraintToContext sfParent ctx   
+            sf2' = (sfToSubFace2 ctx2 (jniSubFace sf sfParent))
+            ctx2' = addSF2ConstraintToContext sf2 ctx1
+        in substProj ctx2' sf2' parent
+      missing = (Map.fromSet (mkMissing) (properlyCoveredSubFaces2 ctx (Map.keysSet pa)) )
+  in Map.union pa missing
+       --(trace (show (Map.size missing)) (missing))
 
 ensurePartial :: Map.Map SubFace2 Expr -> Either Expr Partial
 ensurePartial m =
+  -- trace ("\nfcs" ++ show (fmap (Map.toList . fst) (Map.toList m)) ++ "\n\n") $
   case fmap (first Map.toList) (Map.toList m) of
-    [([] , p)] -> Left p
+    (([] , p) : _) -> Left p
     _ -> Right (makeAntiHKeys m)
 
 partialEmpty :: Partial
@@ -416,30 +427,37 @@ multMapKey f m = Map.unions $ fmap snd $ Map.toList (Map.mapWithKey f m)
 
 
 -- IExpr CANT be Ends (I0 or I1)
-substIVars :: [IExpr] -> Expr -> Expr
-substIVars ies = \case 
+
+
+substIVars :: Context -> [IExpr] -> Expr -> Expr
+substIVars ctx ies = 
+    (\case 
     HComp nm pa e ->
-       let mappedSubfaces = Map.fromList $ concat $
+       let ctx1 = addDimToContext ctx nm
+
+           mappedSubfaces = Map.fromList $ concat $
              fmap
                (\(sf  , ve) ->
                   let sf2s = substSubFace2 (\(VarIndex i) -> look i ies) sf
-                      ve2 = substIVars ies ve
+                      ctx2 = addSF2ConstraintToContext sf ctx1
+                      ve2 = substIVars ctx2 ies ve
                       ves = flip fmap sf2s
-                             (\sff -> (sff , substProj sff ve2))
+                             (\sff -> (sff , substProj ctx2 sff ve2))
                               
                   in ves
                )
                (Map.toList pa)
+               
 
        in case ensurePartial mappedSubfaces of
-             Left e -> e
-             Right pa -> HComp nm pa (substIVars ies e)
+             Left e -> error "should not be possible here"
+             Right pa -> HComp nm pa (substIVars ctx ies e)
 
        
     Var vi tl ->
       Var vi
-        (fmap (bimap (mapBoth $ (substIVars ies)) (substIExpr (\(VarIndex i) -> look i ies))) tl)
-    Hole i -> Hole i
+        (fmap (bimap (mapBoth $ (substIVars ctx ies)) (substIExpr (\(VarIndex i) -> look i ies))) tl)
+    Hole i -> Hole i)
 
 
 -- result is DimIndexed!
@@ -448,7 +466,7 @@ exprFaces ctx e =
    let n = getDim ctx
    in FromLI n
         (\fc ->
-           substProj (fcToSubFace2 ctx fc) e
+           substProj ctx (fcToSubFace2 ctx fc) e
         ) 
 
 -- result is DimIndexed!
@@ -457,7 +475,7 @@ exprSubFaces ctx e =
    let n = getDim ctx
    in FromLI n
         (\sfc ->
-           substProj (sfToSubFace2 ctx sfc) e
+           substProj ctx (sfToSubFace2 ctx sfc) e
         ) 
 
 toVarIndexUnsafe :: Expr -> VarIndex
@@ -473,30 +491,56 @@ exprCorners ctx e =
   let n = getDim ctx
   in FromLI n
       (toVarIndexUnsafe
-      . flip substProj e
+      . flip (substProj ctx) e
       . subsetToSubFace2 ctx) 
 
 isHoleExpr (Hole _) = True
 isHoleExpr _ = False
 
-substProj :: SubFace2 -> Expr -> Expr
-substProj sf = \case 
-    HComp nm pa e ->
+subFace2ProjSplit :: SubFace2 -> SubFace2 -> (Maybe (SubFace2 , SubFace2)) 
+subFace2ProjSplit sf sf' =
+   let z = (all id $ Map.elems $ Map.intersectionWithKey
+            (\k -> \b -> \b' -> b' == b )
+             sf sf')
+   in
+      if z then
+              let w = Just (Map.difference sf sf' , Map.difference sf' sf)
+              in  w
+      else Nothing
 
-       let mappedSubfaces = Map.fromList $ concat $
+dropDimInside :: Int -> Expr -> Expr 
+dropDimInside k = remapIExpInExpr (fromJust . punchOut k)
+   
+  
+substProj :: Context -> SubFace2 -> Expr -> Expr
+substProj ctx sf =
+  -- trace ("\n---- "++ (show sf) ++ "---\n" ++ (show (reverse (allDims ctx)) ) ++ "\n" ++ (toStringEE ctx e) ++ "\n-----\n")
+  (\case 
+    HComp nm pa e ->
+       -- TODO : eficiency!
+      
+       let ctx1 = addDimToContext ctx nm
+           mappedSubfaces = Map.fromList $ catMaybes $
              fmap
                (\(sfC  , ve) -> 
-                  let sf2s = projSubFace2 sf sfC
+                  let sf2s = subFace2ProjSplit sf sfC
+                      ctx2 = addSF2ConstraintToContext sfC ctx1
                       ves = flip fmap sf2s
-                             (\sff -> (sff , substProj sff ve))
+                             (\(sfP,sff) -> (sff , substProj ctx2 sfP ve))
                               
                   in ves
                )
                (Map.toList pa)
 
        in case ensurePartial mappedSubfaces of
-             Left e -> e
-             Right pa -> HComp nm pa (substProj sf e)
+             Left e' ->
+                let ctx3 = (addSF2ConstraintToContext sf ctx1)
+                    k' = ((length (allDims ctx3)) - 1)
+                    e2' = (substProj ctx3 (Map.singleton
+                                             k' True)
+                                            e')
+                in dropDimInside k' e2'
+             Right pa -> HComp nm pa (substProj ctx sf e)
 
       
     Var vi tl ->
@@ -504,18 +548,18 @@ substProj sf = \case
           
       in case endsA of
             [] -> Var vi (flip fmap (zip tl ieA) (
-                   \((en , _) , (Right ie , _)) -> (mapBoth (substProj sf) en  , ie)
+                   \((en , _) , (Right ie , _)) -> (mapBoth (substProj ctx sf) en  , ie)
                    ))
             ((Left b , (e0 , e1)) : _)
-               -> substProj sf $ if b then e1 else e0
-    Hole i -> Hole i
+               -> substProj ctx sf $ if b then e1 else e0
+    Hole i -> Hole i)
 
 
 -- TODO :: arity checking!!
 contextualizeFace :: Context -> [IExpr] -> LExpr -> Expr
 contextualizeFace ctx@(Context _ dims) tl =
     unLiftNotArguments
-  . substIVars tl
+  . substIVars ctx tl
   . liftNotArguments
   . snd
 
@@ -545,6 +589,7 @@ mkVar ctx vi tl =
 
   in Var vi (zip tll tl)
 
+-- this recives tail in VarIndexes
 mkCellExpr :: (Env , Context) -> VarIndex -> [IExpr] -> CellExpr
 mkCellExpr (ee@(env , ctx)) vI tl = 
   ( CellExpr vI (map ( (remapIExpr (toDimI ctx))) tl) )
@@ -614,9 +659,6 @@ remapCellExpr :: (Int -> Int) -> CellExpr -> CellExpr
 remapCellExpr f (CellExpr x y) = undefined
   -- CellExpr x $
   --   fmap (second (remapIExpr f)) y     
-
--- NNF - not normal form
-data PieceExprNNF = PieceExprNNF VarIndex ([Either Bool (Int , Bool)])
 
 -- here indexes are DIM INDEXES
 
@@ -691,14 +733,18 @@ lookupLevel (Env ls _) x = ((length ls - 1)-) <$> elemIndex x (ls)
 lookupBType :: Env -> String -> Maybe BType
 lookupBType (Env  _ dts) x = (BType . ((length dts - 1)-)) <$> elemIndex x (map fst dts) 
 
+allDims :: Context -> [(String , Maybe Bool)]
+allDims (Context _ l) = map (first (fromMaybe "_")) $ l 
+
+
 unConstrainedDimsOnly :: Context -> [String]
 unConstrainedDimsOnly (Context _ l) = map ((fromMaybe "_") . fst) $ filter (isNothing . snd) $ l 
 
 unConstrainedDimsOnlyIds :: Context -> [Int]
 unConstrainedDimsOnlyIds (Context _ l) = map snd $ filter (isNothing . snd . fst) $ zip (reverse l) [0..] 
 
-(!!<) :: [a] -> Int -> a 
-l !!< i = l !! (length l - 1 - i)
+(!!<) :: [a] -> Int -> Maybe a 
+l !!< i = look (length l - 1 - i) l
 
 
 
@@ -708,9 +754,15 @@ toDimI c@(Context _ l) i =
 
   in 
      case (l !!< i) of
-       (s , Just _) -> error $ "constrained dim: " ++ (show i) ++ " " ++ fromMaybe "_" s 
-       (_ , Nothing) -> ii
-            
+       Just (s , Just _) ->
+                        -- let z = " \n \n constrainedd dim: " ++ (show i) ++ " " ++ fromMaybe "_" s
+                        --              ++ "\n\nctx:" ++ (show l)
+                        -- in
+                          error $ "constrainedd dim: " ++ (show i) ++ " " ++ fromMaybe "_" s   
+       Just (_ , Nothing) -> ii
+
+       Nothing -> error $ "\n\nbad VarI: " ++ show i ++ " ctx :" ++ show l
+                             
 countTrueBeforeNFalse :: [Bool] -> Int -> Int 
 countTrueBeforeNFalse = h
   where
@@ -743,9 +795,12 @@ indexS k l = if (k < length l) then Just (l !! k) else Nothing
 
 getDimSymbol :: Context -> Int -> Either String (Maybe String)
 getDimSymbol (Context _ l) i =
-   maybe (Left "bad dim abstraction!")
-         (Right . fst)
-         (indexS ((length l - 1)- i) l)
+   let j = ((length l - 1)- i)
+   in
+     if j < 0 then (Left $ "bad dim abstraction! : \n" ++ (show l) ++ "  " ++ show i) 
+     else maybe (Left "bad dim abstraction!")
+                  (Right . fst)
+                  (indexS j l)
 
 lookupVar :: Context -> String -> Maybe Int
 lookupVar (Context l _) x = ((length l - 1)-) <$> elemIndex x (map fst l) 
