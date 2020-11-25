@@ -92,8 +92,8 @@ main()
 	 , 0.0 , 0.0 , (-1.0 * (f + n)) /( f - n) , (-2.0 * f * n) /( f - n)
 	 , 0.0 , 0.0 , -1.0 , 0.0);
 
-   float aspect = screen.x/screen.y
-   * 0.75;
+   float aspect = screen.x/screen.y;
+//   * 0.75;
 
    gl_Position =
                   (

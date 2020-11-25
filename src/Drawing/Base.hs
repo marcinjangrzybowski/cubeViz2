@@ -175,14 +175,13 @@ extrudeBasicF k (f0 , f1) (s , a) =
     -- (=<<) (\(s , a) ->
      let ss = map
                (\i ->
-                 let s0 = (\pt -> listInsert k (f0 pt) pt) <$> take (i + 1) s
-                     s1 = (\pt -> listInsert k (f1 pt) pt) <$> drop i s
+                 let s0 = (\pt -> listInsert k (f0 pt) pt) <$> drop i s
+                     s1 = (\pt -> listInsert k (f1 pt) pt) <$> take (i + 1) s
                  in s0 ++ s1
                   )
                $ fst <$> zip [0..] s
-
      in map ((, a)) ss
-
+   
 extrudeLinesF :: Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a
 extrudeLinesF k (f0 , f1) (s , a) =
     -- (=<<) (\(s , a) ->

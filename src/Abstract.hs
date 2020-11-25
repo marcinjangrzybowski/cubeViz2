@@ -60,9 +60,12 @@ data OCub b =
 
 
 data AddressPart = AOnCylinder SubFace | AOnBottom SubFace
-  deriving (Show)
+  deriving (Show , Eq)
 data Address = Address SubFace [AddressPart]
-  deriving (Show)
+  deriving (Show , Eq)
+
+
+
 
 -- type Address = [SubFace]
 
@@ -78,6 +81,92 @@ instance OfDim (OCub b) where
 
 instance OfDim Address where
   getDim (Address sf _) = getDim sf
+
+instance OfDim AddressPart where
+  getDim (AOnCylinder sf) = getDim sf + 1
+  getDim (AOnBottom sf) = getDim sf
+
+
+mbSubFaceAddress :: [AddressPart] -> Maybe SubFace
+mbSubFaceAddress = mbSubFaceAddress' . reverse
+  where
+    mbSubFaceAddress' :: [AddressPart] -> Maybe SubFace
+    mbSubFaceAddress' [] = error "accepts only not empty array"
+    mbSubFaceAddress' (AOnBottom _ : xs) = Nothing
+    mbSubFaceAddress' (AOnCylinder sf : []) = Just sf
+    mbSubFaceAddress' (AOnCylinder sf : xs) =
+      case (mbSubFaceAddress' xs) of
+        Nothing -> Nothing
+        Just sf' ->
+          case jniSubFaceMb sf' (faceOfCylAtSide True sf) of
+            Nothing -> Nothing
+            Just sf'' -> Just (injSubFace sf'' sf)
+      
+
+-- todo TEST IT!!
+-- first argument is possible parent
+-- result is adress to apply in chain with first address to obtain same result as applying only second address 
+
+mbSubAddress :: Address -> Address -> Maybe Address
+mbSubAddress (Address sf addr) (Address sf' addr')
+  | not (isSubFaceOf sf' sf) = Nothing
+  | null addr =
+         Just (Address (jniSubFace sf' sf) addr')
+  | sf == sf' = sameSFHelp (reverse addr) (reverse addr')
+    -- && addr `isSuffixOf` addr' =
+    --      Just
+    --    $ Address (fullSF (getDim (head addr)))
+    --    $ take (length addr' - length addr) addr'
+  | not (null addr) && not (isFullSF sf) =
+     let mbs1 = mbSubAddress
+                      (Address (fullSF (subFaceDimEmb sf)) addr)
+                      (Address (jniSubFace sf' sf) addr')
+     in
+     case mbs1 of
+        Nothing -> Nothing
+        Just (Address sf2 addr2) ->
+           Just $ Address (injSubFace sf2 sf) addr2
+  | not (null addr) && isFullSF sf =
+      case (mbSubFaceAddress addr) of
+        Nothing -> Nothing
+        Just sfA ->
+          let mbs1 = mbSubAddress
+                       (Address (sfA) [])
+                       (Address (sf') addr')
+          in case mbs1 of
+               Nothing -> Nothing
+               Just (Address sfA' addrA') ->
+                  Just (Address
+                         (faceOfCylAtSide True sfA)
+                          addrA'
+                       )
+
+   where
+     sameSFHelp :: [AddressPart] -> [AddressPart] -> Maybe Address      
+     sameSFHelp _ [] = Nothing
+     sameSFHelp (AOnCylinder sf : addr) (AOnCylinder sf' : addr') =
+         case (isSubFaceOf sf' sf) of
+            True -> mbSubAddress
+                    (Address (injCyl sf) (reverse addr))
+                    (Address (injCyl sf') (reverse addr'))
+            False -> Nothing
+              
+     sameSFHelp (AOnBottom sf : addr) (AOnCylinder sf' : addr') = Nothing 
+
+     sameSFHelp (AOnCylinder sf : addr) (AOnBottom sf' : addr') =
+       case jniSubFaceMb sf' sf of
+          Nothing -> Nothing
+          Just sf'' -> 
+               let z = mbSubAddress
+                       (Address (fullSF (subFaceDimEmb sf + 1)) (reverse addr))
+                       (Address (injCylEnd False sf'') (reverse addr'))
+               in z 
+                      
+     sameSFHelp (AOnBottom sf : addr) (AOnBottom sf' : addr') =
+        mbSubAddress
+          (Address sf (reverse addr))
+          (Address sf' (reverse addr'))
+
 
 bdCubPickSF :: SubFace -> BdCub a -> ClCub a
 bdCubPickSF sfc _ | isFullSF sfc = error "you cannot pick full SF from Bd"
@@ -211,16 +300,16 @@ cubMapTravWithB g f xxx@(ClCub xx) = ClCub <$>
 
   where
      cm :: (Monad a) => Address -> BdCub b -> OCub b -> a (OCub bb)
-     cm addr@(Address _ tla) bd (Cub n b mbc) = 
+     cm addr@(Address _ tla) bd (Cub n b mbc) =
           do b2 <- f n addr bd b mbc
              return $ Cub n b2 mbc
 
-     cm addr@(Address sf0 tla) bd ocub@(Hcomp b mbNm cyl btm) = 
+     cm addr@(Address sf0 tla) bd ocub@(Hcomp b mbNm cyl btm) =
           do b2 <- g (getDim ocub) addr bd b mbNm cyl btm
              let cylBd :: SubFace -> BdCub b
                  cylBd sf = BdCub $ elimSubFaceSideLI
-                          (clCub (bdCubPickSF sf bd))
                           (clCub (clCubPickSF sf btm))
+                          (clCub (bdCubPickSF sf bd))
                           (FromLI (subFaceDimEmb sf) ( \sf' -> fromJust $ appLI (injSubFace sf' sf) (cylCub cyl) ))
 
              cyl2 <- CylCub <$> traverseMapLI
@@ -232,7 +321,6 @@ cubMapTravWithB g f xxx@(ClCub xx) = ClCub <$>
                                                   (clCubPickSF sf btm)  ) (clCub btm)
                -- traverseMapLI (\sf -> cm (Address sf0 (AOnBottom sf : tla))) (clCub btm)
              return (Hcomp b2 mbNm cyl2 btm2)
-
 
 
 cubMapWithB ::
@@ -289,7 +377,8 @@ cubMapWAddr :: (Address -> b -> bb)
                  -> ClCub bb
 cubMapWAddr f = cubMap (\_ addr b _ _ _ -> f addr b) (\_ addr b _ -> f addr b)
 
-
+clClearAllCells :: ClCub [b] -> ClCub [b]
+clClearAllCells = cubMapWAddr (\_ _ -> [])
 
 
 cubMapMayReplace  :: forall a b . (Monad a) =>  (Int -> Address -> OCub b -> a (Maybe (OCub b)))
@@ -734,36 +823,38 @@ remapDimIndexes = undefined
 
 cubNav :: ClCub a -> Address -> Direction -> Either ImposibleMove Address
 
-cubNav c addr dir = undefined
-  -- case (cubPick addr c , addr , dir) of
-  --   (Nothing , _ , _) -> error "bad address!"
 
-  --   (Just _ , (x : xs) , DParent ) -> Right xs
-  --   (Just _ , [] , DParent ) -> Left ImposibleMove
-  --               -- top level cell do not have parent!
+cubNav c a@(Address sf addr) dir = 
+  case (clCubPickO a c , addr , dir) of
+    (Left _ , _ , _) -> error "bad address!"
 
-  --   (Just (Cub _ _) , _ , DChild ) -> Left ImposibleMove
-  --               -- leaf do not have childern!
-  --   (Just (Hcomp _ _ _ a) , _ , DChild ) -> Right (fullSF (getDim a) : addr)
-  --               -- leaf do not have childern!                                     
+    (Right _ , (x : xs) , DParent ) -> Right (Address sf xs)
+    (Right _ , [] , DParent ) -> Left ImposibleMove
+                -- top level cell do not have parent!
+
+    (Right (Cub _ _ _) , _ , DChild ) -> Left ImposibleMove
+                -- leaf do not have childern!
+    (Right (Hcomp _ _ _ btm) , _ , DChild ) -> Right (Address sf ((AOnBottom $ fullSF (getDim btm)) : addr))
+                -- leaf do not have childern!                                     
 
 
-  --   (Just _ , [] , DNext ) -> Left ImposibleMove
-  --   (Just _ , [] , DPrev ) -> Left ImposibleMove
-  --               -- top level cell do not have a parent, so it is not posible to cycle thru its children
+    (Right _ , [] , DNext ) -> Left ImposibleMove
+    (Right _ , [] , DPrev ) -> Left ImposibleMove
+                -- top level cell do not have a parent, so it is not posible to cycle thru its children
 
-  --   (Just _ , x : xs , nv ) ->
-  --      case cubPick xs c of         
-  --        Just (Hcomp _ _ pa a) -> 
-  --            let
-  --                sfcs = fullSF (getDim a) : (Map.keys pa)
-  --                x2 =
-  --                  case nv of
-  --                    DNext -> rotateFrom x sfcs 
-  --                    DPrev -> rotateFrom x (reverse sfcs)
-  --                    _ -> error "imposible"
-  --            in Right (x2 : xs)
-  --        _ -> error "bad address, parent cell is leaf!!"
+    (Right _ , x : xs , nv ) ->
+       case clCubPickO (Address sf xs) c of         
+         Right (Hcomp _ _ pa a) -> 
+             let
+                 sfcs = (AOnBottom $ fullSF (getDim a))
+                          : fmap AOnCylinder (Set.toList $ keysSetMapFLI $ cylCub pa)                 
+                 x2 =
+                   case nv of
+                     DNext -> rotateFrom x sfcs 
+                     DPrev -> rotateFrom x (reverse sfcs)
+                     _ -> error "imposible"
+             in Right (Address sf (x2 : xs))
+         _ -> error "bad address, parent cell is leaf!!"
 
 
 vaccantSubFaces :: ClCub a -> Address -> Set.Set SubFace
@@ -772,3 +863,4 @@ vaccantSubFaces cub addr =
     Right (Hcomp _ _ pa a) -> missingSubFaces (getDim a)
                               $ Map.keysSet (Map.filter isJust (toMapFLI (cylCub pa)))
     _ -> Set.empty
+

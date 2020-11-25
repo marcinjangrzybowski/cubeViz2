@@ -499,6 +499,33 @@ injSubFace sfL@(SubFace k sfLm) sf@(SubFace n m)
 
 -- injSubFaceTest =  
 
+
+-- takes
+
+faceOfCylAtSide :: Bool -> SubFace -> SubFace 
+faceOfCylAtSide b sf = toSubFace (Face ((subFaceDimEmb sf) + 1) (subFaceDimEmb sf , b))
+
+
+injCylEnd :: Bool -> SubFace -> SubFace 
+injCylEnd b (SubFace n mp) = (SubFace (n + 1) (Map.insert n b mp))
+
+injCyl :: SubFace -> SubFace
+injCyl (SubFace n mp) = (SubFace (n + 1) mp) 
+  
+jniSubFaceMb :: SubFace -> SubFace -> Maybe SubFace
+jniSubFaceMb sfL@(SubFace k sfLm) sf@(SubFace n m)
+   | getDim sfL /= getDim sf = Nothing
+   | not $ isSubFaceOf sfL sf = Nothing
+   | otherwise =
+       let sfLm2 =   Map.fromList
+                   $ map (Bf.first fromJust)
+                   $ filter (isJust . fst)
+                   $ map (Bf.first $ punchOutMany (Map.keysSet m))
+                   $ Map.toList sfLm
+                in Just $ SubFace (subFaceDimEmb sf) sfLm2
+
+
+
 jniSubFace :: SubFace -> SubFace -> SubFace
 jniSubFace sfL@(SubFace k sfLm) sf@(SubFace n m)
    | getDim sfL /= getDim sf = error "subface dimension do not match"

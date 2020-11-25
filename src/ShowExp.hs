@@ -153,17 +153,17 @@ drawExpr as Scaffold ee e =
    in concat (
 
               [
-              --   mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True
-              --                              , sptCursorAddress = sptCA
-              --                              , sptMissingSubFaceCursor = sptMSFC
-              --                              , sptScaffDim = 1})
+                mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True
+                                           , sptCursorAddress = sptCA
+                                           , sptMissingSubFaceCursor = sptMSFC
+                                           , sptScaffDim = 1})
               -- ,
-                mkDrawExpr (DefaultPT { dptCursorAddress = sptCA
-                                          , dptShowFill = dpShowFilling $ asDisplayPreferences as
-                                          , dptFillFactor = 1.0
-                                              -- 0.5 * (sin (realToFrac $ asTime as) + 1)
+              --   mkDrawExpr (DefaultPT { dptCursorAddress = sptCA
+              --                             , dptShowFill = dpShowFilling $ asDisplayPreferences as
+              --                             , dptFillFactor = 1.0
+              --                                 -- 0.5 * (sin (realToFrac $ asTime as) + 1)
 
-                                          })
+              --                             })
               ] <*> (pure ee) <*> (pure e)
                -- ++
                -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
@@ -683,7 +683,7 @@ drawingInterpreter =
   DrawingInterpreter []
    (\case
       2 -> Just (toRenderablesIgnore . embed 2 (const 0))
-      3 -> Just toRenderablesForce
+      3 -> Just toRenderablesIgnore
 
 
 

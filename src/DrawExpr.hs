@@ -51,21 +51,6 @@ import Debug.Trace
 
 defaultCompPar = 0.3
 
-
-hcompDrawingsOnlyFaces :: (Drawing a , SideTransMode ) -> FromLI Face (Drawing a  , SideTransMode) -> Drawing a
-hcompDrawingsOnlyFaces (bot , _) sides =
-   concat
-    (sMap (map $ centerTransInv defaultCompPar) bot :
-          toListFLI (fromLIppK (
-                         \ fc@(Face n (i , b)) (dr , stm) ->
-                                      sMap (ambFnOnArr
-                                      $ sideTransInv defaultCompPar stm fc)
-                                      $ transposeDrw i dr
-
-
-                                ) sides)
-    )
-
 subFaceTrans :: SubFace -> Drawing a -> Drawing a
 subFaceTrans sf@(SubFace n m) drw =
   case Map.toList m of
@@ -96,32 +81,6 @@ hcompDrawings bot sides =
        $ Map.mapWithKey subFaceTrans sides)
      )
 
-
-
-
--- drawCub :: ClCub () -> Drawing MColor
--- drawCub = undefined
-
-
-
-
-
-
-
-
-
--- collectDrawings :: ClCub (Drawing b) -> Drawing b
--- collectDrawings =
---    []
-
--- collectDrawings :: Cub (Drawing b) (Drawing b) -> Drawing b
--- collectDrawings =
---   foldSubFaces (\ nodeData centerData leafsData -> nodeData ++ (hcompDrawings centerData leafsData))
---   -- foldFaces hcompDrawingsOnlyFaces
-
--- collectFaces :: Cub (Drawing b , SideTransMode) -> (Drawing b)
--- collectFaces =
---   foldSubFaces hcompDrawingsOnlyFaces
 
 type CellPainter b =
        Int -> Address
@@ -155,20 +114,32 @@ cellTransform (Address sf addr) =
    embedSF sf . flip (foldl (flip cellTransformPA)) addr
 
 
-fillCub :: ClCub (Drawing b) -> ClCub (Drawing b)
-fillCub x = foldFL (fmap fillCubAt [1]) x
+collectAndOrient :: ClCub (Drawing b) -> Drawing b
+collectAndOrient = fold . cubMapWAddr cellTransform
+
+collectAndOrientOnlyInterior :: ClCub (Drawing b) -> Drawing b
+collectAndOrientOnlyInterior x =
+     fold
+   $ cubMapWAddr cellTransform (ClCub (fromLIppK f (clCub x)))
 
   where
-    fillCubAt :: Int -> ClCub (Drawing b) -> ClCub (Drawing b)
+    f sf y | isFullSF sf = y
+           | otherwise = Cub (subFaceDimEmb sf) [] Nothing
+
+fillCub ::  forall b. Extrudable b => (Drawing b -> Drawing b) -> ClCub (Drawing b) -> ClCub (Drawing b)
+fillCub fillStyle x = foldFL (fmap fillCubAt  [1..(getDim x)]) x
+
+  where
+    fillCubAt :: Extrudable b => Int -> ClCub (Drawing b) -> ClCub (Drawing b)
     fillCubAt k = cubMapWithB funAtComp funAtCell
       where
 
-        funAtCell :: Int -> Address -> BdCub (Drawing b) -> Drawing b
+        funAtCell :: Extrudable b =>  Int -> Address -> BdCub (Drawing b) -> Drawing b
                       -> Maybe CellExpr
                       -> Drawing b
         funAtCell _ _ _ x _ = x
 
-        funAtComp :: Int -> Address -> BdCub (Drawing b) -> Drawing b
+        funAtComp :: Extrudable b => Int -> Address -> BdCub (Drawing b) -> Drawing b
                        -> Maybe Name
                        -> CylCub (Drawing b)
                        -> ClCub (Drawing b) -> Drawing b
@@ -176,12 +147,21 @@ fillCub x = foldFL (fmap fillCubAt [1]) x
             let
                 missing = Set.toList $ missingSubFaces (getDim (cylCub cy)) (keysSetMapFLI (cylCub cy))
 
-                dNew = concatMap (\sf ->
-                                    sideTransformSF STFill sf (
-                                     fold (clInterior (cubMapWAddr cellTransform (bdCubPickSF sf dBd))  )
-                                       
-                                                                   ) ) missing
-            in trace (show (drawingDim dNew) ++ " " ++ show n ++ " " ++ show (drawingDim dOld))
+
+                filledSF sf =
+                  let d0 = collectAndOrientOnlyInterior
+                         $ bdCubPickSF sf dBd
+                      pmf = piramFn defaultCompPar
+                      d1 = extrude (subFaceDimEmb sf + 1)
+                            (pmf , const 1.0)
+                            -- (pmf , \x -> interp (pmf x) 1.0 (fillFactor d))
+                            -- (pmf , \x -> interp (pmf x) 1.0 (0.5))            
+                            d0
+                  in sideTransformSF STFill sf d1
+
+
+                dNew = fillStyle $ concatMap filledSF missing
+            in --trace (show (drawingDim dNew) ++ " " ++ show n ++ " " ++ show (drawingDim dOld))
                      (dOld ++ dNew)
 
         funAtComp n _ _ dOld _ cy cen  = dOld
@@ -241,15 +221,22 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
   nodePainterCommon d dctx n addr nm si center = []
 
 
-  mkDrawExpr :: d  -> (Env , Context) -> Expr -> Drawing b
-  mkDrawExpr d envCtx expr =
+  drawAllCells :: d  -> (Env , Context) -> Expr -> ClCub (Drawing b)
+  drawAllCells d envCtx expr =
       let  dctx = fromCtx d envCtx
            cub = (toClCub envCtx expr :: ClCub ())
-           cubDrw = cubMap
-                      (\i addr _ -> nodePainterCommon d dctx i addr)
-                      (\i addr _ -> cellPainter d dctx i addr) cub
-           cubDrawOrientFixed = cubMapWAddr cellTransform cubDrw
-      in   traceDim $ finalProcess d $ fold (fillCub cubDrawOrientFixed)
+      in  cubMap (\i addr _ -> nodePainterCommon d dctx i addr)
+                  (\i addr _ -> cellPainter d dctx i addr) cub
+
+
+
+
+  mkDrawExpr :: d  -> (Env , Context) -> Expr -> Drawing b
+  mkDrawExpr d envCtx expr =
+        finalProcess d
+      $ collectAndOrient
+      $ fillCub (fillStyleProcess d)
+      $ drawAllCells d envCtx expr
 
 
   fillStyleProcess :: d -> Drawing b -> Drawing b
@@ -260,82 +247,7 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
   finalProcess d = id
 
 
-  -- fillFactor :: d -> Float
-  -- fillFactor _ = 1.0
 
---   -- TODO :: raczej zrezygnowac z Either w calej tej klasie...
---   mkDrawExprFill :: d -> ((Env , Context) , Expr) -> Either String (Drawing b)
---   mkDrawExprFill d w@( envCtx , _ ) = 
---       fmap (finalProcess d)  $ drawCub $ toCub w 
-
---       where
-
---            dctx = fromCtx d envCtx
-
---            fillFaces (nm , sides , bot) =
---                Map.mapKeys toSubFace
---              $ Map.fromSet
---                (\fc -> (
---                    let d0 = fromRight [] $ (drawCub (cubFace fc (Hcomp () nm sides bot)))
---                        pmf = piramFn defaultCompPar
---                        d1 = extrude (getDim bot)
---                             -- (pmf , const 1.0)
---                             (pmf , \x -> interp (pmf x) 1.0 (fillFactor d))
---                             d0
-
---                    in Cub (FromLI (getDim bot) undefined) (fillStyleProcess d $ d1 , STFill)
---                    ) )
---                ((Set.difference (setOfAll (getDim bot)) (Set.fromList $ mapMaybe toFace $ Map.keys sides )) )
-
---            drawCub cub =
---              do cubDrw <- cubMapFill ((fmap $ (flip (,) STSubFace)) `dot4` (cellPainter d envCtx dctx) )
---                               fillFaces
---                               [] cub 
---                 return $ fst (foldFacesFiled (const $ (flip (,) STSubFace) `dot2` hcompDrawingsOnlyFaces ) cubDrw)
-
--- -- XXXX
-
-
-
-
-
-
-
-
--- simpleDrawTerm 0 = FromLI 0 (const [([[]]  , (([] , Basic) , nthColor 4)) ] )
--- simpleDrawTerm 1 =
-
---     FromLI 1 (bool [([[0.2],[0.3]] , (([] , Basic) , nthColor 1))]
---                    [([[0.6],[0.7]] , (([] , Basic) , nthColor 2))] . fst . head . toListLI)
--- simpleDrawTerm n = FromLI n (const [])
-
-
-
--- data SimplePT = SimplePT
-
-
-
--- instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int SimplePT where    
---   fromCtx _ _ = ()
---   drawGenericTerm _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
-
-
---   drawD _ _ k = fmap (fmap $ second $ first $ first $ (:) "term") (simpleDrawTerm k)
-
---     -- FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
---     -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
-
---     -- FromLI 1 (bool [([[0.2]] , ()) , ([[0.3]] , ())]
---     --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
---     --            . fst . head . toListLI)
-
-
-
---   drawCellCommon _ _ n _ _ _ _ = 
---        if n > 1
---        then  fmap (Bf.second $ const $ ( (["cellBorder"] , ExtrudeLines) , gray 0.5))
---                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
---        else []
 
 data DefaultPT = DefaultPT { dptCursorAddress ::  Maybe Address
                            , dptShowFill      :: Bool
@@ -352,19 +264,10 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
 
   drawD _ _ = renderGCD
 
---     -- FromLI 1 (bool [ ([[0.3]] , nthColor 1)] [ ([[1 - 0.35]] , nthColor 2)] . fst . head . toListLI)
---     -- FromLI 1 (bool [([[0.2],[0.23]] , ())] [] . fst . head . toListLI)
-
---     -- FromLI 1 (bool [([[0.2]] , ()) , ([[0.3]] , ())]
---     --                [([[0.6]] , ()) , ([[0.7]] , ())  ]
---     --            . fst . head . toListLI)
-
---   fillFactor = dptFillFactor
-
---   fillStyleProcess d drw =    
---     if (dptShowFill d)
---     then mapStyle (addTag "filling") drw
---     else []   
+  fillStyleProcess d drw =
+    if dptShowFill d
+    then mapStyle (addTag "filling") drw
+    else []
 
 --   cellStyleProcess d ee dctx n addr fcs ce drw =
 --     if (dptCursorAddress d == Just addr)
@@ -415,10 +318,18 @@ instance DrawingCtx (Env , Context) ColorType Int ScaffoldPT where
 
   drawD _ _ k = FromLI k (const [])
 
-  drawCellCommon _ k _ _ _ =
-     if k == 1
-     then Bf.second (const (( ["cellBorder"] , ExtrudeLines) , gray 0.8)) <$> unitHyCube k
-     else []
+  drawCellCommon spt k addr _ _ =
+     let scaffS = if isJust $ (flip mbSubAddress) addr =<< sptCursorAddress spt
+                  then (( ["cellBorder"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
+                  else (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
+         scaff = if k <= 1
+             then Bf.second (const scaffS) <$> unitHyCube k
+             else []
+
+     in scaff
+
+  fillStyleProcess _ _ = []
+
 -- instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where    
 --   fromCtx _ _ = ()
 --   drawGenericTerm _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
