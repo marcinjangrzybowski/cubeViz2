@@ -203,11 +203,11 @@ drawExpr as Scaffold ee e =
                               -- 0.5 * (sin (realToFrac $ asTime as) + 1)
 
                           })
-              ,
-                mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True
-                                           , sptCursorAddress = sptCA
-                                           , sptMissingSubFaceCursor = sptMSFC
-                                           , sptScaffDim = 1})
+              -- ,
+              --   mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True
+              --                              , sptCursorAddress = sptCA
+              --                              , sptMissingSubFaceCursor = sptMSFC
+              --                              , sptScaffDim = 1})
               
 
               ] <*> (pure ee) <*> (pure e)

@@ -201,6 +201,9 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
                               -> Maybe CellExpr -> Drawing b -> Drawing b
   cellStyleProcess _ _ _ _ _ = id
 
+  nodeStyleProcess :: d -> a -> Int -> Address
+                              -> Drawing b -> Drawing b
+  nodeStyleProcess _ _ _ _ = id
 
   cellPainter :: d -> a -> CellPainter b
   cellPainter d dctx n adr x =
@@ -233,8 +236,11 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
 
   mkDrawExpr :: d  -> (Env , Context) -> Expr -> Drawing b
   mkDrawExpr d envCtx expr =
+    let  dctx = fromCtx d envCtx
+    in
         finalProcess d
       $ collectAndOrient
+      $ cubMap (\n addr b _ _ _ -> nodeStyleProcess d dctx n addr b) (\_ _ x _ -> x)
       $ fillCub (fillStyleProcess d)
       $ drawAllCells d envCtx expr
 
@@ -264,19 +270,33 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
 
   drawD _ _ = renderGCD
 
+  drawHole spt k addr ee =
+      if k <= 3
+      then let holeS = (( ["hole"] , Basic) , Rgba 1.0 0.0 0.0 1.0)
+           in Bf.second (const holeS) <$> unitHyCubeSkel k (Prelude.max k 2)
+      else []
+
   fillStyleProcess d drw =
     if dptShowFill d
     then mapStyle (addTag "filling") drw
     else []
 
-  cellStyleProcess spt ee n addr mbce drw =
+  nodeStyleProcess spt ee n addr drw =
     case dptCursorAddress spt of
       Just ca ->
-        if isJust $ (mbSubAddress ca addr)
-        then drw -- zaznaczone
-        else drw 
+        if isJust (mbSubAddress ca addr)
+        then mapStyle (addTag "selected") drw -- zaznaczone
+        else mapStyle (addTag "notselected") drw
       Nothing -> drw
-     
+
+  cellStyleProcess spt ee n addr _ drw =
+    case dptCursorAddress spt of
+      Just ca ->
+        if isJust (mbSubAddress ca addr)
+        then mapStyle (addTag "selected") drw -- zaznaczone
+        else mapStyle (addTag "notselected") drw
+      Nothing -> drw
+
     -- if (dptCursorAddress d == Just addr)
     -- then mapStyle (addTag "selected") drw
     -- else drw
@@ -287,13 +307,28 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
 --                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
 --        else []
 
-  finalProcess _ = mapStyle
-     (\((tags , em) , color)  ->
-        if "filling" `elem` tags
-        then ((tags , em) , lighter 0.6 color)
-        else ((tags , em) , color)
+  finalProcess _ =
+    let fillP = mapStyle
+                 (\((tags , em) , color)  ->
 
-       )
+                    if "filling" `elem` tags
+                    then ((tags , em) , lighter 0.6 color)
+                    else ((tags , em) , color)
+                   )
+        selectP = mapStyle
+                 (\((tags , em) , color)  ->
+
+                    if "notselected" `elem` tags
+                    then ((tags , em) , gray 0.8)
+                    else ((tags , em) , color)
+                   )
+        removeFillHoles = filter ((\((tags , em) , color) -> not ("filling" `elem` tags && "hole" `elem` tags))
+                                  . snd) 
+                 
+    in
+       removeFillHoles
+     . fillP
+     . selectP
 
 data ScaffoldPT = ScaffoldPT
   { sptDrawFillSkelet :: Bool
@@ -306,7 +341,7 @@ data ScaffoldPT = ScaffoldPT
 instance Shadelike ColorType where
   toShade ((tags , _) , c) =
           let isCursor = elem "cursor" tags
-              isSelected = elem "selected" tags
+              isSelected = elem "animated-stripes" tags
               shadeMode = case (isCursor , isSelected) of
                               (True , _) -> 1
                               (_ , True) -> 3
@@ -326,7 +361,7 @@ instance DrawingCtx (Env , Context) ColorType Int ScaffoldPT where
   drawD _ _ k = FromLI k (const [])
 
   drawCellCommon spt k addr _ _ =
-     let scaffS = if isJust $ (flip mbSubAddress) addr =<< sptCursorAddress spt
+     let scaffS = if isJust $ flip mbSubAddress addr =<< sptCursorAddress spt
                   then (( ["cellBorder"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
                   else (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
          scaff = if k <= 1
