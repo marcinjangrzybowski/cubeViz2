@@ -293,17 +293,25 @@ properlyCoveredSubFaces2 ctx =
 
 
 
+
+
 --possible performance bootleneck,
 -- TODO create costless abstracton from SubFace and SubFace2
 partialWithSF :: Context -> Maybe Name -> Partial -> Map.Map SubFace2 Expr
 partialWithSF ctx nm pa = 
   let ctx1 = addDimToContext ctx nm
+
+      definedParent :: [(a , Expr)] -> (a , Expr)
+      definedParent [x] = x
+      definedParent ((_ , Hole _) : xs) = definedParent xs
+      definedParent (x : _) = x
+      
       mkMissing :: SubFace2 -> Expr
       mkMissing sf2 =
         let sf = (sf2ToSubFace ctx sf2)
             (sfParent , parent) =  
                
-                 head
+                 definedParent
                $ filter ( (isSubFaceOf sf . fst))
                $ (map (first $ sf2ToSubFace ctx) (Map.toList pa))
             ctx2 = addSFConstraintToContext sfParent ctx   

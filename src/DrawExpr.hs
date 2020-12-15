@@ -269,10 +269,17 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
     then mapStyle (addTag "filling") drw
     else []
 
---   cellStyleProcess d ee dctx n addr fcs ce drw =
---     if (dptCursorAddress d == Just addr)
---     then mapStyle (addTag "selected") drw
---     else drw
+  cellStyleProcess spt ee n addr mbce drw =
+    case dptCursorAddress spt of
+      Just ca ->
+        if isJust $ (mbSubAddress ca addr)
+        then drw -- zaznaczone
+        else drw 
+      Nothing -> drw
+     
+    -- if (dptCursorAddress d == Just addr)
+    -- then mapStyle (addTag "selected") drw
+    -- else drw
 
 --   drawCellCommon _ _ n _ _ _ _ = 
 --        if n > 1

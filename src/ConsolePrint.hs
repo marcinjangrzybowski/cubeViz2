@@ -7,6 +7,8 @@
 
 module ConsolePrint where
 
+-- (global-set-key [f9] 'haskell-process-load-or-reload)
+
 import Syntax
 
 -- import Drawing.Base
@@ -41,48 +43,56 @@ data CubPrintData =
 -- concatCub :: Semigroup a -> Cub a a -> a
 -- concatCub (Cub _ a) = a 
 -- concatCub (Hcomp b nm pa a) = getDim a
-  
+
+
 printCub :: (Env , Context) -> CubPrintData ->  ClCub b -> String 
-printCub (ee , c) cpd _ = "todo ConsolePrint.hs"
+printCub (ee , c) cpd x =
+  printCubO (ee , c) cpd (rootAddress (getDim x)) $ clInterior x
 
--- printCub (ee , c) cpd addr (Cub _ a) =
---   let
---       isSelectedNode = Just addr == cpdCursorAddress cpd
---       ifSel = (if isSelectedNode then bgColor Green else id)
---       clStr (CellExpr (VarIndex k) tl) =
---          let sym = fromRight (error "!!") $ getVarSymbol c k
---              tailStr = concat $ intersperse (ifSel " ") $
---                        zipWith (\i eI ->
---                                   let ss = toString (ee , c) $ (remapIExpr (fromDimI c )) $ snd eI
---                                   in    
---                                      if isSelectedNode && (Just i == cpdTailAddress cpd)
---                                      then (bgColor Red ss)  ++ (bgColor Green "")
---                                      else ifSel ss
+
+printCubO :: (Env , Context) -> CubPrintData -> Address -> OCub b -> String 
+printCubO (ee , c) cpd addr (Cub _ _ a) = 
+  let
+      isSelectedNode = Just addr == cpdCursorAddress cpd
+      ifSel = (if isSelectedNode then bgColor Green else id)
+
+      clStr (CellExpr (VarIndex k) tl) =
+         let sym = fromRight (error "!!") $ getVarSymbol c k
+             tailStr = concat $ intersperse (ifSel " ") $
+                       zipWith (\i eI ->
+                                  let ss = toString (ee , c) $ (remapIExpr (fromDimI c )) $ eI
+                                  in    
+                                     if isSelectedNode && (Just i == cpdTailAddress cpd)
+                                     then (bgColor Red ss)  ++ (bgColor Green "")
+                                     else ifSel ss
                                   
---                                ) [0..] tl
---          in sym ++ " " ++ tailStr
+                               ) [0..] tl
+         in sym ++ " " ++ tailStr
+         
+      s = (maybe ("{!!}") clStr a)
 
---       s = (either (const "{!!}") clStr a)
-
---   in ifSel s
+  in ifSel s
   
--- printCub (ee , c) cpd addr (Hcomp _ nm pa a) =  
---   let sides = Map.toList pa
---          & map (\(sf@(SubFace _ m) , e) -> let
---                                 sf2 = Map.mapKeys (fromDimI c) m
---                                 c2 = addSFConstraintToContext sf2 (addDimToContext c (Just nm))                                  
---                                 bo = printCub (ee , c2) cpd (sf : addr) e
---                                 fc = either id id (toCode (ee , c) sf2)
---                             in ( (parr $ parr fc ++ " = i1") ++ " → " ++ bo ++ "\n")
-
---                        )
---          & intercalate ";"
+printCubO (ee , c) cpd addr (Hcomp _ nm pa a) = 
+  let sides = Map.toList (Map.mapMaybe id $ toMapFLI $ cylCub pa)
+         & map (\(sf@(SubFace _ m) , e) -> let
+                                sf2 = Map.mapKeys (fromDimI c) m
+                                c2 = addSF2ConstraintToContext sf2 (addDimToContext c nm)                                  
+                                bo = printCubO (ee , c2) cpd (onCyl addr sf) e
+                                fc = either id id (toCode (ee , c) sf2)
+                            in
+                              if isCoveredIn (occupiedCylCells pa) sf
+                              then Nothing
+                              else Just ( (parr $ parr fc ++ " = i1") ++ " → " ++ bo ++ "\n")
+                       )
+         & catMaybes
+         & intercalate ";"
 
   
---       y = (printCub (ee , c) cpd (fullSF (getDim a) : addr) a)
+      y = (printCubO (ee , c) cpd (onBottom addr (fullSF (getDim a))) (clInterior a))
         
  
---       s = ("hcomp " ++ "(λ " ++ nm ++ " → λ  { " ++ (indent 5 ("\n" ++ sides)) ++ "})\n" ++ parr y )      
---   in if Just addr == cpdCursorAddress cpd
---      then bgColor Green s
---      else s
+      s = ("hcomp " ++ "(λ " ++ (fromMaybe (undefined) nm) ++ " → λ  { " ++ (indent 5 ("\n" ++ sides)) ++ "})\n" ++ parr y )      
+  in if Just addr == cpdCursorAddress cpd
+     then bgColor Green s
+     else s

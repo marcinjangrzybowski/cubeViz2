@@ -511,6 +511,23 @@ injCylEnd b (SubFace n mp) = (SubFace (n + 1) (Map.insert n b mp))
 
 injCyl :: SubFace -> SubFace
 injCyl (SubFace n mp) = (SubFace (n + 1) mp) 
+
+data JniCyl = JCEnd Bool SubFace | JCCyl SubFace
+
+
+superSubFaces :: SubFace -> [SubFace]
+superSubFaces sf@(SubFace m sfm) =
+  [ (SubFace m (Map.fromList sfml))
+
+    | sfml <- explode (Map.toList sfm) ]
+  
+
+-- second is Parent
+jniCyl :: SubFace -> SubFace -> JniCyl
+jniCyl (SubFace m sfm) sf'@(SubFace m' sfm') =
+  case Map.lookup (m - 1) sfm of
+    Just b -> JCEnd b (injSubFace (SubFace (m - 1) (Map.delete (m - 1) sfm)) sf')
+    Nothing -> JCCyl (injSubFace (SubFace (m - 1) sfm) sf')
   
 jniSubFaceMb :: SubFace -> SubFace -> Maybe SubFace
 jniSubFaceMb sfL@(SubFace k sfLm) sf@(SubFace n m)
@@ -555,6 +572,10 @@ isIncludedIn sfcs sf = any (isSubFaceOf sf) sfcs
 
 isProperlyIncludedIn :: Set.Set SubFace -> SubFace -> Bool
 isProperlyIncludedIn sfcs sf = isIncludedIn sfcs sf && not (Set.member sf sfcs)
+
+isCoveredIn :: Set.Set SubFace -> SubFace -> Bool
+isCoveredIn sfcs sf = any (isSubFaceOf sf) (Set.delete sf sfcs)
+
 
 injFaceSide :: Face -> Face
 injFaceSide (Face n (i , b)) = Face (n + 1) (i , b)

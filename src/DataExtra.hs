@@ -45,6 +45,10 @@ rotateFrom a (x : y : ys) | x == a = y
 rotateFrom a (x : y : ys) | otherwise = rotateFrom a (y : ys ++ [x]) 
 rotateFrom a _ = a
 
+rotateFromDir :: (Eq a) => Bool -> a -> [a] -> a
+rotateFromDir True = rotateFrom
+rotateFromDir False = flip $ (flip rotateFrom) . reverse
+
 --all subsets of cardinality card(x) - 1
 explode :: [a] -> [[a]]
 explode [] = []

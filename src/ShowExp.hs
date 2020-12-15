@@ -91,11 +91,13 @@ data AppState = AppState
 
 asCursorAddress :: AppState -> Maybe Address
 asCursorAddress as =
-  case asUserMode as of
-    UMNavigation x -> Just x
-    UMSelectGrid {} -> Just $ umEditedCell (asUserMode as)
-    UMEditTail {} -> Just $ umEditedCell (asUserMode as)
-    UMAddSubFace {} -> Just $ fst $ umSubFaceToAdd (asUserMode as)
+  let um = (asUserMode as) in
+  case um of
+    UMNavigation {} ->
+      let ca = umCoursorAddress um in Just $ ca        
+    UMSelectGrid {} -> Just $ umEditedCell (um)
+    UMEditTail {} -> Just $ umEditedCell (um)
+    UMAddSubFace {} -> Just $ fst $ umSubFaceToAdd (um)
 
 asSubFaceToAdd :: AppState -> Maybe (Address , SubFace)
 asSubFaceToAdd as =
@@ -115,13 +117,55 @@ asViewportProc appS =
     _ -> asViewport appS
 
 
+data ModalNav = MNSub Address | MNSup Address
+
+mnAddr (MNSub a) = a 
+mnAddr (MNSup a) = a 
+
 data UserMode =
     Idle
-  | UMNavigation { umCoursorAddress :: Address }
+  | UMNavigation { umCoursorAddress :: Address , umModalNav :: Maybe ModalNav }
   | UMAddSubFace { umSubFaceToAdd :: (Address , SubFace) }
   | UMEditCell { umEditedCell :: Address }
   | UMEditTail { umEditedCell :: Address , umTailPosition :: Int }
   | UMSelectGrid { umEditedCell :: Address , umGSD :: GridSelectionDesc }
+
+
+umNavigation :: Address -> UserMode
+umNavigation addr = UMNavigation { umCoursorAddress = addr , umModalNav = Nothing }
+
+
+
+umModalNavigation :: ModalNav -> UserMode
+umModalNavigation z =
+   UMNavigation { umCoursorAddress = rotateFrom (mnAddr z) (mnOptions z)  , umModalNav = Just z } 
+
+umEnsureModalNavigation :: ModalNav -> UserMode -> UserMode
+umEnsureModalNavigation z (um@UMNavigation {}) =
+  case (z , umModalNav um) of
+    ((MNSub _) , Just (MNSub _)) -> um
+    ((MNSup _) , Just (MNSup _)) -> um
+    _ -> umModalNavigation z
+
+
+rotateModalNav :: Bool -> UserMode -> UserMode
+rotateModalNav b (um@UMNavigation {}) =
+    let Just z = umModalNav um in
+    um { umCoursorAddress = rotateFromDir b (umCoursorAddress um) (mnOptions z) }
+
+
+mnOptions :: ModalNav -> [Address]
+mnOptions (MNSub addr) = addr : [ addressSubFace addr (toSubFace fc) | fc <- genAllLI (addresedDim addr) ]
+mnOptions (MNSup addr) = addr : addressSuperFaces addr
+
+umModalNavigationOptions :: UserMode -> [Address]
+umModalNavigationOptions = fromMaybe [] . (fmap mnOptions) . umModalNav
+      -- case umModalNav um of
+      --   Nothing -> Just $ ca
+      --   Just (MNSub i) ->
+      --     let fcsAddrss = [ addressSubFace ca (toSubFace fc) | fc <- genAllLI (addresedDim ca) ]
+      --     in Just $ cycle (ca : fcsAddrss) !! i
+      --   Just (MNSup i) -> Just $ umCoursorAddress um
 
 
 data DrawExprMode = Stripes | StripesNoFill | Scaffold | Scaffold2
@@ -153,17 +197,19 @@ drawExpr as Scaffold ee e =
    in concat (
 
               [
+                mkDrawExpr (DefaultPT { dptCursorAddress = sptCA
+                          , dptShowFill = dpShowFilling $ asDisplayPreferences as
+                          , dptFillFactor = 1.0
+                              -- 0.5 * (sin (realToFrac $ asTime as) + 1)
+
+                          })
+              ,
                 mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True
                                            , sptCursorAddress = sptCA
                                            , sptMissingSubFaceCursor = sptMSFC
                                            , sptScaffDim = 1})
-              -- ,
-              --   mkDrawExpr (DefaultPT { dptCursorAddress = sptCA
-              --                             , dptShowFill = dpShowFilling $ asDisplayPreferences as
-              --                             , dptFillFactor = 1.0
-              --                                 -- 0.5 * (sin (realToFrac $ asTime as) + 1)
+              
 
-              --                             })
               ] <*> (pure ee) <*> (pure e)
                -- ++
                -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
@@ -212,7 +258,7 @@ initialize =
                     , asDragStartVP     = Nothing
                     , asSession         = initialSessionState
                     , asCub             = toClCub ee expr
-                    , asUserMode        = UMNavigation (rootAddress (getDim ee))
+                    , asUserMode        = umNavigation (rootAddress (getDim ee))
                     , asKeyPressed      = False
                     , asMessage         = ""
                     , asDisplayPreferences = defaultDisplayPreferences
@@ -376,7 +422,7 @@ setAddSubFaceMode addr = do
                --              updateView
 
 setNavMode :: Address -> UIApp ()
-setNavMode addr = setUserMode (UMNavigation addr)
+setNavMode addr = setUserMode (umNavigation addr)
 
 
 liftPEM :: UIApp a -> UIAppDesc a
@@ -477,13 +523,26 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
              --   transformExpr (ReplaceAt addr (Cub undefined (Left 0)))
 
 
-             when (isArrowKey k) $ inf "" $ do
-               UI.modifyAppState (\s ->
-                  let nav = fromJust (arrowKey2nav k)
-                      jna = fromRight (addr) (cubNav (asCub appS) addr nav)
+             when (isArrowKey k) $ do
+               if (GLFW.modifierKeysControl mk)
 
-                  in s { asUserMode = UMNavigation jna })
-               UI.flushDisplay
+               then inf "" $ do               
+                    UI.modifyAppState (\s ->
+                       let (axis , dir) = fromJust (arrowKey2BoolBool k)
+                           mn = case axis of
+                                    True -> MNSup addr
+                                    False -> MNSub addr
+                       in s { asUserMode = rotateModalNav dir (umEnsureModalNavigation mn (asUserMode s))}  
+                       )
+                    UI.flushDisplay
+
+               else inf "" $  do               
+                    UI.modifyAppState (\s ->
+                       let nav = fromJust (arrowKey2nav k)
+                           jna = fromRight (addr) (cubNav (asCub appS) addr nav)
+
+                       in s { asUserMode = umNavigation jna })
+                    UI.flushDisplay
 
 
         _ -> return ()
@@ -509,10 +568,10 @@ modesEvents pem um@(UMEditTail addr pos ) ev = do
             when (ks == GLFW.KeyState'Pressed) $ do
               when (k == GLFW.Key'Enter) $ inf "Confirm" $ do
                  -- transformExpr (AddSubFace (addr , sf))
-                 setUserMode (UMNavigation addr)
+                 setUserMode (umNavigation addr)
 
               when (k == GLFW.Key'Q) $ inf "Abort" $ do
-                setUserMode $ UMNavigation addr
+                setUserMode $ umNavigation addr
 
               when (k == GLFW.Key'T) $ inf "Cycle Tail Positions" $ do
                 setUserMode $ (UMEditTail addr (mod (pos + 1) (length tail) ) )
@@ -572,11 +631,11 @@ modesEvents pem um@(UMSelectGrid addr gsd ) ev = do
             when (ks == GLFW.KeyState'Pressed) $ do
               when (k == GLFW.Key'Enter) $ inf "Confirm" $ do
                 gsdRunFinalAction gsd
-                setUserMode (UMNavigation { umCoursorAddress = addr })
+                setUserMode (umNavigation addr)
 
               when (k == GLFW.Key'Q) $ inf "Abort" $ do
                 gsdRunAbortAction gsd
-                setUserMode $ UMNavigation addr
+                setUserMode $ umNavigation addr
 
 
               when (isArrowKey k) $ inf "nav" $ do
@@ -894,6 +953,13 @@ arrowKey2nav k =
     GLFW.Key'Down -> Just DChild
     GLFW.Key'Right -> Just DNext
     GLFW.Key'Left -> Just DPrev
+
+arrowKey2BoolBool k =
+  case k of
+    GLFW.Key'Up -> Just (True , True)
+    GLFW.Key'Down -> Just (True , False)
+    GLFW.Key'Right -> Just (False , True)
+    GLFW.Key'Left -> Just (False , False)
 
 
 

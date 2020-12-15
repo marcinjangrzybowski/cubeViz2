@@ -64,7 +64,25 @@ data AddressPart = AOnCylinder SubFace | AOnBottom SubFace
 data Address = Address SubFace [AddressPart]
   deriving (Show , Eq)
 
+addresedDimPart :: AddressPart -> Int 
+addresedDimPart (AOnCylinder sf) = subFaceDimEmb sf + 1
+addresedDimPart (AOnBottom sf) = subFaceDimEmb sf
 
+
+addresedDim :: Address -> Int
+addresedDim (Address sf []) = subFaceDimEmb sf
+addresedDim (Address _ (x : _)) = addresedDimPart x
+
+onCyl :: Address -> SubFace -> Address
+onCyl addr@(Address x y) sf
+  | addresedDim addr == getDim sf = (Address x (AOnCylinder sf : y))
+  | isFullSF sf = error "fullSF cannot be put in Cyliner part of address"
+  | otherwise = error "Address aprt do not match rest of address"
+
+onBottom :: Address -> SubFace -> Address
+onBottom addr@(Address x y) sf
+  | addresedDim addr == getDim sf = (Address x (AOnBottom sf : y))
+  | otherwise = error "Address aprt do not match rest of address"
 
 
 -- type Address = [SubFace]
@@ -83,7 +101,7 @@ instance OfDim Address where
   getDim (Address sf _) = getDim sf
 
 instance OfDim AddressPart where
-  getDim (AOnCylinder sf) = getDim sf + 1
+  getDim (AOnCylinder sf) = getDim sf
   getDim (AOnBottom sf) = getDim sf
 
 
@@ -167,7 +185,34 @@ mbSubAddress (Address sf addr) (Address sf' addr')
           (Address sf (reverse addr))
           (Address sf' (reverse addr'))
 
+-- this ingore fillings (can produce wrong addresses when there are missing faces in compositions)
+addressSuperFaces :: Address -> [Address]
+addressSuperFaces (Address sf []) = [ Address ssf [] | ssf <- superSubFaces sf ]
+addressSuperFaces (Address sf ((AOnBottom sfA) : xs)) | isFullSF sfA  = []
+addressSuperFaces (Address sf ((AOnBottom sfA) : xs)) =
+     Address sf (AOnCylinder (sfA) : xs ) :
+   [ Address sf (AOnBottom ssf : xs ) | ssf <- superSubFaces sfA ]
 
+addressSuperFaces (Address sf ((AOnCylinder sfA) : xs)) =
+   [ Address sf (AOnCylinder ssf : xs ) | ssf <- filter (not . isFullSF) $ superSubFaces sfA ]
+
+
+-- unsafe, may throw error
+addressSubFace :: Address -> SubFace -> Address
+addressSubFace addr sf | addresedDim addr /= getDim sf = error "sub face dim do not match addresed dim"
+addressSubFace addr sf | isFullSF sf = addr
+addressSubFace (Address sf' []) sf = Address (injSubFace sf sf') []
+
+addressSubFace (Address sf' ((AOnBottom sfA) : xs)) sf =
+                 (Address sf' ((AOnBottom (injSubFace sf sfA)) : xs))  
+
+addressSubFace (Address sf' ((AOnCylinder sfA) : xs)) sf =
+   case (jniCyl sf sfA) of
+     JCEnd True sff -> addressSubFace (Address sf' (xs)) sff
+     JCEnd False sff -> (Address sf' ((AOnBottom sff) : xs))
+       
+     JCCyl sff -> (Address sf' ((AOnCylinder sff) : xs))
+       
 bdCubPickSF :: SubFace -> BdCub a -> ClCub a
 bdCubPickSF sfc _ | isFullSF sfc = error "you cannot pick full SF from Bd"
 bdCubPickSF sfc (BdCub (FromLI n mp)) = ClCub $
@@ -847,7 +892,9 @@ cubNav c a@(Address sf addr) dir =
          Right (Hcomp _ _ pa a) -> 
              let
                  sfcs = (AOnBottom $ fullSF (getDim a))
-                          : fmap AOnCylinder (Set.toList $ keysSetMapFLI $ cylCub pa)                 
+                          : fmap AOnCylinder (Set.toList $ 
+                                                      (let s = occupiedCylCells pa
+                                                       in (Set.filter (not . isCoveredIn s) s )))                 
                  x2 =
                    case nv of
                      DNext -> rotateFrom x sfcs 
@@ -857,6 +904,22 @@ cubNav c a@(Address sf addr) dir =
          _ -> error "bad address, parent cell is leaf!!"
 
 
+-- cubNavFSF :: ClCub a -> Address -> Address -> Direction -> Either ImposibleMove Address
+-- cubNavFSF c a a' d =
+--   case d of
+--     DNext -> cubNavF c a a' True
+--     DPrev -> cubNavF c a a' False
+--     DParent -> cubNavSF c a a' True
+--     DChild -> cubNavSF c a a' False
+
+-- cubNavF :: ClCub a -> Address -> Address -> Bool -> Either ImposibleMove Address      
+-- cubNavF c a a' b =
+--   case SF
+
+-- cubNavSF :: ClCub a -> Address -> Address -> Bool -> Either ImposibleMove Address      
+-- cubNavSF c a a' b = undefined
+
+
 vaccantSubFaces :: ClCub a -> Address -> Set.Set SubFace
 vaccantSubFaces cub addr =
   case clCubPickO addr cub of
@@ -864,3 +927,5 @@ vaccantSubFaces cub addr =
                               $ Map.keysSet (Map.filter isJust (toMapFLI (cylCub pa)))
     _ -> Set.empty
 
+occupiedCylCells :: CylCub a -> Set.Set SubFace
+occupiedCylCells cc = keysSetMapFLI $ cylCub cc
