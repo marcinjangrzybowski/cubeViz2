@@ -15,6 +15,7 @@ import DataExtra
 
 import Combi
 
+
 -- type NPoint = [ Float ]
 
 -- data Seg = Pt Float | Seg Float Float
@@ -27,6 +28,8 @@ lighter :: Float -> Color -> Color
 lighter y (Rgba r g b a) =
   let f x = curb 0.0 1.0 ( x + y)
   in (Rgba (f r) (f g) (f b) a) 
+
+
 
 color2arr (Rgba r g b a) = [r , g , b , a] 
 

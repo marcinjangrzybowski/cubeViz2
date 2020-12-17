@@ -340,6 +340,9 @@ unitHyCube 0 = [([[]] , ())]
 unitHyCube n = extrudeSeg (unitHyCube (n - 1))
 
 
+scaleCell :: Float -> Drawing a -> Drawing a
+scaleCell f = scaleOrigin f (repeat 0.5)
+
 unitHyCubeSkel :: Int -> Int -> Drawing ()
 unitHyCubeSkel _ k | k < 0
                    = []

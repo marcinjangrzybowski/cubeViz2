@@ -4,6 +4,7 @@ import Abstract
 
 import Syntax
 
+import Drawing.Color
 import Drawing.Base
 
 import qualified Data.Bifunctor as Bf
@@ -104,3 +105,13 @@ piramFn compPar lf =
   case sort (mapMaybe (sideQ compPar) lf) of
     [] -> 0
     ((x , _) : _) -> 1 - (x / compPar)
+
+
+desat :: Float -> Color -> Color
+desat t (Rgba r g b a) =
+   let avg = (r + g + b)/3 in
+   (Rgba
+    (interp r avg t)
+    (interp g avg t)
+    (interp b avg t)
+    a) 

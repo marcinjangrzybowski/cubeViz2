@@ -28,7 +28,13 @@ import Data.Bifunctor
 
 import DataExtra
 
-data Descriptor = Descriptor PrimitiveMode VertexArrayObject ArrayIndex NumArrayIndices
+data Descriptor = Descriptor
+  { dPrimitiveMode :: PrimitiveMode
+  , dVertexArrayObject :: VertexArrayObject
+  , dArrayIndex :: ArrayIndex
+  , dNumArrayIndices :: NumArrayIndices
+  , dLineWidth :: Int
+  }
   deriving Show
 
 
@@ -38,7 +44,7 @@ data CombinedVertexData =
 emptyCVD = CombinedVertexData { pointVs = [] , lineVs = [] , triangleVs = [] }
 
 
-
+defaultLineWidth = 2
 
 perVert :: [[a]] -> [a] -> [a]
 perVert lv lt = concat $ fmap (\x -> x ++ lt) lv 
@@ -81,7 +87,7 @@ initResources rs =
      de1 <- initTrianglesResources Lines (lineVs (renderables2CVD rs))
      de2 <- initTrianglesResources Triangles (triangleVs (renderables2CVD rs))
      -- putStr (show de2)
-     return [de0 , de1 , de2]
+     return $ reverse [de0 , de1 , de2]
      
 bufferOffset :: Integral a => a -> Ptr b
 bufferOffset = plusPtr nullPtr . fromIntegral
@@ -158,7 +164,7 @@ initTrianglesResources pm vertices =
        (ToFloat, VertexArrayDescriptor 1 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2 + 4 * 4 * 1)))
      vertexAttribArray modePosition $= Enabled
 
-     return $ Descriptor pm triangles firstIndex (fromIntegral numVertices)
+     return $ Descriptor pm triangles firstIndex (fromIntegral numVertices) defaultLineWidth
 
 
 
@@ -196,7 +202,7 @@ onDisplay win w h vp ds = do
     Just nowD -> uniform (UniformLocation 2 ) $= nowD
     Nothing -> return ()
 
-  let (Descriptor pm verts firstIndex numVertices) = ds
+  let (Descriptor pm verts firstIndex numVertices _) = ds
   case pm of
     Lines -> uniform (UniformLocation 3 ) $= (0 :: GLfloat)
     Points -> uniform (UniformLocation 3 ) $= (0 :: GLfloat)

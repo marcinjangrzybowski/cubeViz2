@@ -196,13 +196,18 @@ drawExpr as Scaffold ee e =
 
    in concat (
 
-              [
+              [                
+                mkDrawExpr (CursorPT { cptCursorAddress = sptCA
+                                        })
+
+                ,
                 mkDrawExpr (DefaultPT { dptCursorAddress = sptCA
                           , dptShowFill = dpShowFilling $ asDisplayPreferences as
                           , dptFillFactor = 1.0
                               -- 0.5 * (sin (realToFrac $ asTime as) + 1)
 
                           })
+
               -- ,
               --   mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True
               --                              , sptCursorAddress = sptCA

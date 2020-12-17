@@ -185,6 +185,21 @@ mbSubAddress (Address sf addr) (Address sf' addr')
           (Address sf (reverse addr))
           (Address sf' (reverse addr'))
 
+
+
+--mbSubAddress
+
+-- first arg is possible parent
+mbSubFaceAddr :: Address -> Address -> Maybe SubFace
+mbSubFaceAddr a1 a2 =
+  case mbSubAddress a1 a2 of
+     Just (Address sf []) -> Just sf
+     _ -> Nothing
+
+isInternalAddress :: Address -> Bool
+isInternalAddress (Address sf (_ : _)) = isFullSF sf
+isInternalAddress (Address _ []) = False
+
 -- this ingore fillings (can produce wrong addresses when there are missing faces in compositions)
 addressSuperFaces :: Address -> [Address]
 addressSuperFaces (Address sf []) = [ Address ssf [] | ssf <- superSubFaces sf ]
