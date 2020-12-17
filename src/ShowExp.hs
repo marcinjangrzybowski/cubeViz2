@@ -99,6 +99,16 @@ asCursorAddress as =
     UMEditTail {} -> Just $ umEditedCell (um)
     UMAddSubFace {} -> Just $ fst $ umSubFaceToAdd (um)
 
+asSecCursorAddress :: AppState -> Maybe Address
+asSecCursorAddress as =
+  let um = (asUserMode as) in
+  case um of
+    UMNavigation {} ->
+      fmap mnAddr $ umModalNav um        
+    UMSelectGrid {} -> Nothing
+    UMEditTail {} -> Nothing
+    UMAddSubFace {} -> Nothing
+
 asSubFaceToAdd :: AppState -> Maybe (Address , SubFace)
 asSubFaceToAdd as =
     case asUserMode as of
@@ -136,30 +146,32 @@ umNavigation addr = UMNavigation { umCoursorAddress = addr , umModalNav = Nothin
 
 
 
-umModalNavigation :: ModalNav -> UserMode
-umModalNavigation z =
-   UMNavigation { umCoursorAddress = rotateFrom (mnAddr z) (mnOptions z)  , umModalNav = Just z } 
+umModalNavigation :: ClCub () -> ModalNav -> UserMode
+umModalNavigation cub z =
+   UMNavigation { umCoursorAddress = rotateFrom (mnAddr z) (mnOptions cub z)  , umModalNav = Just z } 
 
-umEnsureModalNavigation :: ModalNav -> UserMode -> UserMode
-umEnsureModalNavigation z (um@UMNavigation {}) =
+umEnsureModalNavigation :: ClCub () -> ModalNav -> UserMode -> UserMode
+umEnsureModalNavigation cub z (um@UMNavigation {}) =
   case (z , umModalNav um) of
     ((MNSub _) , Just (MNSub _)) -> um
     ((MNSup _) , Just (MNSup _)) -> um
-    _ -> umModalNavigation z
+    _ -> umModalNavigation cub z
 
 
-rotateModalNav :: Bool -> UserMode -> UserMode
-rotateModalNav b (um@UMNavigation {}) =
+rotateModalNav :: ClCub () -> Bool -> UserMode -> UserMode
+rotateModalNav cub b (um@UMNavigation {}) =
     let Just z = umModalNav um in
-    um { umCoursorAddress = rotateFromDir b (umCoursorAddress um) (mnOptions z) }
+    um { umCoursorAddress = rotateFromDir b (umCoursorAddress um) (mnOptions cub z) }
 
 
-mnOptions :: ModalNav -> [Address]
-mnOptions (MNSub addr) = addr : [ addressSubFace addr (toSubFace fc) | fc <- genAllLI (addresedDim addr) ]
-mnOptions (MNSup addr) = addr : addressSuperFaces addr
+mnOptions :: ClCub () -> ModalNav -> [Address]
+mnOptions cub (MNSub addr) = 
+  addr : [ addressSubFace addr (toSubFace fc) | fc <- genAllLI (addresedDim addr) ]
+mnOptions cub (MNSup addr) = addr : 
+  addressSuperCells cub addr
 
-umModalNavigationOptions :: UserMode -> [Address]
-umModalNavigationOptions = fromMaybe [] . (fmap mnOptions) . umModalNav
+umModalNavigationOptions :: ClCub () -> UserMode -> [Address]
+umModalNavigationOptions cub = fromMaybe [] . (fmap $ mnOptions cub) . umModalNav
       -- case umModalNav um of
       --   Nothing -> Just $ ca
       --   Just (MNSub i) ->
@@ -189,15 +201,16 @@ drawExpr :: AppState -> DrawExprMode -> (Env , Context) -> Expr
 
 drawExpr as Scaffold ee e =
 
-   let (sptCA , sptMSFC) =
+   let (sptCA , sptSCA , sptMSFC) =
           case (asSubFaceToAdd as) of
-             Nothing -> (asCursorAddress as , Nothing)
-             Just x -> (Nothing , Just x)
+             Nothing -> (asCursorAddress as , asSecCursorAddress as  , Nothing)
+             Just x -> (Nothing , Nothing , Just x)
 
    in concat (
 
               [                
                 mkDrawExpr (CursorPT { cptCursorAddress = sptCA
+                                     , cptSecCursorAddress = sptSCA
                                         })
 
                 ,
@@ -500,56 +513,61 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
          inf = helperPEM pem
      handleCellManipulationEvents pem ev addr
      case ev of
-        (UI.EventKey win k scancode ks mk) ->
+        (UI.EventKey win k scancode ks mk) -> do
              when (ks == GLFW.KeyState'Pressed) $ do
-             when (k == GLFW.Key'H) $ inf "EditHead" $ do
-               initEditHead addr
+                when (k == GLFW.Key'H) $ inf "EditHead" $ do
+                  initEditHead addr
 
-             when (k == GLFW.Key'T) $ do
-               initEditTail pem addr
-
-
-             -- when (k == GLFW.Key'A) $ do
-             --   case (uncons addr) of
-             --     Just (_ , addrTail) -> inf "Add sub-face" $ setAddSubFaceMode addrTail
-             --     Nothing -> return ()
+                when (k == GLFW.Key'T) $ do
+                  initEditTail pem addr
 
 
-             -- when (k == GLFW.Key'C) $ do
-             --   if (GLFW.modifierKeysControl mk)
-             --   then inf "Delete sub-face with subfaces" $ transformExpr (RemoveCell addr)
-             --   else inf "Delete sub-face" $ transformExpr (RemoveCellLeaveFaces addr)
-             --   inf "" $ setNavMode (fullSF (getDim (head addr)) : (tailAlways addr))
-
-             when (k == GLFW.Key'S) $ inf "Split cell" $ do
-               transformExpr (SplitCell addr)
-
-             -- when (k == GLFW.Key'Backspace) $ inf "Insert Hole" $ do
-             --   transformExpr (ReplaceAt addr (Cub undefined (Left 0)))
+                -- when (k == GLFW.Key'A) $ do
+                --   case (uncons addr) of
+                --     Just (_ , addrTail) -> inf "Add sub-face" $ setAddSubFaceMode addrTail
+                --     Nothing -> return ()
 
 
-             when (isArrowKey k) $ do
-               if (GLFW.modifierKeysControl mk)
+                -- when (k == GLFW.Key'C) $ do
+                --   if (GLFW.modifierKeysControl mk)
+                --   then inf "Delete sub-face with subfaces" $ transformExpr (RemoveCell addr)
+                --   else inf "Delete sub-face" $ transformExpr (RemoveCellLeaveFaces addr)
+                --   inf "" $ setNavMode (fullSF (getDim (head addr)) : (tailAlways addr))
 
-               then inf "" $ do               
-                    UI.modifyAppState (\s ->
-                       let (axis , dir) = fromJust (arrowKey2BoolBool k)
-                           mn = case axis of
-                                    True -> MNSup addr
-                                    False -> MNSub addr
-                       in s { asUserMode = rotateModalNav dir (umEnsureModalNavigation mn (asUserMode s))}  
-                       )
-                    UI.flushDisplay
+                when (k == GLFW.Key'S) $ inf "Split cell" $ do
+                  transformExpr (SplitCell addr)
 
-               else inf "" $  do               
-                    UI.modifyAppState (\s ->
-                       let nav = fromJust (arrowKey2nav k)
-                           jna = fromRight (addr) (cubNav (asCub appS) addr nav)
-
-                       in s { asUserMode = umNavigation jna })
-                    UI.flushDisplay
+                -- when (k == GLFW.Key'Backspace) $ inf "Insert Hole" $ do
+                --   transformExpr (ReplaceAt addr (Cub undefined (Left 0)))
 
 
+                when (isArrowKey k) $ do
+                  if (GLFW.modifierKeysControl mk)
+
+                  then inf "" $ do               
+                       UI.modifyAppState (\s ->
+                          let (axis , dir) = fromJust (arrowKey2BoolBool k)
+                              mn = case axis of
+                                       True -> MNSup addr
+                                       False -> MNSub addr
+                          in s { asUserMode = rotateModalNav cub dir (umEnsureModalNavigation cub mn (asUserMode s))}  
+                          )
+                       UI.flushDisplay
+
+                  else inf "" $  do               
+                       UI.modifyAppState (\s ->
+                          let nav = fromJust (arrowKey2nav k)
+                              jna = fromRight (addr) (cubNav (asCub appS) addr nav)
+
+                          in s { asUserMode = umNavigation jna })
+                       UI.flushDisplay
+
+
+             when (ks == GLFW.KeyState'Released) $ do
+                when (k == GLFW.Key'LeftControl && isJust ( umModalNav $ asUserMode appS ) ) $ inf "..." $ do
+                   UI.modifyAppState (\s ->
+                           s { asUserMode = umNavigation addr })
+                   UI.flushDisplay 
         _ -> return ()
 
 

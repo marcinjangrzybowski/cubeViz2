@@ -65,7 +65,7 @@ main()
 
    if(vMode == 0.0){
 
-   }else if(vMode == 1.0){ // cursor
+   }else if(vMode == 1.0){
       if (stripper(worldPos , 30.0 , 0.5  , float(time*0.1) ) < 0.5)
       {
        preRGB  = vec3(0.0,0.0,0.0);
@@ -92,6 +92,20 @@ main()
       if (stripper(worldPos , 10.0 , 0.2  , float(time*0.1) ) < 0.5)
       {
        discard;
+      }
+   }else if(vMode == 6.0){ // cursor moving
+      if (stripper(worldPos , 30.0 , 0.5  , float(time*0.1) ) < 0.5)
+      {
+       preRGB  = vec3(0.0,0.0,0.0);
+      }else{
+       preRGB  = vec3(1.0,1.0,1.0);
+      }
+   }else if(vMode == 7.0){ // cursor stationary
+      if (stripper(worldPos , 30.0 , 0.5  , float(time*0.0) ) < 0.5)
+      {
+       preRGB  = vec3(0.0,0.0,0.0);
+      }else{
+       preRGB  = vec3(1.0,1.0,1.0);
       }
    }
 

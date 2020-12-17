@@ -492,7 +492,8 @@ injFace sf@(SubFace n m) f@(Face _ (k , b))
 
 injSubFace :: SubFace -> SubFace -> SubFace
 injSubFace sfL@(SubFace k sfLm) sf@(SubFace n m)
-   | getDim sfL /= subFaceDimEmb sf = error "subface dimension do not match subfaceEmbdDim"
+   | getDim sfL /= subFaceDimEmb sf = error $ "subface dimension do not match subfaceEmbdDim: "
+                                              ++ show (getDim sfL) ++ " vs " ++ show (subFaceDimEmb sf)
    | otherwise =
        let sfLm2 = Map.mapKeys (punchInMany (Map.keysSet m)) sfLm
                 in SubFace n (Map.union sfLm2 m)

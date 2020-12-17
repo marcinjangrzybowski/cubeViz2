@@ -350,12 +350,14 @@ data ScaffoldPT = ScaffoldPT
 instance Shadelike ColorType where
   toShade ((tags , _) , c) =
           let isCursor = elem "cursor" tags
+              isCursorSec = elem "cursorSec" tags
               hollowBox = elem "hollowBox" tags
               animStripes = elem "animated-stripes" tags
-              shadeMode = case (isCursor , animStripes , hollowBox) of
-                              (True , _ , _) -> 1
-                              (_ , True , _) -> 3
-                              (_ , _ , True) -> 4
+              shadeMode = case (isCursor , isCursorSec , animStripes , hollowBox) of
+                              (True , _ , _ , _) -> 6
+                              (_ , True , _ , _) -> 7
+                              (_ , _ , True , _) -> 3
+                              (_ , _ , _ , True) -> 4
                               _ -> 0
           in
           Shade { shadeColor = c
@@ -385,9 +387,32 @@ instance DrawingCtx (Env , Context) ColorType Int ScaffoldPT where
 
 data CursorPT = CursorPT
   { cptCursorAddress :: Maybe Address
+  , cptSecCursorAddress :: Maybe Address
   }
 
 
+cursorDrw :: Bool -> CursorPT -> Int -> Address -> Drawing  ColorType
+cursorDrw node1Fix cpt k addr =
+     let partOfSelectedCellBndr = if node1Fix then (Just addr == cptCursorAddress cpt) else
+              maybe False (not . isInternalAddress)
+            $ flip mbSubAddress addr =<< cptCursorAddress cpt
+
+         partOfSecSelectedCellBndr = if node1Fix then (Just addr == cptSecCursorAddress cpt) else
+              maybe False (not . isInternalAddress)
+            $ flip mbSubAddress addr =<< cptSecCursorAddress cpt
+              
+         scaffS =
+            case (partOfSelectedCellBndr , partOfSecSelectedCellBndr) of
+               (True , _) -> (( ["cellBorder" , "cursor"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
+               (_ , True) -> (( ["cellBorder" , "cursorSec"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
+               (_ , _) -> (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
+         scaff = if k <= 1
+             then Bf.second (const scaffS) <$> unitHyCube k
+             else []
+
+     in if partOfSelectedCellBndr  || partOfSecSelectedCellBndr 
+        then scaff
+        else []
 
 instance DrawingCtx (Env , Context) ColorType Int CursorPT where
   fromCtx _ = id
@@ -396,20 +421,13 @@ instance DrawingCtx (Env , Context) ColorType Int CursorPT where
 
   drawD _ _ k = FromLI k (const [])
 
-  drawCellCommon cpt k addr _ _ =
-     let partOfSelectedCellBndr =
-              maybe False (not . isInternalAddress)
-            $ flip mbSubAddress addr =<< cptCursorAddress cpt
-         scaffS = if partOfSelectedCellBndr
-                  then (( ["cellBorder" , "cursor"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
-                  else (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
-         scaff = if k <= 1
-             then Bf.second (const scaffS) <$> unitHyCube k
-             else []
+  nodePainterCommon cpt _ k addr _ _ _ =
+    if (k==1) then
+    cursorDrw True cpt k addr
+    else []
+    
+  drawCellCommon cpt k addr _ _ = cursorDrw False cpt k addr
 
-     in if partOfSelectedCellBndr
-        then scaff
-        else []
 
   fillStyleProcess _ _ = []
 

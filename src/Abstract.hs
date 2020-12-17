@@ -19,6 +19,8 @@ import Data.Function
 import Data.List
 import Control.Applicative
 
+import qualified Data.Foldable as Foldable
+
 import Data.Functor.Identity
 
 import Combi
@@ -197,8 +199,10 @@ mbSubFaceAddr a1 a2 =
      _ -> Nothing
 
 isInternalAddress :: Address -> Bool
-isInternalAddress (Address sf (_ : _)) = isFullSF sf
-isInternalAddress (Address _ []) = False
+isInternalAddress (Address sf tl) = isFullSF sf && (not $ null tl)
+-- isInternalAddress (Address sf _) | not $ isFullSF sf = False 
+-- isInternalAddress (Address _ []) = False
+-- isInternalAddress _ = True
 
 -- this ingore fillings (can produce wrong addresses when there are missing faces in compositions)
 addressSuperFaces :: Address -> [Address]
@@ -210,6 +214,24 @@ addressSuperFaces (Address sf ((AOnBottom sfA) : xs)) =
 
 addressSuperFaces (Address sf ((AOnCylinder sfA) : xs)) =
    [ Address sf (AOnCylinder ssf : xs ) | ssf <- filter (not . isFullSF) $ superSubFaces sfA ]
+
+-- --this is more usefull, it only gives addreses of Leafs
+-- addressSuperCells :: ClCub a -> Address -> [Address]
+-- addressSuperCells cub (Address sf []) | isFullSF sf = []
+-- addressSuperCells cub (Address sf []) | subFaceCodim sf == 1
+--      = undefined
+       
+-- addressSuperCells cub (Address sf []) =
+--   [ let asc = addressSuperCells (clCubPickSF ssf cub) (Address (fullSF (subFaceDimEmb ssf)) [])  
+
+--     in case asc of
+--           x : _ -> undefined
+--           _ -> undefined 
+
+--   | ssf <- superSubFaces sf ]
+
+-- addressSuperCells cub (Address sf tl) = undefined
+
 
 
 -- unsafe, may throw error
@@ -227,7 +249,10 @@ addressSubFace (Address sf' ((AOnCylinder sfA) : xs)) sf =
      JCEnd False sff -> (Address sf' ((AOnBottom sff) : xs))
        
      JCCyl sff -> (Address sf' ((AOnCylinder sff) : xs))
-       
+
+
+
+                  
 bdCubPickSF :: SubFace -> BdCub a -> ClCub a
 bdCubPickSF sfc _ | isFullSF sfc = error "you cannot pick full SF from Bd"
 bdCubPickSF sfc (BdCub (FromLI n mp)) = ClCub $
@@ -292,6 +317,43 @@ oCubPick addr (Hcomp _ _ si a) =
          first (1 +) (clCubPickO (Address sf (reverse xs)) a)
      _ -> error "imposible, this case should be handled in ther firt clause"
 
+
+-- truncates Address so it will be valid for given complex
+-- may throw error for bad dim
+fixAddress :: ClCub a -> Address -> Address
+fixAddress y addr | getDim y /= getDim addr = error "dimensions of address and xomplex do not match!" 
+fixAddress y addr@(Address sf tl) =
+  case oCubPick tl $ clInterior $ clCubPickSF sf y of
+    Right _ -> addr
+    Left i -> (Address sf $ reverse $ take i (reverse tl))
+
+isValidAddressFor :: ClCub a -> Address -> Bool
+isValidAddressFor y addr | getDim y /= getDim addr = error "dimensions of address and xomplex do not match!" 
+isValidAddressFor y addr@(Address sf tl) =
+  case oCubPick tl $ clInterior $ clCubPickSF sf y of
+    Right _ -> True
+    Left _ -> False
+
+addressSuperCells :: ClCub a -> Address -> [Address]
+addressSuperCells cl addr =
+   let cl' = fmap (const []) cl
+
+       z n addr' _ _ =
+         if addr `elem` [ addressSubFace addr' (toSubFace fc) | fc <- (genAllLI n)]
+         then [addr']
+         else []
+       
+   in Foldable.fold $ cubMapOld z cl'
+  -- cubMapOld
+
+
+-- addressSubFace
+  
+-- fixAddress y addr@(Address sf tl@(x : xs)) =
+--   case (clInterior $ clCubPickSF sf y , reverse tl) of
+--     (Cub _ _ _ , _)-> (Address sf [])
+--     (Hcomp _ _ cyl _ , AOnCylinder sf' : tl') -> undefined
+--     (Hcomp _ _ _ btm , AOnBottom sf'  : tl') -> undefined      
 
 cubMapShallow ::  forall a b. (Monad a) =>
                   (b -> a b)
@@ -888,8 +950,17 @@ cubNav c a@(Address sf addr) dir =
   case (clCubPickO a c , addr , dir) of
     (Left _ , _ , _) -> error "bad address!"
 
+    (Right _ , (x@(AOnBottom sf') : xs) , DParent ) ->
+       if isFullSF sf'
+       then Right (Address sf xs)
+       else Right (Address sf ((AOnBottom $ fullSF (getDim sf')) : xs) )
+
     (Right _ , (x : xs) , DParent ) -> Right (Address sf xs)
-    (Right _ , [] , DParent ) -> Left ImposibleMove
+    
+    (Right _ , [] , DParent ) ->
+       if isFullSF sf
+       then Left ImposibleMove
+       else Right (Address (fullSF (getDim sf) ) [])
                 -- top level cell do not have parent!
 
     (Right (Cub _ _ _) , _ , DChild ) -> Left ImposibleMove
@@ -901,21 +972,23 @@ cubNav c a@(Address sf addr) dir =
     (Right _ , [] , DNext ) -> Left ImposibleMove
     (Right _ , [] , DPrev ) -> Left ImposibleMove
                 -- top level cell do not have a parent, so it is not posible to cycle thru its children
-
+      
     (Right _ , x : xs , nv ) ->
-       case clCubPickO (Address sf xs) c of         
-         Right (Hcomp _ _ pa a) -> 
+       case (clCubPickO (Address sf xs) c , x) of
+         (Right (Hcomp _ _ pa a) , _) -> 
              let
                  sfcs = (AOnBottom $ fullSF (getDim a))
                           : fmap AOnCylinder (Set.toList $ 
                                                       (let s = occupiedCylCells pa
                                                        in (Set.filter (not . isCoveredIn s) s )))                 
                  x2 =
-                   case nv of
+                   case nv  of
                      DNext -> rotateFrom x sfcs 
                      DPrev -> rotateFrom x (reverse sfcs)
                      _ -> error "imposible"
-             in Right (Address sf (x2 : xs))
+             in if x `elem` sfcs
+                then Right (Address sf (x2 : xs))
+                else Left ImposibleMove
          _ -> error "bad address, parent cell is leaf!!"
 
 
