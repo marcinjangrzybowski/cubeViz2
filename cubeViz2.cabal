@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a66dd624f9328c9763ca8199c9513b2e523a0bb898f8eae0aac582935781cf08
+-- hash: a705e21fdb66d6281526fa565f933b45f66a9477b6b6e1965428bfd3710a1c01
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -32,6 +32,7 @@ library
       ConsolePrint
       ContextParser
       DataExtra
+      Dep
       DrawData
       DrawExpr
       Drawing.Base
@@ -67,6 +68,8 @@ library
     , bytestring
     , containers
     , extra
+    , finite-typelits
+    , lattices
     , mtl
     , parsec
     , pretty
@@ -78,6 +81,7 @@ library
     , text
     , time
     , transformers
+    , type-iso
   default-language: Haskell2010
 
 executable cubeViz2-exe
@@ -96,6 +100,8 @@ executable cubeViz2-exe
     , containers
     , cubeViz2
     , extra
+    , finite-typelits
+    , lattices
     , mtl
     , parsec
     , pretty
@@ -107,6 +113,7 @@ executable cubeViz2-exe
     , text
     , time
     , transformers
+    , type-iso
   default-language: Haskell2010
 
 test-suite cubeViz2-test
@@ -126,6 +133,8 @@ test-suite cubeViz2-test
     , containers
     , cubeViz2
     , extra
+    , finite-typelits
+    , lattices
     , mtl
     , parsec
     , pretty
@@ -137,4 +146,5 @@ test-suite cubeViz2-test
     , text
     , time
     , transformers
+    , type-iso
   default-language: Haskell2010

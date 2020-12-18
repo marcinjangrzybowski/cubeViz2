@@ -38,7 +38,9 @@ dependencies:
 - pretty-terminal
 - ansi-terminal
 - time
-
+- finite-typelits
+- type-iso
+- lattices 
 library:
   source-dirs: src
 

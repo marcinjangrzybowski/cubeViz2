@@ -3,7 +3,21 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    hackage: type-iso-1.0.1.0@sha256:75682a06a5af1798c6641ba3cc175685a1f699962ad22ab194a487c0d6b7da66,1892
+    pantry-tree:
+      size: 339
+      sha256: bbb0c4d271769eddfce41bdaa56c51e14c79ba4c3149b1e39a06b27eb73603b9
+  original:
+    hackage: type-iso-1.0.1.0@sha256:75682a06a5af1798c6641ba3cc175685a1f699962ad22ab194a487c0d6b7da66,1892
+- completed:
+    hackage: numericpeano-0.2.0.0@sha256:e3a1dc960817a81f39d276e7bfa0124e8efa1b91b5c272a70dfa16c38627f172,1406
+    pantry-tree:
+      size: 266
+      sha256: 697cac9f0d18b97fd8f7217cf62bce0d6a040236ca0ecc88f1533d0999e900ff
+  original:
+    hackage: numericpeano-0.2.0.0@sha256:e3a1dc960817a81f39d276e7bfa0124e8efa1b91b5c272a70dfa16c38627f172,1406
 snapshots:
 - completed:
     size: 532414

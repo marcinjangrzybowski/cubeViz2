@@ -171,7 +171,7 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
   -- c is some abstract descriptoon
   -- b is colorlike
   -- d - settings, also main type setting the rest !
-
+  
   fromCtx :: d -> (Env , Context) -> a
 
   -- IMPORTANT : (Env , Context) everywhere bellow is global! , cant be trustet with dimensions!! 
