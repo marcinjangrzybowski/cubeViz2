@@ -40,7 +40,9 @@ dependencies:
 - time
 - finite-typelits
 - type-iso
-- lattices 
+- lattices
+- singletons
+
 library:
   source-dirs: src
 

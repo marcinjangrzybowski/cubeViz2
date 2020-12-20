@@ -35,6 +35,9 @@ import Data.Semigroup
 
 import Debug.Trace
 
+import Algebra.Lattice
+
+
 factorial :: Int -> Int
 factorial n =
   case n of
@@ -98,8 +101,6 @@ subFaceDimEmb :: SubFace -> Int
 subFaceDimEmb (SubFace n m) = n - Map.size m
 
 data Never a = Never
-
-
 
 
 
@@ -175,8 +176,6 @@ instance OfDim Piece where
 
 mapListIndexed :: (Int -> a -> b) -> [a] -> [b]
 mapListIndexed f = zipWith f [0..]
-
-
 
 
 listPermute2 :: Permutation2 -> [a] -> [a]
@@ -490,6 +489,14 @@ injFace sf@(SubFace n m) f@(Face _ (k , b))
                 let k2 = punchInMany (Map.keysSet m) k
                 in SubFace n (Map.insert k2 b m)
 
+injSubFaceSafe :: SubFace -> SubFace -> Maybe SubFace
+injSubFaceSafe sfL@(SubFace k sfLm) sf@(SubFace n m)
+   | getDim sfL /= subFaceDimEmb sf = Nothing
+   | otherwise =
+       let sfLm2 = Map.mapKeys (punchInMany (Map.keysSet m)) sfLm
+                in Just $ SubFace n (Map.union sfLm2 m)
+
+
 injSubFace :: SubFace -> SubFace -> SubFace
 injSubFace sfL@(SubFace k sfLm) sf@(SubFace n m)
    | getDim sfL /= subFaceDimEmb sf = error $ "subface dimension do not match subfaceEmbdDim: "
@@ -503,15 +510,15 @@ injSubFace sfL@(SubFace k sfLm) sf@(SubFace n m)
 
 -- takes
 
-faceOfCylAtSide :: Bool -> SubFace -> SubFace 
+faceOfCylAtSide :: Bool -> SubFace -> SubFace
 faceOfCylAtSide b sf = toSubFace (Face ((subFaceDimEmb sf) + 1) (subFaceDimEmb sf , b))
 
 
-injCylEnd :: Bool -> SubFace -> SubFace 
+injCylEnd :: Bool -> SubFace -> SubFace
 injCylEnd b (SubFace n mp) = (SubFace (n + 1) (Map.insert n b mp))
 
 injCyl :: SubFace -> SubFace
-injCyl (SubFace n mp) = (SubFace (n + 1) mp) 
+injCyl (SubFace n mp) = (SubFace (n + 1) mp)
 
 data JniCyl = JCEnd Bool SubFace | JCCyl SubFace
 
@@ -522,6 +529,14 @@ superSubFaces sf@(SubFace m sfm) =
 
     | sfml <- explode (Map.toList sfm) ]
   
+    
+
+allSuperSubFaces :: SubFace -> [SubFace]
+allSuperSubFaces sf@(SubFace m sfm) =
+  [ (SubFace m (Map.fromList (Set.toList sfml)))
+    | sfml <- Set.toList (Set.powerSet $ Set.fromList (Map.toList sfm)) ]
+
+
 
 -- second is Parent
 jniCyl :: SubFace -> SubFace -> JniCyl
@@ -529,7 +544,7 @@ jniCyl (SubFace m sfm) sf'@(SubFace m' sfm') =
   case Map.lookup (m - 1) sfm of
     Just b -> JCEnd b (injSubFace (SubFace (m - 1) (Map.delete (m - 1) sfm)) sf')
     Nothing -> JCCyl (injSubFace (SubFace (m - 1) sfm) sf')
-  
+
 jniSubFaceMb :: SubFace -> SubFace -> Maybe SubFace
 jniSubFaceMb sfL@(SubFace k sfLm) sf@(SubFace n m)
    | getDim sfL /= getDim sf = Nothing
@@ -567,7 +582,6 @@ isProperSubFaceOf (SubFace n1 m1) (SubFace n2 m2)
    | otherwise = Map.isProperSubmapOf m2 m1
 
 
-
 isIncludedIn :: Set.Set SubFace -> SubFace -> Bool
 isIncludedIn sfcs sf = any (isSubFaceOf sf) sfcs
 
@@ -576,6 +590,7 @@ isProperlyIncludedIn sfcs sf = isIncludedIn sfcs sf && not (Set.member sf sfcs)
 
 isCoveredIn :: Set.Set SubFace -> SubFace -> Bool
 isCoveredIn sfcs sf = any (isSubFaceOf sf) (Set.delete sf sfcs)
+
 
 
 injFaceSide :: Face -> Face
@@ -604,6 +619,7 @@ deleteButLeaveFaces fcs sf@(SubFace n _) m =
 missingSubFaces :: Int -> Set.Set SubFace -> Set.Set SubFace
 missingSubFaces n sfcs =
    Set.filter (\x -> not (isIncludedIn sfcs x) && not (isFullSF x) ) $ Set.fromList (genAllLI n)
+
 
 properlyCoveredSubFaces :: Int -> Set.Set SubFace -> Set.Set SubFace
 properlyCoveredSubFaces n sfcs  =
@@ -638,3 +654,24 @@ addSubFace a sf@(SubFace n _) m =
   --            --trace ((show $ (Map.keysSet u )))
   --            u
 
+
+
+superFacesOutside :: Set.Set SubFace -> SubFace -> Set.Set SubFace
+superFacesOutside sfs sf =
+  let superSF = filter (not . isFullSF) $ allSuperSubFaces sf
+  in Set.difference (Set.fromList superSF) sfs
+    
+-- data BdSfCase = OnBd (Set.Set SubFace) | Inside | Outside
+
+
+
+
+-- -- set must be walid "boudnary set"
+-- partialBdCase :: Set.Set SubFace -> SubFace -> BdSfCase
+-- partialBdCase sfs sf =
+--   let superSF = filter (not . isFullSF) $ allSuperSubFaces sf in
+--   if (not (Set.member sf sfs))
+--   then Outside
+--   else if (all (flip Set.member sfs ) superSF)
+--        then Inside
+--        else OnBd $ Set.difference (Set.fromList superSF) sfs

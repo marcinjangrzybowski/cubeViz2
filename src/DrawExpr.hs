@@ -332,10 +332,14 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
                     else ((tags , em) , color)
                    )
         removeFillHoles = 
-           filter ((\((tags , em) , color) -> not ("filling" `elem` tags && "hole" `elem` tags)) . snd) 
+           filter ((\((tags , em) , color) -> not ("filling" `elem` tags && "hole" `elem` tags)) . snd)
+
+        removePoints = filter
+           (\(x , _) -> length x > 1)
                  
     in
-       removeFillHoles
+       removePoints
+     . removeFillHoles
      . fillP
      . selectP
 
@@ -386,18 +390,26 @@ instance DrawingCtx (Env , Context) ColorType Int ScaffoldPT where
   fillStyleProcess _ _ = []
 
 data CursorPT = CursorPT
-  { cptCursorAddress :: Maybe Address
+  { cptCursorAddress :: Maybe (Address , Set.Set Address)
   , cptSecCursorAddress :: Maybe Address
   }
 
 
 cursorDrw :: Bool -> CursorPT -> Int -> Address -> Drawing  ColorType
 cursorDrw node1Fix cpt k addr =
-     let partOfSelectedCellBndr = if node1Fix then (Just addr == cptCursorAddress cpt) else
+     let partOfSelectedCellBndrF addr' =
+           if node1Fix then (addr == addr') else
               maybe False (not . isInternalAddress)
-            $ flip mbSubAddress addr =<< cptCursorAddress cpt
+            $ mbSubAddress addr' addr
 
-         partOfSecSelectedCellBndr = if node1Fix then (Just addr == cptSecCursorAddress cpt) else
+         partOfSelectedCellBndr =
+           (maybe False $ any partOfSelectedCellBndrF)
+           -- $ fmap (Set.singleton . fst)
+           $ fmap snd 
+           $ cptCursorAddress cpt
+
+         partOfSecSelectedCellBndr =
+           if node1Fix then (Just addr == cptSecCursorAddress cpt) else
               maybe False (not . isInternalAddress)
             $ flip mbSubAddress addr =<< cptSecCursorAddress cpt
               

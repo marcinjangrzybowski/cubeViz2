@@ -167,8 +167,9 @@ rotateModalNav cub b (um@UMNavigation {}) =
 mnOptions :: ClCub () -> ModalNav -> [Address]
 mnOptions cub (MNSub addr) = 
   addr : [ addressSubFace addr (toSubFace fc) | fc <- genAllLI (addresedDim addr) ]
-mnOptions cub (MNSup addr) = addr : 
-  addressSuperCells cub addr
+mnOptions cub (MNSup addr) = addr :
+  addressClassSuperCellsClass cub (addressClass cub addr)
+  -- addressSuperCells cub addr
 
 umModalNavigationOptions :: ClCub () -> UserMode -> [Address]
 umModalNavigationOptions cub = fromMaybe [] . (fmap $ mnOptions cub) . umModalNav
@@ -203,7 +204,8 @@ drawExpr as Scaffold ee e =
 
    let (sptCA , sptSCA , sptMSFC) =
           case (asSubFaceToAdd as) of
-             Nothing -> (asCursorAddress as , asSecCursorAddress as  , Nothing)
+             Nothing -> ((fmap (\a -> (a , addressClass (asCub as) a)) $ asCursorAddress as  )
+                          , asSecCursorAddress as  , Nothing)
              Just x -> (Nothing , Nothing , Just x)
 
    in concat (
@@ -214,7 +216,7 @@ drawExpr as Scaffold ee e =
                                         })
 
                 ,
-                mkDrawExpr (DefaultPT { dptCursorAddress = sptCA
+                mkDrawExpr (DefaultPT { dptCursorAddress = fmap fst sptCA
                           , dptShowFill = dpShowFilling $ asDisplayPreferences as
                           , dptFillFactor = 1.0
                               -- 0.5 * (sin (realToFrac $ asTime as) + 1)

@@ -1,4 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module DataExtra where
 
 import Data.Bifunctor
@@ -189,3 +191,15 @@ setMapMaybe f = Set.fromList . Maybe.mapMaybe f . Set.toList
 
 foldFL :: [a -> a] -> a -> a
 foldFL l x = foldl (\x f -> f x) x l 
+
+
+
+disjointSetFamFold :: forall a b. (Foldable a , Ord b) => a (Set.Set b) -> Set.Set (Set.Set b)
+disjointSetFamFold = foldl visit Set.empty
+  where
+    visit :: Set.Set (Set.Set b) -> Set.Set b -> Set.Set (Set.Set b) 
+    visit fam s =
+      let (toPass , toMerge) = Set.partition (Set.disjoint s) fam
+          merged = foldl Set.union s toMerge
+      in Set.insert merged toPass
+       

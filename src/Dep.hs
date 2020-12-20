@@ -1,10 +1,12 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 {-# LANGUAGE AllowAmbiguousTypes #-}
-
+{-# LANGUAGE ScopedTypeVariables #-}
 
 {-# LANGUAGE DataKinds #-}
 
@@ -44,6 +46,33 @@ mkVecc la = result
              else error $ "length do not match! (expected :" ++ show (natVal result)
                            ++ ") but legth of arg was: " ++ show (length la)
 
+data OfDimK a = forall n. KnownNat n => OfDimK (a n)
+
+data OfDimU a = forall n. OfDimU (a n)
+
+getDim :: OfDimK a -> Integer
+getDim (OfDimK x) = natVal x
+
+emptyVecc :: Vecc a 0
+emptyVecc = Vecc []
+
+consVecc :: a -> Vecc a n -> Vecc a (n + 1)
+consVecc a (Vecc la) = (Vecc (a : la))
+
+
+toVeccU :: forall a. [a] -> OfDimK (Vecc a)
+toVeccU x =
+  case length x of
+    0 -> OfDimK (Vecc x :: Vecc a 0 )
+    1 -> OfDimK (Vecc x :: Vecc a 1 )
+    2 -> OfDimK (Vecc x :: Vecc a 2 )
+    3 -> OfDimK (Vecc x :: Vecc a 3 )
+    4 -> OfDimK (Vecc x :: Vecc a 4 )
+    5 -> OfDimK (Vecc x :: Vecc a 5 )
+    6 -> OfDimK (Vecc x :: Vecc a 6 )
+
+
+
 newtype Permutation (n :: Nat) = Permutation (Vecc (Finite n) n)
   deriving Eq
 
@@ -58,7 +87,6 @@ instance Show (Face n) where
 
 newtype SubFace (n :: Nat) = SubFace (Map.Map (Finite n) Bool)
   deriving (Eq , Show)
-
 
 
 class HasCard a where
@@ -80,17 +108,12 @@ mkGraded a | gradeTest = result
     
     gradeTest = getFinite (grade a) == natVal result
   
-data OfDim a = forall n. KnownNat n => OfDim (a n)
 
-getDim :: OfDim a -> Integer
-getDim (OfDim x) = natVal x
 
--- toVecc :: [a] -> OfDim (Vecc a)
--- toVecc la = OfDim undefined
 
-newtype GradedMap a b (n :: Nat) = GradedMap (Map.Map (a n) (OfDim b))
+newtype GradedMap a b (n :: Nat) = GradedMap (Map.Map (a n) (OfDimK b))
 
-mkGradedMap :: (KnownNat n , Gradable a) => Map.Map (a n) (OfDim b) -> GradedMap a b n
+mkGradedMap :: (KnownNat n , Gradable a) => Map.Map (a n) (OfDimK b) -> GradedMap a b n
 mkGradedMap mp | gradesTest = GradedMap mp
                | otherwise = error "grades Error"
   where
@@ -168,3 +191,8 @@ data SSubFace' n (sf :: SubFace n) = forall m. SSubFace' (SubFace m)
 -- instance SubFaceal (SSubFace' n sf) n where
 --   toSubFace (SSubFace' (SubFace x)) = SubFace x 
 
+
+
+
+zz :: KnownNat n => Vecc Bool n -> Vecc Bool n -> [Bool]
+zz (Vecc a) (Vecc b) = a ++ b
