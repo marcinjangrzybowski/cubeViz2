@@ -418,7 +418,7 @@ transformExpr trns =
    do
       appS <- UI.getAppState
       case applyTransform trns (asCub appS) of
-        (Left err) -> consolePrint $ "transform error: " ++ err
+        (Left err) -> consolePrint $ "transform error: " ++ show err
         (Right newCub) -> setFromCub newCub
 
 
@@ -513,6 +513,7 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
      appS <- UI.getAppState
      let cub = asCub appS
          inf = helperPEM pem
+         addrClass = addressClass cub addr
      handleCellManipulationEvents pem ev addr
      case ev of
         (UI.EventKey win k scancode ks mk) -> do
@@ -536,8 +537,8 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                 --   else inf "Delete sub-face" $ transformExpr (RemoveCellLeaveFaces addr)
                 --   inf "" $ setNavMode (fullSF (getDim (head addr)) : (tailAlways addr))
 
-                when (k == GLFW.Key'S) $ inf "Split cell" $ do
-                  transformExpr (SplitCell addr)
+                -- when (k == GLFW.Key'S) $ inf "Split cell" $ do
+                --   transformExpr (SplitCell addr)
 
                 -- when (k == GLFW.Key'Backspace) $ inf "Insert Hole" $ do
                 --   transformExpr (ReplaceAt addr (Cub undefined (Left 0)))
@@ -709,12 +710,12 @@ handleCellManipulationEvents pem ev addr = do
 
 
      case ev of
-        (UI.EventKey win k scancode ks mk) ->
-             when (ks == GLFW.KeyState'Pressed) $ do
-             when (k == GLFW.Key'I && length pd > 0) $ inf "negate dimensions" $ do
-                 transformExpr (MapAt addr (Right . negateDimIndexes pd))
-             when (k == GLFW.Key'R && isJust ri) $ inf "rotate dimensions" $ do
-                 transformExpr (MapAt addr (Right . rotateDimIndexes (fromJust ri)))
+        -- (UI.EventKey win k scancode ks mk) ->
+        --      when (ks == GLFW.KeyState'Pressed) $ do
+        --      when (k == GLFW.Key'I && length pd > 0) $ inf "negate dimensions" $ do
+        --          transformExpr (MapAt addr (Right . negateDimIndexes pd))
+        --      when (k == GLFW.Key'R && isJust ri) $ inf "rotate dimensions" $ do
+        --          transformExpr (MapAt addr (Right . rotateDimIndexes (fromJust ri)))
 
                   -- -- when (k == GLFW.Key'T) $ inf "Enter term" $ do 
                   -- --    let ((env , ctx) , _) = asExpression appS
@@ -849,7 +850,7 @@ initEditHead addr = do
              let newCell = mkCellExprForceDefTail (env , ctx) newVi initTail
              undefined --transformExpr (ReplaceAt addr (Cub () _ (Right newCell)))
        , gsdFinalAction = \_ _ -> return ()
-       , gsdAbortAction = transformExpr (ReplaceAt addr initialCub)
+       , gsdAbortAction = transformExpr undefined --(ReplaceAt addr initialCub)
        }
   gsdAction gsd (gridLookup initPos (gsdChoices gsd)) initPos
   setUserMode $ UMSelectGrid addr gsd

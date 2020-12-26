@@ -390,7 +390,7 @@ instance DrawingCtx (Env , Context) ColorType Int ScaffoldPT where
   fillStyleProcess _ _ = []
 
 data CursorPT = CursorPT
-  { cptCursorAddress :: Maybe (Address , Set.Set Address)
+  { cptCursorAddress :: Maybe (Address , CAddress)
   , cptSecCursorAddress :: Maybe Address
   }
 
@@ -405,7 +405,7 @@ cursorDrw node1Fix cpt k addr =
          partOfSelectedCellBndr =
            (maybe False $ any partOfSelectedCellBndrF)
            -- $ fmap (Set.singleton . fst)
-           $ fmap snd 
+           $ fmap (cAddress . snd) 
            $ cptCursorAddress cpt
 
          partOfSecSelectedCellBndr =

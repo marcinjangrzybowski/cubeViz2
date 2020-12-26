@@ -52,8 +52,9 @@ data OCub b =
   deriving (Show ,  Functor)
 
 
-
-
+isHole :: OCub b -> Bool
+isHole (Cub _ _ Nothing) = True
+isHole _ = False 
 -- instance Bifunctor Cub where
 --   first f (Cub fc a) = (Cub (fmap (first f) fc) a) 
 --   first f (Hcomp b nm si a) = (Hcomp (f b) nm (fmap (first f) si) (first f a))
@@ -67,14 +68,14 @@ data AddressPart = AOnCylinder SubFace | AOnBottom SubFace
 data Address = Address SubFace [AddressPart]
   deriving (Show , Eq, Ord)
 
-data CAddress b = CAddress (ClCub b) (Set.Set Address)
-  deriving (Show)
+newtype CAddress = CAddress {cAddress :: (Set.Set Address)}
+  deriving (Show , Eq , Ord)
 
-instance Eq (CAddress b) where
-  (CAddress _ a) == (CAddress _ b) = a == b 
+-- instance Eq (CAddress b) where
+--   (CAddress a) == (CAddress _ b) = a == b 
 
-instance Ord (CAddress b) where
-  (CAddress _ a) <= (CAddress _ b) = a <= b 
+-- instance Ord (CAddress b) where
+--   (CAddress _ a) <= (CAddress _ b) = a <= b 
 
 
 -- isTornAddress :: (ClCub b) -> Address -> Bool
@@ -266,13 +267,13 @@ getAllAddrClasses cub =
     disjointSetFamFold
   $ cubMapWAddr (\addr _ -> Set.insert addr (toFillParent cub addr)) cub
 
-addressClass :: ClCub b -> Address -> Set.Set Address
-addressClass cub addr =  
+addressClass :: ClCub b -> Address -> CAddress
+addressClass cub addr = CAddress $  
   fromJust $ find (Set.member addr) $ getAllAddrClasses cub
 
 
-mkCAddress :: ClCub b -> Address -> CAddress b
-mkCAddress cub addr = CAddress cub $ 
+mkCAddress :: ClCub b -> Address -> CAddress
+mkCAddress cub addr = CAddress $ 
   fromJust $ find (Set.member addr) $ getAllAddrClasses cub
 
 -- TODO: invesitagate performance here
@@ -416,6 +417,22 @@ isValidAddressFor y addr@(Address sf tl) =
     Right _ -> True
     Left _ -> False
 
+addressClassSuperCellsClass :: ClCub a -> CAddress -> [Address]
+addressClassSuperCellsClass cl x =
+  nubBy (compAddressClass cl)
+  $ foldl union []
+  $ Set.map (addressSuperCells cl) $ cAddress x
+
+
+constrainingSuperCells :: ClCub a -> CAddress -> Set.Set Address
+constrainingSuperCells cub x = Set.fromList
+  $ filter (\a -> not . isHole $ clInterior $ fromRight (error "imposible") (clCubPick a cub) )
+  $ addressClassSuperCellsClass cub x 
+
+
+isFreeAddressClass :: ClCub a -> CAddress  -> Bool
+isFreeAddressClass cub x = Set.null $ constrainingSuperCells cub x  
+
 addressSuperCells :: ClCub a -> Address -> [Address]
 addressSuperCells cl addr =
    let cl' = fmap (const []) cl
@@ -425,11 +442,6 @@ addressSuperCells cl addr =
 
    in Foldable.fold $ cubMapOld z cl'
 
-addressClassSuperCellsClass :: ClCub a -> Set.Set Address -> [Address]
-addressClassSuperCellsClass cl x =
-  nubBy (compAddressClass cl)
-  $ foldl union []
-  $ Set.map (addressSuperCells cl) x
 
 
   -- cubMapOld

@@ -12,6 +12,7 @@ import Syntax
 -- import Drawing.Base
 
 import Data.Maybe
+import Data.Either
 import Data.Bifunctor
 import Data.Traversable
 import Data.Functor
@@ -27,27 +28,45 @@ import DataExtra
 
 import Abstract
 
+data ClearCellRegime = OnlyInterior | WithFreeSubFaces | AllSubFacesAndNeighbours
 
 data CubTransformation =
-     ReplaceAt Address (ClCub ())
-   | RemoveCell Address
-   | RemoveCellLeaveFaces Address
-   | SplitCell Address
-   | AddSubFace (Address , SubFace)
-   | MapAt Address (ClCub () -> Either String (ClCub ()))
+     ClearCell (Set.Set Address) ClearCellRegime
+   -- | ReplaceAt Address (ClCub ())
+   -- | RemoveCell Address
+   -- | RemoveCellLeaveFaces Address
+   -- | SplitCell Address
+   -- | AddSubFace (Address , SubFace)
+   -- | MapAt Address (ClCub () -> Either String (ClCub ()))
   -- deriving (Show)
 
+data CubTransformationError = CubTransformationError String
 
-applyTransform ::  CubTransformation -> ClCub () -> Either String (ClCub ())
+instance Show CubTransformationError where
+  show (CubTransformationError x) = x
 
-applyTransform = undefined
--- applyTransform (ReplaceAt addrToReplace valToPut) =
---    flip cubMapMayReplace [] $ 
+applyTransform ::  CubTransformation -> ClCub () -> Either CubTransformationError (ClCub ())
+
+
+applyTransform (ClearCell addrToReplace OnlyInterior) z =
+   cubMapMayReplace 
+    (\n addr x ->
+       if Set.member addr addrToReplace
+       then Right $ Just (Cub n () Nothing)            
+       else Right $ Nothing
+     ) z
+
+-- applyTransform (ClearCell addrToReplace OnlyInterior) z =
+--    cubMapMayReplace 
 --     (\n addr x ->
 --        if addr == addrToReplace
---        then Just $ Right $ valToPut
---        else Nothing
---      ) 
+--        then --Right $ Just (clInterior valToPut)
+--             let bndr = clBoundary $ fromRight (error "imposible") $ clCubPick addr z
+                
+--             in undefined
+--        else Right $ Nothing
+--      ) z
+
 
 -- applyTransform (SplitCell addrToSplit ) =
 --    flip cubMapMayReplace [] $ 
@@ -113,3 +132,4 @@ applyTransform = undefined
 --        then Just $ f x
 --        else Nothing
 --      ) 
+
