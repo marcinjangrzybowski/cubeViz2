@@ -262,24 +262,25 @@ toFillParent cub (Address sf addr) =
 --          True -> undefined
 
 -- TODO: Test it!
-getAllAddrClasses :: ClCub b -> Set.Set (Set.Set Address)
+getAllAddrClasses :: ClCub b -> Set.Set CAddress
 getAllAddrClasses cub =
-    disjointSetFamFold
+  Set.map CAddress $ disjointFam
+  $ disjointSetFamFold
   $ cubMapWAddr (\addr _ -> Set.insert addr (toFillParent cub addr)) cub
 
 addressClass :: ClCub b -> Address -> CAddress
-addressClass cub addr = CAddress $  
-  fromJust $ find (Set.member addr) $ getAllAddrClasses cub
+addressClass cub addr =   
+  fromJust $ find (Set.member addr . cAddress) $ getAllAddrClasses cub
 
 
 mkCAddress :: ClCub b -> Address -> CAddress
-mkCAddress cub addr = CAddress $ 
-  fromJust $ find (Set.member addr) $ getAllAddrClasses cub
+mkCAddress cub addr = 
+  fromJust $ find (Set.member addr . cAddress) $ getAllAddrClasses cub
 
 -- TODO: invesitagate performance here
 compAddressClass :: ClCub b -> Address -> Address -> Bool
 compAddressClass cub addrA addrB =
-  any (Set.isSubsetOf $ Set.fromList [addrA , addrB]) (getAllAddrClasses cub)
+  any ((Set.isSubsetOf $ Set.fromList [addrA , addrB]) . cAddress) (getAllAddrClasses cub)
   
 isInternalAddress :: Address -> Bool
 isInternalAddress (Address sf tl) = isFullSF sf && not (null tl)

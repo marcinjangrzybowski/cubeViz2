@@ -194,8 +194,10 @@ foldFL l x = foldl (\x f -> f x) x l
 
 
 
-disjointSetFamFold :: forall a b. (Foldable a , Ord b) => a (Set.Set b) -> Set.Set (Set.Set b)
-disjointSetFamFold = foldl visit Set.empty
+newtype DisjointFam a = DisjointFam { disjointFam :: Set.Set (Set.Set a)}
+
+disjointSetFamFold :: forall a b. (Foldable a , Ord b) => a (Set.Set b) -> DisjointFam b
+disjointSetFamFold = DisjointFam . foldl visit Set.empty
   where
     visit :: Set.Set (Set.Set b) -> Set.Set b -> Set.Set (Set.Set b) 
     visit fam s =
