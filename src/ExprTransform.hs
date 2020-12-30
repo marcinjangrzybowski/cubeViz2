@@ -30,8 +30,26 @@ import Abstract
 
 data ClearCellRegime = OnlyInterior | WithFreeSubFaces | AllSubFacesAndNeighbours
 
-data CubTransformation =
-     ClearCell (Set.Set Address) ClearCellRegime
+
+data ConstraintsLooseningMode = OverrideWithHoles
+  deriving (Eq)
+
+
+data ConstraintsOverrideRegime =
+     NoOverride
+   | Override ConstraintsLooseningMode
+  deriving (Eq)
+
+
+data CubTransformation = CubTransformation
+   { ctCAddress :: CAddress
+   , ctOp :: CubTransformationOp
+   , ctOverrideRegime :: ConstraintsOverrideRegime
+   }
+
+   
+data CubTransformationOp =
+     ClearCell CAddress ClearCellRegime
    -- | ReplaceAt Address (ClCub ())
    -- | RemoveCell Address
    -- | RemoveCellLeaveFaces Address
@@ -40,21 +58,22 @@ data CubTransformation =
    -- | MapAt Address (ClCub () -> Either String (ClCub ()))
   -- deriving (Show)
 
+-- TODO :: transofrmations for filling - automaticly recognises holes in faces of compositions  which can be removed
+
+
 data CubTransformationError = CubTransformationError String
+
+
 
 instance Show CubTransformationError where
   show (CubTransformationError x) = x
 
-applyTransform ::  CubTransformation -> ClCub () -> Either CubTransformationError (ClCub ())
 
 
-applyTransform (ClearCell addrToReplace OnlyInterior) z =
-   cubMapMayReplace 
-    (\n addr x ->
-       if Set.member addr addrToReplace
-       then Right $ Just (Cub n () Nothing)            
-       else Right $ Nothing
-     ) z
+applyTransform ::  CubTransformation -> ClCub () -> Either CubTransformationError (ClCub Bool)
+
+
+applyTransform ct z = undefined
 
 -- applyTransform (ClearCell addrToReplace OnlyInterior) z =
 --    cubMapMayReplace 

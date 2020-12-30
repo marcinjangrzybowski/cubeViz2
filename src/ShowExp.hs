@@ -164,11 +164,12 @@ rotateModalNav cub b (um@UMNavigation {}) =
     um { umCoursorAddress = rotateFromDir b (umCoursorAddress um) (mnOptions cub z) }
 
 
+-- TODO: refactor to operate on Set
 mnOptions :: ClCub () -> ModalNav -> [Address]
 mnOptions cub (MNSub addr) = 
   addr : [ addressSubFace addr (toSubFace fc) | fc <- genAllLI (addresedDim addr) ]
 mnOptions cub (MNSup addr) = addr :
-  addressClassSuperCellsClass cub (addressClass cub addr)
+  (fmap (head . Set.toList . cAddress) $ Set.toList (addressClassSuperCellsClass cub (addressClass cub addr)))
   -- addressSuperCells cub addr
 
 umModalNavigationOptions :: ClCub () -> UserMode -> [Address]

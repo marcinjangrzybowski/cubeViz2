@@ -71,6 +71,10 @@ data Address = Address SubFace [AddressPart]
 newtype CAddress = CAddress {cAddress :: (Set.Set Address)}
   deriving (Show , Eq , Ord)
 
+
+data CStatus = CSConstrained
+  deriving (Show , Eq , Ord)
+
 -- instance Eq (CAddress b) where
 --   (CAddress a) == (CAddress _ b) = a == b 
 
@@ -150,6 +154,10 @@ mbSubFaceAddress = mbSubFaceAddress' . reverse
 -- first argument is possible parent
 -- result is adress to apply in chain with first address to obtain same result as applying only second address 
 
+-- TODO : investigate behavior when two equall addresses are passed
+--        this funciton should treat addres as subAddress of itself
+-- it would be nice to test this assumption on some terms
+
 mbSubAddress :: Address -> Address -> Maybe Address
 mbSubAddress (Address sf addr) (Address sf' addr')
   | not (sf' `isSubFaceOf`  sf) = Nothing
@@ -182,7 +190,7 @@ mbSubAddress (Address sf addr) (Address sf' addr')
 
    where
      sameSFHelp :: [AddressPart] -> [AddressPart] -> Maybe Address
-     sameSFHelp _ [] = Nothing
+     sameSFHelp _ [] = Nothing -- TODO : posible problem with same addresses
      sameSFHelp (AOnCylinder sf : addr) (AOnCylinder sf' : addr') =
          if (isSubFaceOf sf' sf) then mbSubAddress
                  (Address (injCyl sf) (reverse addr))
@@ -418,30 +426,47 @@ isValidAddressFor y addr@(Address sf tl) =
     Right _ -> True
     Left _ -> False
 
-addressClassSuperCellsClass :: ClCub a -> CAddress -> [Address]
-addressClassSuperCellsClass cl x =
-  nubBy (compAddressClass cl)
-  $ foldl union []
-  $ Set.map (addressSuperCells cl) $ cAddress x
+addressClassSuperCellsClass :: ClCub a -> CAddress -> Set.Set CAddress
+addressClassSuperCellsClass cl x = 
+    foldl Set.union Set.empty
+  $ Set.map (Set.fromList . (fmap $ addressClass cl) . (addressSuperCells cl)) $ cAddress x
+
+addressClassSuperCellsClassLeafs :: ClCub a -> CAddress -> Set.Set CAddress
+addressClassSuperCellsClassLeafs cl x = 
+    foldl Set.union Set.empty
+  $ Set.map (Set.fromList . (fmap $ addressClass cl) . (onlyLeafs . addressSuperCells cl)) $ cAddress x
 
 
-constrainingSuperCells :: ClCub a -> CAddress -> Set.Set Address
-constrainingSuperCells cub x = Set.fromList
-  $ filter (\a -> not . isHole $ clInterior $ fromRight (error "imposible") (clCubPick a cub) )
-  $ addressClassSuperCellsClass cub x 
+directlyConstrainingSuperCells :: ClCub a -> CAddress -> Set.Set CAddress
+directlyConstrainingSuperCells cub x = 
+    Set.filter (\a' -> let a = head (Set.toList $ cAddress a') in not . isHole $ clInterior $ fromRight (error "imposible") (clCubPick a cub) )
+  $ addressClassSuperCellsClassLeafs cub x 
 
 
 isFreeAddressClass :: ClCub a -> CAddress  -> Bool
-isFreeAddressClass cub x = Set.null $ constrainingSuperCells cub x  
+isFreeAddressClass cub x = Set.null $ directlyConstrainingSuperCells cub x  
 
+
+isFreeAddressClassRel :: ClCub a -> Set.Set CAddress -> CAddress  -> Bool
+isFreeAddressClassRel cub y x = Set.null $ Set.difference y $ directlyConstrainingSuperCells cub x  
+
+
+
+onlyLeafs :: [Address] -> [Address]
+onlyLeafs xs =
+  let f x = all (\y -> x == y || (isNothing (mbSubAddress x y) )  ) xs
+  in filter f xs
+  
+
+-- addresses for which given addres is FACE
 addressSuperCells :: ClCub a -> Address -> [Address]
 addressSuperCells cl addr =
    let cl' = fmap (const []) cl
 
-       z n addr' _ _ =
+       z n addr' _ =
          [addr' | addr `elem` [ addressSubFace addr' (toSubFace fc) | fc <- (genAllLI n)]]
 
-   in Foldable.fold $ cubMapOld z cl'
+   in Foldable.fold $ cubMapOldBoth z cl'
 
 
 
@@ -632,6 +657,8 @@ cubMapMayReplace f (ClCub xx) = ClCub <$>
 
 -- -- variant of cubMap constant on node data
 cubMapOld = cubMap (const $ const $ \b -> const $ const $ const b)
+
+cubMapOldBoth f = cubMap (\n addr b _ _ _ -> f n addr b) (\n addr b _ -> f n addr b)
 
 
 
