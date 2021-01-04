@@ -19,6 +19,7 @@ import Data.Function
 import Data.List
 import Control.Applicative
 
+
 import qualified Data.Foldable as Foldable
 
 import Data.Functor.Identity
@@ -100,6 +101,10 @@ addresedDim :: Address -> Int
 addresedDim (Address sf []) = subFaceDimEmb sf
 addresedDim (Address _ (x : _)) = addresedDimPart x
 
+cAddresedDim :: CAddress -> Int
+cAddresedDim = addresedDim . head . Set.toList . cAddress
+
+
 onCyl :: Address -> SubFace -> Address
 onCyl addr@(Address x y) sf
   | addresedDim addr == getDim sf = Address x (AOnCylinder sf : y)
@@ -134,63 +139,38 @@ instance OfDim AddressPart where
   getDim (AOnBottom sf) = getDim sf
 
 
-mbSubFaceAddress :: [AddressPart] -> Maybe SubFace
-mbSubFaceAddress = mbSubFaceAddress' . reverse
-  where
-    mbSubFaceAddress' :: [AddressPart] -> Maybe SubFace
-    mbSubFaceAddress' [] = error "accepts only not empty array"
-    mbSubFaceAddress' (AOnBottom _ : xs) = Nothing
-    mbSubFaceAddress' [AOnCylinder sf] = Just sf
-    mbSubFaceAddress' (AOnCylinder sf : xs) =
-      case mbSubFaceAddress' xs of
-        Nothing -> Nothing
-        Just sf' ->
-          case jniSubFaceMb sf' (faceOfCylAtSide True sf) of
-            Nothing -> Nothing
-            Just sf'' -> Just (injSubFace sf'' sf)
-
-
 -- todo TEST IT!!
 -- first argument is possible parent
 -- result is adress to apply in chain with first address to obtain same result as applying only second address 
 
--- TODO : investigate behavior when two equall addresses are passed
---        this funciton should treat addres as subAddress of itself
--- it would be nice to test this assumption on some terms
+
+mbSubAddressTest =
+   [mbSubAddress
+    (Address (SubFace 2 (Map.fromList ([(0,True),(1,False)])) ) [])
+    (Address (SubFace 2 (Map.fromList ([(0,b1),(1,b2)])) ) [])
+   | b1 <- [True , False] , b2 <- [True , False]  ]
 
 mbSubAddress :: Address -> Address -> Maybe Address
-mbSubAddress (Address sf addr) (Address sf' addr')
+mbSubAddress (Address sf addr) (Address sf' addr') 
   | not (sf' `isSubFaceOf`  sf) = Nothing
+  
   | null addr =
          Just (Address (jniSubFace sf' sf) addr')
+         
   | sf == sf' = sameSFHelp (reverse addr) (reverse addr')
-    -- && addr `isSuffixOf` addr' =
-    --      Just
-    --    $ Address (fullSF (getDim (head addr)))
-    --    $ take (length addr' - length addr) addr'
-  | not (null addr) && not (isFullSF sf) =
+  
+  | not (null addr) && not (isFullSF sf) = 
                   mbSubAddress
                       (Address (fullSF (subFaceDimEmb sf)) addr)
                       (Address (jniSubFace sf' sf) addr')
 
-  | not (null addr) && isFullSF sf =
-      case mbSubFaceAddress addr of
-        Nothing -> Nothing
-        Just sfA ->
-          let mbs1 = mbSubAddress
-                       (Address sfA [])
-                       (Address sf' addr')
-          in case mbs1 of
-               Nothing -> Nothing
-               Just (Address sfA' addrA') ->
-                  Just (Address
-                         (faceOfCylAtSide True sfA)
-                          addrA'
-                       )
+  | not (null addr) && isFullSF sf = bdHelp (reverse addr) sf' (reverse addr')
+
 
    where
      sameSFHelp :: [AddressPart] -> [AddressPart] -> Maybe Address
-     sameSFHelp _ [] = Nothing -- TODO : posible problem with same addresses
+     sameSFHelp [] _ = error "cannot be called for empty first arg"
+     sameSFHelp (_ : _) [] = Nothing 
      sameSFHelp (AOnCylinder sf : addr) (AOnCylinder sf' : addr') =
          if (isSubFaceOf sf' sf) then mbSubAddress
                  (Address (injCyl sf) (reverse addr))
@@ -212,6 +192,20 @@ mbSubAddress (Address sf addr) (Address sf' addr')
           (Address sf (reverse addr))
           (Address sf' (reverse addr'))
 
+
+
+     bdHelp [] _ _ = error "cannot be called for empty first arg"
+
+     bdHelp (AOnCylinder sf : addr) sf' addr' =
+       case jniSubFaceMb sf' sf of
+          Nothing -> Nothing
+          Just sf'' ->
+               let z = mbSubAddress
+                       (Address (fullSF (subFaceDimEmb sf + 1)) (reverse addr))
+                       (Address (injCylEnd True sf'') (reverse addr'))
+               in z
+
+     bdHelp (AOnBottom sf : addr) _ _ = Nothing
 
 
 
@@ -281,9 +275,9 @@ addressClass cub addr =
   fromJust $ find (Set.member addr . cAddress) $ getAllAddrClasses cub
 
 
-mkCAddress :: ClCub b -> Address -> CAddress
-mkCAddress cub addr = 
-  fromJust $ find (Set.member addr . cAddress) $ getAllAddrClasses cub
+-- mkCAddress :: ClCub b -> Address -> CAddress
+-- mkCAddress cub addr = 
+--   fromJust $ find (Set.member addr . cAddress) $ getAllAddrClasses cub
 
 -- TODO: invesitagate performance here
 compAddressClass :: ClCub b -> Address -> Address -> Bool
@@ -343,6 +337,12 @@ addressSubFace (Address sf' ((AOnCylinder sfA) : xs)) sf =
      JCCyl sff -> Address sf' ((AOnCylinder sff) : xs)
 
 
+cAddrWithSubFaces :: ClCub a -> CAddress -> Set.Set CAddress
+cAddrWithSubFaces cub x =
+  Set.fromList
+  [ addressClass cub (addressSubFace (head $ Set.toList $ cAddress x ) sf)
+  | sf <- (genAllLI (cAddresedDim x)) ]
+
 
 
 bdCubPickSF :: SubFace -> BdCub a -> ClCub a
@@ -377,10 +377,10 @@ clCubPick :: Address -> ClCub a -> Either Int (ClCub a)
 clCubPick (Address sfc addr@(_ : _)) x@(ClCub fli)
    | isFullSF sfc =
       case (reverse addr , appLI sfc fli)  of
-        (AOnCylinder sf : xs , Hcomp _ _ cy y) -> undefined
-           -- case appLI sf (cylCub si) of
-           --   Just y -> undefined --first (1 +) (oCubPick (reverse xs) y)
-           --   Nothing -> Left 0
+        (AOnCylinder sf : xs , Hcomp _ _ cy y) -> 
+           case appLI sf (cylCub cy) of
+             Just y -> undefined --todo --first (1 +) (oCubPick (reverse xs) y)
+             Nothing -> Left 0
         (AOnBottom sf : xs , Hcomp _ _ _ y) ->
             first (1 +) (clCubPick (Address sf (reverse xs)) y)
         (_ : _ , _) ->
@@ -390,6 +390,22 @@ clCubPick (Address sfc addr@(_ : _)) x@(ClCub fli)
        first (1 +)
        $ clCubPick (Address (fullSF (subFaceDimEmb sfc)) addr) (clCubPickSF sfc x)
 
+clCubPickData :: Address -> ClCub a -> Maybe a
+clCubPickData a x =
+  case clCubPickO a x of
+    Right (Cub _ a _) -> Just a
+    Right (Hcomp a _ _ _) -> Just a
+    _ -> Nothing
+
+oCubPickTopLevelData :: OCub a -> a
+oCubPickTopLevelData x =
+  case x of
+    (Cub _ a _) -> a
+    (Hcomp a _ _ _) -> a
+
+clCubPickTopLevelData :: ClCub a -> a
+clCubPickTopLevelData =  oCubPickTopLevelData . clInterior 
+  
 clCubPickO :: Address -> ClCub a -> Either Int (OCub a)
 clCubPickO (Address sfc addr) (ClCub fli) =
     first (1 +) $ oCubPick addr (appLI sfc fli)
@@ -432,14 +448,14 @@ addressClassSuperCellsClass cl x =
   $ Set.map (Set.fromList . (fmap $ addressClass cl) . (addressSuperCells cl)) $ cAddress x
 
 addressClassSuperCellsClassLeafs :: ClCub a -> CAddress -> Set.Set CAddress
-addressClassSuperCellsClassLeafs cl x = 
+addressClassSuperCellsClassLeafs cl x =  
     foldl Set.union Set.empty
   $ Set.map (Set.fromList . (fmap $ addressClass cl) . (onlyLeafs . addressSuperCells cl)) $ cAddress x
 
 
 directlyConstrainingSuperCells :: ClCub a -> CAddress -> Set.Set CAddress
 directlyConstrainingSuperCells cub x = 
-    Set.filter (\a' -> let a = head (Set.toList $ cAddress a') in not . isHole $ clInterior $ fromRight (error "imposible") (clCubPick a cub) )
+    Set.filter (\a' -> let a = head (Set.toList $ cAddress a') in not . isHole $  fromRight (error "imposible") (clCubPickO a cub) )
   $ addressClassSuperCellsClassLeafs cub x 
 
 
@@ -469,17 +485,122 @@ addressSuperCells cl addr =
    in Foldable.fold $ cubMapOldBoth z cl'
 
 
+-- TODO : create eficient, less naive , implementation
 
-  -- cubMapOld
 
 
--- addressSubFace
 
--- fixAddress y addr@(Address sf tl@(x : xs)) =
---   case (clInterior $ clCubPickSF sf y , reverse tl) of
---     (Cub _ _ _ , _)-> (Address sf [])
---     (Hcomp _ _ cyl _ , AOnCylinder sf' : tl') -> undefined
---     (Hcomp _ _ _ btm , AOnBottom sf'  : tl') -> undefined      
+-- not really usefull
+traceConstraintsSingleAll :: forall a. ClCub a -> CAddress -> ClCub (Maybe SubFace , a)
+traceConstraintsSingleAll cl caddrs =
+      cubMapOldBoth f cl
+
+  where
+
+    addrS = cAddress caddrs
+    
+    f n addr a =
+      let sfs = catMaybes $ Set.toList (Set.map (mbSubFaceAddr addr) addrS)
+
+          sf = case sfs of
+                 [] -> Nothing
+                 [x] -> Just x
+                 (_ : _) -> error "imposible ??"
+        
+      in (sf , a)
+
+traceConstraintsSingle :: forall a. ClCub a -> CAddress -> ClCub (Maybe SubFace , a)
+traceConstraintsSingle cl caddrs =
+      cubMap' nf cf  cl
+
+  where
+
+    addrS = cAddress caddrs
+
+    cf n addr a _ =
+      let sfs = catMaybes $ Set.toList (Set.map (mbSubFaceAddr addr) addrS)
+
+          sf = case sfs of
+                 [] -> Nothing
+                 [x] -> Just x
+                 (_ : _) -> error "imposible ??"
+        
+      in (sf , a)
+
+    
+    nf n addr a _ cy btm = 
+      let insQ = any (isJust . fst) cy || any (isJust . fst) btm        
+      in if insQ
+         then (Nothing , a)
+         else (cf n addr a undefined)
+
+
+traceConstraints :: forall a. ClCub a -> Set.Set CAddress -> ClCub (Maybe Int , a)
+traceConstraints cl caddrs =
+      cubMap' nf cf cl
+
+  where
+
+    addrS = Set.unions $ Set.map cAddress caddrs
+
+    cf n addr a _ =
+      let sfs = catMaybes $ Set.toList (Set.map (mbSubFaceAddr addr) addrS)
+
+          sf = case sfs of
+                 [] -> Nothing
+                 (_ : _) -> Just (maximum $ fmap (subFaceDimEmb) sfs)
+                 -- (_ : _) -> error "imposible ??"
+        
+      in (sf , a)
+
+    
+    nf n addr a _ cy btm = 
+      let 
+          insQ :: Int
+          insQ = Prelude.max (maximum (fmap ((maybe (-1) id ) . fst) cy))
+                             (maximum (fmap ((maybe (-1) id ) . fst) btm) )
+
+          ownQ = fst (cf n addr a undefined)
+      in case ownQ of
+           Nothing -> (Nothing , a)
+           Just ownK -> 
+               if (ownK > insQ)
+               then (ownQ , a)
+               else (Nothing , a)
+
+
+
+  --  j ( 0 , caddrs , fmap ( (,) Nothing ) cl)
+
+  -- where
+
+  --   h :: (Int , Set.Set (CAddress) , ClCub (Maybe Int , a)) -> (Int , Set.Set (CAddress) , ClCub (Maybe Int , a))
+  --   h (k , sc , cub) =
+  --     let cub0 = cubMapOldBoth
+  --                 (\n addr x -> 
+  --                     let (x0 , x1) =
+  --                           (if (any (\ca -> Set.member addr (cAddress ca) ) sc )
+  --                           then (Just k , addressClassSuperCellsClassLeafs cub (addressClass cub addr))
+  --                            else (Nothing , Set.empty))
+  --                     in (x0 , x1 , x)
+  --                 )
+  --                 cub
+                        
+  --         sc0 = foldl' (\s (x , sccs , _) -> Set.union s sccs) Set.empty cub0
+
+  --         f (Just x) _ = Just x
+  --         f _ (Just x) = Just x
+  --         f _ _ = Nothing
+          
+  --     in --trace (show k ++ show (Set.size sc0))
+  --        (k + 1 , sc0 , fmap (\(x , _ , (y , a)) -> (f x y , a) ) cub0)
+
+
+    
+  --   j :: (Int , Set.Set (CAddress) , ClCub (Maybe Int , a)) -> ClCub (Maybe Int , a) 
+  --   j (k , s , x) | null s = x
+  --                 | otherwise = j (h (k , s , x))      
+    
 
 cubMapShallow ::  forall a b. (Monad a) =>
                   (b -> a b)
@@ -660,6 +781,13 @@ cubMapOld = cubMap (const $ const $ \b -> const $ const $ const b)
 
 cubMapOldBoth f = cubMap (\n addr b _ _ _ -> f n addr b) (\n addr b _ -> f n addr b)
 
+
+
+
+travOldBoth :: forall a b b2 . (Monad a) =>
+                 (Int -> Address -> b -> a b2)
+                 -> ClCub b -> a (ClCub b2)
+travOldBoth f = cubMapTrav' (\n addr b _ _ _ -> f n addr b) (\n addr b _ -> f n addr b)
 
 
 -- cubMapFill :: forall a b . (Monad a) => (Int -> Address -> (CylCub b , ClCub b) -> a (CylCub b)  )

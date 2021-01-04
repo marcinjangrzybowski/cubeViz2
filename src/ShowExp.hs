@@ -182,14 +182,15 @@ umModalNavigationOptions cub = fromMaybe [] . (fmap $ mnOptions cub) . umModalNa
       --   Just (MNSup i) -> Just $ umCoursorAddress um
 
 
-data DrawExprMode = Stripes | StripesNoFill | Scaffold | Scaffold2
+data DrawExprMode = Stripes | StripesNoFill | Scaffold | Scaffold2 | Constraints
   deriving (Show , Eq)
 
 drawExprModes = [
   -- Stripes ,
-  Scaffold  ]
+    Scaffold
+  , Constraints ]
 
-drawExpr :: AppState -> DrawExprMode -> (Env , Context) -> Expr
+drawExpr :: AppState -> DrawExprMode -> (Env , Context) -> ClCub ()
                   -> (Drawing (([String] , ExtrudeMode) , Color))
 -- drawExpr _ Stripes = fmap pure . mkDrawExprFill DefaultPT
 -- drawExpr _ StripesNoFill = fmap pure . mkDrawExpr DefaultPT 
@@ -212,12 +213,12 @@ drawExpr as Scaffold ee e =
    in concat (
 
               [                
-                mkDrawExpr (CursorPT { cptCursorAddress = sptCA
+                mkDrawCub (CursorPT { cptCursorAddress = sptCA
                                      , cptSecCursorAddress = sptSCA
                                         })
 
                 ,
-                mkDrawExpr (DefaultPT { dptCursorAddress = fmap fst sptCA
+                mkDrawCub (DefaultPT { dptCursorAddress = fmap fst sptCA
                           , dptShowFill = dpShowFilling $ asDisplayPreferences as
                           , dptFillFactor = 1.0
                               -- 0.5 * (sin (realToFrac $ asTime as) + 1)
@@ -235,6 +236,42 @@ drawExpr as Scaffold ee e =
                -- ++
                -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
               ) 
+
+drawExpr as Constraints ee e =
+
+   let (cub , sptCA , sptSCA ) =
+          case (asCursorAddress as) of 
+             -- Just a -> ((fmap fst $ traceConstraints (asCub as) (cAddrWithSubFaces (asCub as) (addressClass (asCub as) a)))
+             --             , (Just ((a , addressClass (asCub as) a)) )
+             --              , asSecCursorAddress as)
+
+             -- Just a -> ((fmap fst $ traceConstraints (asCub as) (Set.singleton (addressClass (asCub as) a)))
+             --             , (Just ((a , addressClass (asCub as) a)) )
+             --              , asSecCursorAddress as)
+
+             Just a -> ((fmap fst $ traceConstraintsSingle (asCub as) ((addressClass (asCub as) a)))
+                         , (Just ((a , addressClass (asCub as) a)) )
+                          , asSecCursorAddress as)
+
+
+             Nothing -> (fmap (const Nothing) cub , Nothing , Nothing)
+
+       
+
+   in concat (
+
+              [                
+                mkDrawCub (ConstraintsViewPT { cvptDrawFillSkelet = True
+                                           , cvptCursorAddress = fmap fst sptCA
+                                           , cvptScaffDim = 1
+                                           , cvptCub = cub })
+              
+
+              ] <*> (pure ee) <*> (pure e)
+               -- ++
+               -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
+              ) 
+
 
 type UIApp = UI.UI AppState [Descriptor] Msg
 
@@ -420,7 +457,7 @@ transformExpr trns =
       appS <- UI.getAppState
       case applyTransform trns (asCub appS) of
         (Left err) -> consolePrint $ "transform error: " ++ show err
-        (Right newCub) -> setFromCub newCub
+        (Right newCub) -> setFromCub $ void newCub
 
 
 printExprCode :: UIApp ()
@@ -525,6 +562,9 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                 when (k == GLFW.Key'T) $ do
                   initEditTail pem addr
 
+                when (k == GLFW.Key'V) $ inf "CycleDrawMode" $ do
+                  UI.modifyAppState (\s -> s { asDrawMode = rotateFrom (asDrawMode s) drawExprModes } )
+
 
                 -- when (k == GLFW.Key'A) $ do
                 --   case (uncons addr) of
@@ -541,8 +581,10 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                 -- when (k == GLFW.Key'S) $ inf "Split cell" $ do
                 --   transformExpr (SplitCell addr)
 
-                -- when (k == GLFW.Key'Backspace) $ inf "Insert Hole" $ do
-                --   transformExpr (ReplaceAt addr (Cub undefined (Left 0)))
+                when (k == GLFW.Key'Backspace) $ do
+                  if (GLFW.modifierKeysControl mk)
+                  then inf "Insert Hole Interior" $ transformExpr (ClearCell addrClass WithFreeSubFaces )
+                  else inf "Insert Hole WithFreeFaces" $ transformExpr (ClearCell addrClass OnlyInterior )  
 
 
                 when (isArrowKey k) $ do
@@ -780,7 +822,7 @@ updateGL =
    do appState <- UI.getAppState
       let drawings = drawExpr appState (asDrawMode appState)
                       (fst (asExpression appState))
-                      (snd (asExpression appState))
+                      ((asCub appState))
       printConsoleView
       do let tryToRen = toRenderableDI drawingInterpreter drawings
          case tryToRen of

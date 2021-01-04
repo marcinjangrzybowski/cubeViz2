@@ -224,25 +224,21 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
   nodePainterCommon d dctx n addr nm si center = []
 
 
-  drawAllCells :: d  -> (Env , Context) -> Expr -> ClCub (Drawing b)
-  drawAllCells d envCtx expr =
+  drawAllCells :: d  -> (Env , Context) -> ClCub () -> ClCub (Drawing b)
+  drawAllCells d envCtx cub =
       let  dctx = fromCtx d envCtx
-           cub = (toClCub envCtx expr :: ClCub ())
       in  cubMap (\i addr _ -> nodePainterCommon d dctx i addr)
                   (\i addr _ -> cellPainter d dctx i addr) cub
 
-
-
-
-  mkDrawExpr :: d  -> (Env , Context) -> Expr -> Drawing b
-  mkDrawExpr d envCtx expr =
+  mkDrawCub :: d  -> (Env , Context) -> ClCub () -> Drawing b
+  mkDrawCub d envCtx clcub =
     let  dctx = fromCtx d envCtx
     in
         finalProcess d
       $ collectAndOrient
       $ cubMap (\n addr b _ _ _ -> nodeStyleProcess d dctx n addr b) (\_ _ x _ -> x)
       $ fillCub (fillStyleProcess d)
-      $ drawAllCells d envCtx expr
+      $ drawAllCells d envCtx clcub
 
 
   fillStyleProcess :: d -> Drawing b -> Drawing b
@@ -343,12 +339,6 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
      . fillP
      . selectP
 
-data ScaffoldPT = ScaffoldPT
-  { sptDrawFillSkelet :: Bool
-  , sptCursorAddress :: Maybe Address
-  , sptScaffDim :: Int
-  , sptMissingSubFaceCursor :: Maybe (Address , SubFace)
-  }
 
 
 instance Shadelike ColorType where
@@ -368,6 +358,12 @@ instance Shadelike ColorType where
                 , shadeMode = shadeMode
                 }
 
+data ScaffoldPT = ScaffoldPT
+  { sptDrawFillSkelet :: Bool
+  , sptCursorAddress :: Maybe Address
+  , sptScaffDim :: Int
+  , sptMissingSubFaceCursor :: Maybe (Address , SubFace)
+  }
 
 
 instance DrawingCtx (Env , Context) ColorType Int ScaffoldPT where
@@ -389,6 +385,56 @@ instance DrawingCtx (Env , Context) ColorType Int ScaffoldPT where
 
   fillStyleProcess _ _ = []
 
+
+data ConstraintsViewPT a = ConstraintsViewPT
+  { cvptDrawFillSkelet :: Bool
+  , cvptCursorAddress :: Maybe Address
+  , cvptScaffDim :: Int
+  , cvptCub :: ClCub (Maybe a)
+  }
+
+
+instance DrawingCtx (Env , Context) ColorType Int (ConstraintsViewPT a) where
+  fromCtx _ = id
+
+  drawGenericTerm _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
+
+  drawD _ _ k = FromLI k (const [])
+
+  drawCellCommon spt k addr _ _ =
+     let cdata = clCubPickData addr $ cvptCub spt
+
+         scaff =
+           case (fromJust cdata) of
+             Nothing -> let s = (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
+                        in if k <= -1
+                           then Bf.second (const s) <$> unitHyCube k
+                           else []
+             Just _ ->
+                 let s = (( ["cellBorder"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
+                 in Bf.second (const s) <$> unitHyCubeSkel k 2
+
+     in scaff
+
+
+
+  nodePainterCommon spt _ k addr _ _ _ = 
+     let cdata = clCubPickData addr $ cvptCub spt
+
+         scaff =
+           case (fromJust cdata) of
+             Nothing -> let s = (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
+                        in if k <= -1
+                           then Bf.second (const s) <$> unitHyCube k
+                           else []
+             Just _ ->
+                 let s = (( ["cellBorder"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
+                 in Bf.second (const s) <$> unitHyCubeSkel k 2
+
+     in scaff
+
+  fillStyleProcess _ _ = []
+
 data CursorPT = CursorPT
   { cptCursorAddress :: Maybe (Address , CAddress)
   , cptSecCursorAddress :: Maybe Address
@@ -397,7 +443,7 @@ data CursorPT = CursorPT
 
 cursorDrw :: Bool -> CursorPT -> Int -> Address -> Drawing  ColorType
 cursorDrw node1Fix cpt k addr =
-     let partOfSelectedCellBndrF addr' =
+     let partOfSelectedCellBndrF addr' = 
            if node1Fix then (addr == addr') else
               maybe False (not . isInternalAddress)
             $ mbSubAddress addr' addr
@@ -418,11 +464,11 @@ cursorDrw node1Fix cpt k addr =
                (True , _) -> (( ["cellBorder" , "cursor"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
                (_ , True) -> (( ["cellBorder" , "cursorSec"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
                (_ , _) -> (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
-         scaff = if k <= 1
+         scaff = if k <= 1 
              then Bf.second (const scaffS) <$> unitHyCube k
              else []
 
-     in if partOfSelectedCellBndr  || partOfSecSelectedCellBndr 
+     in if partOfSelectedCellBndr || partOfSecSelectedCellBndr 
         then scaff
         else []
 
@@ -433,15 +479,16 @@ instance DrawingCtx (Env , Context) ColorType Int CursorPT where
 
   drawD _ _ k = FromLI k (const [])
 
-  nodePainterCommon cpt _ k addr _ _ _ =
+  nodePainterCommon cpt _ k addr _ _ _ = 
     if (k==1) then
     cursorDrw True cpt k addr
     else []
     
   drawCellCommon cpt k addr _ _ = cursorDrw False cpt k addr
 
-
   fillStyleProcess _ _ = []
+
+  -- finalProcess _ d = d
 
 
 -- instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where    

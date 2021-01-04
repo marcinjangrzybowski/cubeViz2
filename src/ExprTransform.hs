@@ -28,32 +28,27 @@ import DataExtra
 
 import Abstract
 
-data ClearCellRegime = OnlyInterior | WithFreeSubFaces | AllSubFacesAndNeighbours
+data ClearCellRegime =
+    OnlyInterior
+  | WithFreeSubFaces
+ deriving (Eq)
 
 
-data ConstraintsLooseningMode = OverrideWithHoles
+data ConstraintsOverrideStrategy =
+     COSClearWithConstrained
+   | COSClearNecessary
+   | COSInflate
   deriving (Eq)
 
-
-data ConstraintsOverrideRegime =
-     NoOverride
-   | Override ConstraintsLooseningMode
-  deriving (Eq)
-
-
-data CubTransformation = CubTransformation
-   { ctCAddress :: CAddress
-   , ctOp :: CubTransformationOp
-   , ctOverrideRegime :: ConstraintsOverrideRegime
-   }
+data ConstraintsOverrideRegime = NoConstraintsOverride | ConstraintsOverride ConstraintsOverrideStrategy
 
    
-data CubTransformationOp =
+data CubTransformation =
      ClearCell CAddress ClearCellRegime
+   | SplitCell CAddress
    -- | ReplaceAt Address (ClCub ())
    -- | RemoveCell Address
    -- | RemoveCellLeaveFaces Address
-   -- | SplitCell Address
    -- | AddSubFace (Address , SubFace)
    -- | MapAt Address (ClCub () -> Either String (ClCub ()))
   -- deriving (Show)
@@ -69,11 +64,42 @@ instance Show CubTransformationError where
   show (CubTransformationError x) = x
 
 
+-- rodzaje nadpisywania adresu tylko dla hole :
+-- -- tylko hole w inerior
+-- -- hole w interior + wolne scinay
+-- rodzaje nadpisywania adresu
+
+
 
 applyTransform ::  CubTransformation -> ClCub () -> Either CubTransformationError (ClCub Bool)
 
+applyTransform (ClearCell caddr OnlyInterior) clcub =
+  let tracked = traceConstraints clcub (Set.singleton caddr)
+      f n addr x =
+        case (oCubPickTopLevelData x) of
+          (Nothing , _) -> Right Nothing 
+          (Just k , _) -> Right $ Just $ (Cub n (Just k , ()) Nothing) 
+  in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
 
-applyTransform ct z = undefined
+applyTransform (ClearCell caddr WithFreeSubFaces) clcub' =
+  let clcub =  void $ fromRight (error "") $ (applyTransform (ClearCell caddr OnlyInterior) clcub')
+      tracked = traceConstraints clcub (Set.filter (isFreeAddressClass clcub ) $ cAddrWithSubFaces clcub caddr)
+      f n addr x =
+        case (oCubPickTopLevelData x) of
+          (Nothing , _) -> Right Nothing 
+          (Just k , _) -> Right $ Just $ (Cub n (Just k , ()) Nothing) 
+  in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
+
+applyTransform (SplitCell caddr) clcub =
+  let tracked = traceConstraints clcub (Set.singleton caddr)
+      f n addr x =
+        case (oCubPickTopLevelData x) of
+          (Nothing , _) -> Right Nothing 
+          (Just k , _) -> Right $ Just $ (Cub n (Just k , ()) Nothing) 
+  in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
+
+  
+
 
 -- applyTransform (ClearCell addrToReplace OnlyInterior) z =
 --    cubMapMayReplace 

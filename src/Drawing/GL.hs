@@ -28,6 +28,8 @@ import Data.Bifunctor
 
 import DataExtra
 
+import Debug.Trace
+
 data Descriptor = Descriptor
   { dPrimitiveMode :: PrimitiveMode
   , dVertexArrayObject :: VertexArrayObject
@@ -48,6 +50,9 @@ defaultLineWidth = 2
 
 perVert :: [[a]] -> [a] -> [a]
 perVert lv lt = concat $ fmap (\x -> x ++ lt) lv 
+
+
+elemsPerVert = 11
 
 renderables2CVD :: Renderables -> CombinedVertexData
 renderables2CVD =
@@ -101,7 +106,7 @@ initTrianglesResources pm vertices =
      -- putStr (show $ length vertices)
      -- let vertices = [
 
-     let numVertices = (length vertices)
+     let numVertices = (length vertices) 
 
          -- maskAttr = concat $ replicate numVertices mask0
 
@@ -164,7 +169,7 @@ initTrianglesResources pm vertices =
        (ToFloat, VertexArrayDescriptor 1 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2 + 4 * 4 * 1)))
      vertexAttribArray modePosition $= Enabled
 
-     return $ Descriptor pm triangles firstIndex (fromIntegral numVertices) defaultLineWidth
+     return $ Descriptor pm triangles firstIndex (fromIntegral (div (length vertices) elemsPerVert) ) defaultLineWidth
 
 
 
