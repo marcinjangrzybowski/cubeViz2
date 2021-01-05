@@ -90,15 +90,21 @@ applyTransform (ClearCell caddr WithFreeSubFaces) clcub' =
           (Just k , _) -> Right $ Just $ (Cub n (Just k , ()) Nothing) 
   in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
 
+
 applyTransform (SplitCell caddr) clcub =
-  let tracked = traceConstraints clcub (Set.singleton caddr)
+  let tracked = traceConstraintsSingle clcub caddr
       f n addr x =
         case (oCubPickTopLevelData x) of
           (Nothing , _) -> Right Nothing 
-          (Just k , _) -> Right $ Just $ (Cub n (Just k , ()) Nothing) 
+          (Just sf , _) -> Right $ Just $ (Just undefined , undefined) <$
+            (splitOCub sf (fromRight (error "bad address") (clCubPick addr clcub))) 
   in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
 
-  
+
+
+splitOCub :: SubFace -> ClCub a ->  OCub a
+splitOCub sf = undefined
+
 
 
 -- applyTransform (ClearCell addrToReplace OnlyInterior) z =

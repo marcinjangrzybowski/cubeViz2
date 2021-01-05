@@ -368,27 +368,46 @@ clBoundary x =
 uncurryCl :: (BdCub b -> OCub b -> a) -> (ClCub b -> a)
 uncurryCl f x = f (clBoundary x) (clInterior x)
 
+-- todo :: finish work on less naive , more efficient implementation
+clCubPick :: Address -> ClCub a -> Maybe (ClCub a)
+-- cubMap
+--   :: (Int -> Address -> b -> Maybe Name -> CylCub b -> ClCub b -> bb)
+--      -> (Int -> Address -> b -> Maybe CellExpr -> bb)
+--      -> ClCub b
+--      -> ClCub bb
+clCubPick addr =
+    h
+  . foldl g []
+  . cubMap (\_ addr b mbn cyl btm -> (addr , Hcomp b mbn cyl btm) )
+           (\n addr b mbce -> (addr , Cub n b mbce ))  
 
-clCubPick :: Address -> ClCub a -> Either Int (ClCub a)
--- clCubPick (Address sfc []) x =
---    Right $ clCubPickSF sfc x
+  where
+    g l (addr , ocub) =
+      case (mbSubFaceAddr addr addr) of
+        Nothing -> l
+        Just sf -> (sf , ocub) : l
 
-
-clCubPick (Address sfc addr@(_ : _)) x@(ClCub fli)
-   | isFullSF sfc =
-      case (reverse addr , appLI sfc fli)  of
-        (AOnCylinder sf : xs , Hcomp _ _ cy y) -> 
-           case appLI sf (cylCub cy) of
-             Just y -> undefined --todo --first (1 +) (oCubPick (reverse xs) y)
-             Nothing -> Left 0
-        (AOnBottom sf : xs , Hcomp _ _ _ y) ->
-            first (1 +) (clCubPick (Address sf (reverse xs)) y)
-        (_ : _ , _) ->
-            Left 0
-        ([] , _) -> Right x
-   | otherwise =
-       first (1 +)
-       $ clCubPick (Address (fullSF (subFaceDimEmb sfc)) addr) (clCubPickSF sfc x)
+    h x =   Just
+          $ ClCub
+          $ FromLI (addresedDim addr)
+          $ (maybe (error "clCubPickFail") . ((Map.!) $ Map.fromList x))
+      --
+    
+-- clCubPick (Address sfc addr@(_ : _)) x@(ClCub fli)
+--    | isFullSF sfc =
+--       case (reverse addr , appLI sfc fli)  of
+--         (AOnCylinder sf : xs , Hcomp _ _ cy y) -> 
+--            case appLI sf (cylCub cy) of
+--              Just y -> undefined --todo --first (1 +) (oCubPick (reverse xs) y)
+--              Nothing -> Left 0
+--         (AOnBottom sf : xs , Hcomp _ _ _ y) ->
+--             first (1 +) (clCubPick (Address sf (reverse xs)) y)
+--         (_ : _ , _) ->
+--             Left 0
+--         ([] , _) -> Right x
+--    | otherwise =
+--        first (1 +)
+--        $ clCubPick (Address (fullSF (subFaceDimEmb sfc)) addr) (clCubPickSF sfc x)
 
 clCubPickData :: Address -> ClCub a -> Maybe a
 clCubPickData a x =
