@@ -521,7 +521,7 @@ clDegenerate k (ClCub (FromLI n f)) =
   in ClCub (FromLI (n + 1) f')
   
 oDegenerate :: Int -> OCub () -> OCub () 
-oDegenerate k (Cub n () x) = Cub (n + 1) () x
+oDegenerate k (Cub n () x) = Cub (n + 1) () $ fmap (degenerateCellExpr k) x
 oDegenerate k (Hcomp () mbN (CylCub (FromLI n si)) btm) = 
   let si' x@(SubFace _ sfm0) =
         case (degenElim k x) of

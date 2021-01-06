@@ -663,6 +663,9 @@ remapCellExprShallow f (CellExpr x y) =
   CellExpr x $
     fmap (remapIExpr f) y     
 
+degenerateCellExpr :: Int -> CellExpr -> CellExpr
+degenerateCellExpr k = remapCellExprShallow (punchIn k) 
+
 remapCellExpr :: (Int -> Int) -> CellExpr -> CellExpr
 remapCellExpr f (CellExpr x y) = undefined
   -- CellExpr x $
