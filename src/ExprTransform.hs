@@ -96,15 +96,19 @@ applyTransform (SplitCell caddr) clcub =
       f n addr x =
         case (oCubPickTopLevelData x) of
           (Nothing , _) -> Right Nothing 
-          (Just sf , _) -> Right $ Just $ (Just undefined , undefined) <$
-            (splitOCub sf (fromRight (error "bad address") (clCubPick addr clcub))) 
+          (Just sf , _) -> Right $ Just $ (Just undefined , undefined) <$ --undefined is intended here, it should not be evaluated
+            (splitOCub sf (fromMaybe (error "bad address") (clCubPick addr clcub))) 
   in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
 
 
 
-splitOCub :: SubFace -> ClCub a ->  OCub a
-splitOCub sf = undefined
-
+splitOCub :: SubFace -> ClCub () ->  OCub ()
+splitOCub sf x@(ClCub xx) = -- clInterior x
+     Hcomp () Nothing (CylCub $ FromLI (getDim x) cylF) x 
+  where
+    cylF sf' | sf `isSubFaceOf` sf' = Nothing
+             | otherwise = --Just (Cub (subFaceDimEmb sf' + 1) () Nothing)
+                 Just $ oDegenerate ((getDim x) - 1) $ appLI sf' xx
 
 
 -- applyTransform (ClearCell addrToReplace OnlyInterior) z =

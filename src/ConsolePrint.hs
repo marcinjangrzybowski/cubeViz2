@@ -92,7 +92,7 @@ printCubO (ee , c) cpd addr (Hcomp _ nm pa a) =
       y = (printCubO (ee , c) cpd (onBottom addr (fullSF (getDim a))) (clInterior a))
         
  
-      s = ("hcomp " ++ "(λ " ++ (fromMaybe (undefined) nm) ++ " → λ  { " ++ (indent 5 ("\n" ++ sides)) ++ "})\n" ++ parr y )      
+      s = ("hcomp " ++ "(λ " ++ (fromMaybe ("_") nm) ++ " → λ  { " ++ (indent 5 ("\n" ++ sides)) ++ "})\n" ++ parr y )      
   in if Just addr == cpdCursorAddress cpd
      then bgColor Green s
      else s

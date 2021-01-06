@@ -520,7 +520,22 @@ injCylEnd b (SubFace n mp) = (SubFace (n + 1) (Map.insert n b mp))
 injCyl :: SubFace -> SubFace
 injCyl (SubFace n mp) = (SubFace (n + 1) mp)
 
+jniCyl' :: SubFace -> Maybe SubFace
+jniCyl' (SubFace n mp)
+  | Map.member (n - 1) mp = Nothing
+  | otherwise = Just (SubFace (n - 1) mp)
+                       
+  
+
 data JniCyl = JCEnd Bool SubFace | JCCyl SubFace
+
+data DegenCase = DCEnd Bool SubFace | DCIns SubFace
+
+degenElim :: Int -> SubFace -> DegenCase
+degenElim k (SubFace n mp) =
+  case Map.lookup (k) mp of
+    Just b -> DCEnd b (SubFace (n - 1) $ Map.mapKeys (fromJust . punchOut k ) (Map.delete (k) mp))
+    Nothing -> DCIns (SubFace (n - 1) $ Map.mapKeys (fromJust . punchOut k ) mp)
 
 
 superSubFaces :: SubFace -> [SubFace]

@@ -586,6 +586,11 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                   then inf "Insert Hole Interior" $ transformExpr (ClearCell addrClass WithFreeSubFaces )
                   else inf "Insert Hole WithFreeFaces" $ transformExpr (ClearCell addrClass OnlyInterior )  
 
+                when (k == GLFW.Key'S) $ do
+                  if (GLFW.modifierKeysControl mk)
+                  then inf "todo" $ transformExpr (ClearCell addrClass WithFreeSubFaces )
+                  else inf "Insert Hcomp" $ transformExpr (SplitCell addrClass)  
+
 
                 when (isArrowKey k) $ do
                   if (GLFW.modifierKeysControl mk)
@@ -872,7 +877,7 @@ initEditHead :: Address -> UIApp ()
 initEditHead addr = do
   appS <- UI.getAppState
   let (ee0@(env , ctx0@(Context vars _)) , _) = asExpression appS
-      initialCub = fromRight (error "bad addr") $ clCubPick addr (asCub appS)
+      initialCub = fromMaybe (error "bad addr") $ clCubPick addr (asCub appS)
       ctx = contextAt ctx0 addr (asCub appS)
       varsInCtx = binsBy (getCTyDim env ctx . snd . fst) $ zip (reverse vars) (fmap VarIndex [0..])
       varsInCtxGrid = fmap snd $ Map.toList varsInCtx
