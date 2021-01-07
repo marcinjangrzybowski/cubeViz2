@@ -22,6 +22,8 @@ import Data.Either
 import Data.Function
 import qualified Data.List.NonEmpty as Ne
 
+import qualified Text.Read as TR
+
 import DataExtra
 
 import Debug.Trace
@@ -563,6 +565,11 @@ substProj ctx sf =
     Hole i -> Hole i)
 
 
+-- TODO : how exacly those to function are related? descirbe their inputs and results in details
+
+deContextualizeFace :: Context -> Expr -> LExpr
+deContextualizeFace = undefined
+
 -- TODO :: arity checking!!
 contextualizeFace :: Context -> [IExpr] -> LExpr -> Expr
 contextualizeFace ctx@(Context _ dims) tl =
@@ -692,11 +699,17 @@ getCTypeDim (CType _ l) = length l
 
 type Name = String
 
+--TODO : define as record
 data Env = Env [Name] [(Name , Int)]
    deriving Eq
 
+singleLevelAndTypeEnv :: Env
+singleLevelAndTypeEnv = Env ["ℓ"] [("A" , 0)]
+
 unsfDefTy :: CType
 unsfDefTy = CType (BType 0) []
+
+
 
 
 
@@ -995,6 +1008,9 @@ emptyEnv = Env [] []
 emptyCtx :: Context
 emptyCtx = Context [] []
 
+freshCtx :: Int -> Context
+freshCtx n = foldl addDimToContext emptyCtx (map Just $ genericDims n)
+
 mkBType :: Env -> Int -> Either String BType
 mkBType (Env lN _) bI =
   if (bI < length lN)
@@ -1066,7 +1082,15 @@ fExprAllFaces ctx =
                , side <- [True , False]
                ]
 
-genericDims n = (["i","j","k"] ++ [ "i" ++ (show i) | i <- range (n - 3) ])
+toSSnum :: Char -> Char
+toSSnum x =
+  case TR.readMaybe [x] of
+    Just d -> "₀₁₂₃₄₅₆₇₈₉" !! d
+    Nothing -> x
+      
+--"₀₁₂₃₄₅₆₇₈₉"
+  
+genericDims n = (["i","j","k"] ++ [ "i" ++ map toSSnum (show i) | i <- range (n - 3) ])
   
 mkExprGrid :: Int -> Int ->  ((Env , Context) , Expr)
 mkExprGrid n k = ((env , ctxTop) , meg ctxTop k) 

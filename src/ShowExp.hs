@@ -299,10 +299,16 @@ render win w h descriptors =
 
 initialize =
   do args <- liftIO getArgs
-     let fName = head args
 
-     mbInitialSessionState <- liftIO (loadFile fName)
-
+     (mbFName , mbInitialSessionState) <- 
+        case args of
+          fName : _ -> do r <- liftIO (loadFile fName)
+                          case r of
+                             Left e -> return (Nothing , Left e)
+                             Right ss -> return (Just fName , Right ss)
+                          
+          [] -> return (Nothing , Right $ freshSessionState 3)
+         
      currTime <- fmap utctDayTime $ liftIO getCurrentTime
 
      case mbInitialSessionState of
@@ -310,7 +316,7 @@ initialize =
          let (ee , expr) = ssEnvExpr initialSessionState
          return $ Just $
                    AppState
-                    { fileName          = Just fName
+                    { fileName          = mbFName
                     , asViewport        = Viewport { vpAlpha = 1/5 , vpBeta = 0 , vpGamma = -0.1 }
                     , asDrawMode        = Scaffold -- Stripes --   --head drawExprModes
                     , asDragStartVP     = Nothing

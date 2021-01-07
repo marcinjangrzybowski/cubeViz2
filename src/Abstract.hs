@@ -357,6 +357,8 @@ clCubPickSF sfc (ClCub (FromLI n mp)) = ClCub $
    FromLI (n - subFaceCodim sfc)
           (mp . flip injSubFace sfc)
 
+
+
 clInterior :: ClCub a -> OCub a
 clInterior (ClCub (FromLI n mp)) = mp (fullSF n)
 
@@ -1091,6 +1093,27 @@ fromOCub ee (Hcomp b nm cyl btm) =
 
 fromClCub :: (Env , Context) -> ClCub () -> Expr
 fromClCub ee = fromOCub ee . getCenter  . clCub
+
+
+
+clCellType :: (Env , Context) -> BType -> Address -> ClCub () -> CType
+clCellType eee@(ee , ctx) btype addr clcub =
+  CType btype fcs
+
+    where
+      n = getDim clcub
+
+      f fc =
+        let sf = toSubFace fc
+            addr' = addressSubFace addr sf
+            cubFc = void $ fromMaybe (error "clCellType-error") $ clCubPick addr' clcub
+            ctx' = contextAt ctx addr clcub
+        in ([Nothing] , fromClCub (ee , ctx') cubFc)
+          
+      fcs = [ (f $ Face n (k , False)  , f $ Face n (k , True))
+             | k <- range n ] 
+
+
 
 -- instance ToCub ((Env , Context) , Expr) () (Either Int CellExpr) where
 --   toCub ee@((env , ct) , (HComp nam pa e)) =
