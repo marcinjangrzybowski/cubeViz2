@@ -16,6 +16,7 @@ import Data.Either
 import Data.Bifunctor
 import Data.Traversable
 import Data.Functor
+import Data.Foldable
 
 import Control.Applicative
 
@@ -27,6 +28,8 @@ import qualified Data.Set as Set
 import DataExtra
 
 import Abstract
+
+import Debug.Trace
 
 data ClearCellRegime =
     OnlyInterior
@@ -46,6 +49,7 @@ data ConstraintsOverrideRegime = NoConstraintsOverride | ConstraintsOverride Con
 data CubTransformation =
      ClearCell CAddress ClearCellRegime
    | SplitCell CAddress
+   | FillHole CAddress (ClCub ())
    -- | ReplaceAt Address (ClCub ())
    -- | RemoveCell Address
    -- | RemoveCellLeaveFaces Address
@@ -90,6 +94,40 @@ applyTransform (ClearCell caddr WithFreeSubFaces) clcub' =
           (Just k , _) -> Right $ Just $ (Cub n (Just k , ()) Nothing) 
   in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
 
+applyTransform (FillHole caddr cub) x =
+  fillAllSubFaces x
+      
+  -- let f n addr x =
+  --       if Set.member addr (cAddress caddr)
+  --       then Right Nothing
+  --       else Right Nothing
+  -- in do clcub' <- cubMapMayReplace f clcub
+  --       return $ False <$ clcub'
+  where
+    -- this function should ba aplied always in specyfic , for subaddreses of incrasing dimension 
+    fillHoleUnsafe :: SubFace -> OCub () -> ClCub Bool -> Either CubTransformationError (ClCub Bool)
+    fillHoleUnsafe = undefined
+
+    holeDim = addresedDim $ head $ Set.toList (cAddress caddr)
+
+
+    -- TODO : boleans here are set to True, even if no transformation is aplied (becouse term is already there)
+    ff :: (ClCub Bool) -> SubFace -> Either CubTransformationError (ClCub Bool)
+    ff y sf =
+      let caddr' = cAddressSubFace x caddr sf
+          cubO = appLI sf (clCub cub)
+          f n addr x = 
+             if Set.member addr (cAddress caddr')
+             then --trace (show (clCub cub) ) $ Right Nothing
+                   case unifyOCub (void x) (void cubO) of
+                     Left () -> Left (CubTransformationError "unification Fail")
+                     Right y -> Right (Just (True <$ y) )
+                  
+             else Right Nothing
+      in cubMapMayReplace f y
+
+    fillAllSubFaces :: ClCub () -> Either CubTransformationError (ClCub Bool)
+    fillAllSubFaces x = foldlM ff (False <$ x) (allSubFaces holeDim)
 
 applyTransform (SplitCell caddr) clcub =
   let tracked = traceConstraintsSingle clcub caddr

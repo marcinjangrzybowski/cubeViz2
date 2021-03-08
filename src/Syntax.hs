@@ -377,7 +377,7 @@ data Expr =
 type LExpr = ([Maybe String] , Expr)  
 
 data CellExpr = CellExpr VarIndex [IExpr]
-  deriving Show
+  deriving (Show , Eq)
 
 
 iLam :: Maybe String -> LExpr -> LExpr
@@ -395,6 +395,9 @@ remapIExpInExpr  f = \case
 -- here indexes are DIM INDEXES
 -- conversion happens in toCub in Abstract.hs
 -- TODO : wrap dim indexes into datatype to avoid confusion
+
+-- TODO : document why this is even needed
+
 
 arityForceRepair :: Context -> Int -> LExpr -> LExpr
 arityForceRepair ctx k x@(mbNs , Var vi tl)
@@ -568,8 +571,9 @@ substProj ctx sf =
 -- TODO : how exacly those to function are related? descirbe their inputs and results in details
 
 deContextualizeFace :: Context -> Expr -> LExpr
-deContextualizeFace = undefined
+deContextualizeFace ctx e = ( unConstrainedDimsOnlyMb ctx , e) 
 
+    
 -- TODO :: arity checking!!
 contextualizeFace :: Context -> [IExpr] -> LExpr -> Expr
 contextualizeFace ctx@(Context _ dims) tl =
@@ -763,6 +767,10 @@ allDims (Context _ l) = map (first (fromMaybe "_")) $ l
 
 unConstrainedDimsOnly :: Context -> [String]
 unConstrainedDimsOnly (Context _ l) = map ((fromMaybe "_") . fst) $ filter (isNothing . snd) $ l 
+
+unConstrainedDimsOnlyMb :: Context -> [Maybe String]
+unConstrainedDimsOnlyMb (Context _ l) = map (fst) $ filter (isNothing . snd) $ l 
+
 
 unConstrainedDimsOnlyIds :: Context -> [Int]
 unConstrainedDimsOnlyIds (Context _ l) = map snd $ filter (isNothing . snd . fst) $ zip (reverse l) [0..] 

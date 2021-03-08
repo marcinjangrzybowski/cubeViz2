@@ -60,6 +60,10 @@ newtype Permutation2 = Permutation2 [Int]
 data Subset = Subset Int (Set.Set Int)
   deriving (Ord , Eq)
 
+
+allSubFaces :: Int -> [SubFace]
+allSubFaces n = sortBy (\a b -> compare (subFaceDimEmb a) (subFaceDimEmb b) ) (genAllLI n)
+
 data Face = Face Int (Int , Bool)
   deriving (Ord , Eq)
 

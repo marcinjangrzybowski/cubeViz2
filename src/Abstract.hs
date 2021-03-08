@@ -53,6 +53,7 @@ data OCub b =
   deriving (Show ,  Functor)
 
 
+
 isHole :: OCub b -> Bool
 isHole (Cub _ _ Nothing) = True
 isHole _ = False 
@@ -75,6 +76,7 @@ newtype CAddress = CAddress {cAddress :: (Set.Set Address)}
 
 data CStatus = CSConstrained
   deriving (Show , Eq , Ord)
+
 
 
 -- instance Eq (CAddress b) where
@@ -284,6 +286,9 @@ addressClass cub addr =
 compAddressClass :: ClCub b -> Address -> Address -> Bool
 compAddressClass cub addrA addrB =
   any ((Set.isSubsetOf $ Set.fromList [addrA , addrB]) . cAddress) (getAllAddrClasses cub)
+
+
+
   
 isInternalAddress :: Address -> Bool
 isInternalAddress (Address sf tl) = isFullSF sf && not (null tl)
@@ -337,12 +342,17 @@ addressSubFace (Address sf' ((AOnCylinder sfA) : xs)) sf =
 
      JCCyl sff -> Address sf' ((AOnCylinder sff) : xs)
 
+cAddressSubFace :: ClCub a -> CAddress -> SubFace -> CAddress
+cAddressSubFace cub caddr sf =
+  addressClass cub (addressSubFace (head $ Set.toList $ cAddress caddr ) sf)
+
 
 cAddrWithSubFaces :: ClCub a -> CAddress -> Set.Set CAddress
 cAddrWithSubFaces cub x =
   Set.fromList
   [ addressClass cub (addressSubFace (head $ Set.toList $ cAddress x ) sf)
   | sf <- (genAllLI (cAddresedDim x)) ]
+
 
 
 
@@ -398,7 +408,14 @@ clCubPick addr =
 
         where
           lengthOK = ((length x) == (cardLI (Never :: Never SubFace ) (addresedDim addr) )  )
-             
+
+
+-- TODO , use oCubPick ? compare performance?
+isHoleClass :: ClCub a -> CAddress -> Bool 
+isHoleClass cl ca =
+   maybe False (isHole . clInterior) $ (clCubPick (head $ Set.toList (cAddress ca)) cl)
+
+                     
       -- ((Map.!) $ Map.fromList x)
     
 -- clCubPick (Address sfc addr@(_ : _)) x@(ClCub fli)
@@ -1003,7 +1020,6 @@ clCubSubFace sf = ClCub . ccf . clCub
 
 
 
-
 toClCub :: (Env , Context) -> Expr -> ClCub ()
 
 toClCub  (env , ct@(Context _ dims)) expr =
@@ -1108,10 +1124,12 @@ clCellType eee@(ee , ctx) btype addr clcub =
             addr' = addressSubFace addr sf
             cubFc = void $ fromMaybe (error "clCellType-error") $ clCubPick addr' clcub
             ctx' = contextAt ctx addr clcub
-        in ([Nothing] , fromClCub (ee , ctx') cubFc)
+        in deContextualizeFace ctx' (fromClCub (ee , ctx') cubFc)
           
       fcs = [ (f $ Face n (k , False)  , f $ Face n (k , True))
              | k <- range n ] 
+
+
 
 
 
@@ -1157,11 +1175,28 @@ clCellType eee@(ee , ctx) btype addr clcub =
 
 
 
+-- TODO :: this is not yet well tested, but should be ok
+contextAtIns :: Context -> [AddressPart] -> OCub b -> Maybe Context
+contextAtIns ctx [] _ = Just ctx
+contextAtIns ctx addr (Hcomp _ nam si a) = 
+     case reverse addr of
+        AOnCylinder sf : xs ->
+           case appLI sf (cylCub si) of
+             Just y -> contextAtIns (addSFConstraintToContext sf (addDimToContext ctx nam)) (reverse xs) y
+             Nothing -> Nothing
+        AOnBottom sf : xs -> contextAtSafe ctx (Address sf (reverse xs)) a 
+        _ -> error "imposible, this case should be handled in ther firt clause"
 
+
+contextAtSafe :: Context -> Address -> ClCub b -> Maybe Context
+contextAtSafe ctx (Address sf xs) y =
+  contextAtIns (addSFConstraintToContext sf ctx) xs (clInterior $ clCubPickSF sf y)
 
 
 contextAt :: Context -> Address -> ClCub b -> Context
-contextAt = undefined
+contextAt ctx a@(Address sf xs) y =
+ fromJust $ contextAtIns (addSFConstraintToContext sf ctx) xs (clInterior $ clCubPickSF sf y)
+                                
 -- contextAt ctx [] _ = ctx
 -- contextAt ctx (_ : _) (Cub _ _) = error "unable to dig into cell!" 
 -- contextAt ctx addr@(_ : _) (Hcomp b nam pa a) = h $ reverse addr
@@ -1339,3 +1374,52 @@ vaccantSubFaces cub addr =
 
 occupiedCylCells :: CylCub a -> Set.Set SubFace
 occupiedCylCells cc = keysSetMapFLI $ cylCub cc
+
+---- unify
+-- TODO : investigate performance , be sure to recognise that unification fails AEAP
+-- TODO : add tracing of unification, margin where left,right,both and no term is defined (to use with Bool in ExprTransform)
+  
+unifyCylCub :: CylCub () -> CylCub () -> Either () (CylCub ())
+unifyCylCub (CylCub (FromLI aN _)) (CylCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+unifyCylCub (CylCub (FromLI n a)) (CylCub (FromLI _ b)) =
+  CylCub <$> sequence (FromLI n
+    (\sf -> case (a sf , b sf) of
+              (Just aO , Just bO) -> Just <$> unifyOCub aO bO 
+              (Nothing , Nothing) -> Right Nothing
+              _ -> Left ()
+                                     ))
+
+unifyOCub :: OCub () -> OCub () -> Either () (OCub ())
+unifyOCub a b | isHole a = Right b
+unifyOCub a b | isHole b = Right a
+unifyOCub a@(Cub _ _ (Just x)) (Cub _ _ (Just y)) | x == y = Right a
+unifyOCub (Hcomp _ nameA sidesA btmA) (Hcomp _ nameB sidesB btmB) = do
+  btmU <- unifyClCub btmA btmB
+  sidesU <- unifyCylCub sidesA sidesB
+  let nameU = maybe nameA Just nameB 
+  return $ Hcomp () nameU sidesU btmU
+
+unifyOCub _ _ = Left () 
+  
+unifyClCub :: ClCub () -> ClCub () -> Either () (ClCub ())
+unifyClCub (ClCub (FromLI aN _)) (ClCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+unifyClCub (ClCub (FromLI n a)) (ClCub (FromLI _ b)) =
+  ClCub <$> sequence (FromLI n (\sf -> unifyOCub (a sf) (b sf)))
+
+
+
+
+---- give
+
+giveOptions :: Context -> VarIndex -> [ CellExpr ]
+giveOptions _ x = [ CellExpr x [] , CellExpr x [] , CellExpr x [] ]
+
+
+-- this DO NOT checks if given CellExpr "fits" into CAddress,
+-- this is just helper to (1) extract proper context (2) evaluate subfaces with the help of toClCub
+toClCubAt :: Env -> Context -> ClCub a -> CAddress -> CellExpr -> ClCub ()
+toClCubAt env ctx clcub caddr ce =
+   let addr = head $ Set.toList $ cAddress caddr
+       ctx' = contextAt ctx addr clcub
+       n = addresedDim addr
+   in toClCub (env , ctx') (fromOCub (env , ctx') (Cub n () (Just ce)))

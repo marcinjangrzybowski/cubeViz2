@@ -96,8 +96,8 @@ asCursorAddress as =
     UMNavigation {} ->
       let ca = umCoursorAddress um in Just $ ca        
     UMSelectGrid {} -> Just $ umEditedCell (um)
-    UMEditTail {} -> Just $ umEditedCell (um)
-    UMAddSubFace {} -> Just $ fst $ umSubFaceToAdd (um)
+    -- UMEditTail {} -> Just $ umEditedCell (um)
+    -- UMAddSubFace {} -> Just $ fst $ umSubFaceToAdd (um)
 
 asSecCursorAddress :: AppState -> Maybe Address
 asSecCursorAddress as =
@@ -106,13 +106,13 @@ asSecCursorAddress as =
     UMNavigation {} ->
       fmap mnAddr $ umModalNav um        
     UMSelectGrid {} -> Nothing
-    UMEditTail {} -> Nothing
-    UMAddSubFace {} -> Nothing
+    -- UMEditTail {} -> Nothing
+    -- UMAddSubFace {} -> Nothing
 
 asSubFaceToAdd :: AppState -> Maybe (Address , SubFace)
 asSubFaceToAdd as =
     case asUserMode as of
-      UMAddSubFace x -> Just x
+      -- UMAddSubFace x -> Just x
       _ -> Nothing
 
 asExpression = ssEnvExpr . asSession
@@ -135,11 +135,10 @@ mnAddr (MNSup a) = a
 data UserMode =
     Idle
   | UMNavigation { umCoursorAddress :: Address , umModalNav :: Maybe ModalNav }
-  | UMAddSubFace { umSubFaceToAdd :: (Address , SubFace) }
-  | UMEditCell { umEditedCell :: Address }
-  | UMEditTail { umEditedCell :: Address , umTailPosition :: Int }
+  -- | UMAddSubFace { umSubFaceToAdd :: (Address , SubFace) }
+  -- | UMEditCell { umEditedCell :: Address }
+  -- | UMEditTail { umEditedCell :: Address , umTailPosition :: Int }
   | UMSelectGrid { umEditedCell :: Address , umGSD :: GridSelectionDesc }
-
 
 umNavigation :: Address -> UserMode
 umNavigation addr = UMNavigation { umCoursorAddress = addr , umModalNav = Nothing }
@@ -416,7 +415,7 @@ consolePrint str = do
 asTailAddress :: AppState -> Maybe Int
 asTailAddress as =
   case asUserMode as of
-    UMEditTail {} -> Just $ umTailPosition (asUserMode as)
+    -- UMEditTail {} -> Just $ umTailPosition (asUserMode as)
     _ -> Nothing
 
 printExpr :: UIApp ()
@@ -473,17 +472,17 @@ printExprCode =
                  putStrLn
                     $ fromRight "error while printing expr" (toCode ee expr)
 
-setAddSubFaceMode :: Address -> UIApp ()
-setAddSubFaceMode addr = do
-            appS <- UI.getAppState
-            let cub = asCub appS
-            let vsf = Set.toList $ vaccantSubFaces cub addr
-            case vsf of
-                 [] -> return ()
-                 (x : _) -> setUserMode (UMAddSubFace (addr , x))
+-- setAddSubFaceMode :: Address -> UIApp ()
+-- setAddSubFaceMode addr = do
+--             appS <- UI.getAppState
+--             let cub = asCub appS
+--             let vsf = Set.toList $ vaccantSubFaces cub addr
+--             case vsf of
+--                  [] -> return ()
+--                  (x : _) -> setUserMode (UMAddSubFace (addr , x))
 
-               -- Just _ -> do UI.modifyAppState $ \s -> s { asSubFaceToAdd = Nothing }
-               --              updateView
+--                -- Just _ -> do UI.modifyAppState $ \s -> s { asSubFaceToAdd = Nothing }
+--                --              updateView
 
 setNavMode :: Address -> UIApp ()
 setNavMode addr = setUserMode (umNavigation addr)
@@ -562,15 +561,17 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
      case ev of
         (UI.EventKey win k scancode ks mk) -> do
              when (ks == GLFW.KeyState'Pressed) $ do
-                when (k == GLFW.Key'H) $ inf "EditHead" $ do
-                  initEditHead addr
+                -- when (k == GLFW.Key'H) $ inf "EditHead" $ do
+                --   initEditHead addr
 
-                when (k == GLFW.Key'T) $ do
-                  initEditTail pem addr
+                when (k == GLFW.Key'G) $ inf "GiveCell" $ do
+                  initGiveCell addrClass
+               
+                -- when (k == GLFW.Key'T) $ do
+                --   initEditTail pem addr
 
                 when (k == GLFW.Key'V) $ inf "CycleDrawMode" $ do
                   UI.modifyAppState (\s -> s { asDrawMode = rotateFrom (asDrawMode s) drawExprModes } )
-
 
                 -- when (k == GLFW.Key'A) $ do
                 --   case (uncons addr) of
@@ -628,79 +629,79 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
         _ -> return ()
 
 
-modesEvents pem um@(UMEditCell addr  ) ev = undefined
+-- modesEvents pem um@(UMEditCell addr  ) ev = undefined
 
-modesEvents pem um@(UMEditTail addr pos ) ev = do
-     appS <- UI.getAppState
-     let cub = asCub appS
-         inf = helperPEM pem
+-- modesEvents pem um@(UMEditTail addr pos ) ev = do
+--      appS <- UI.getAppState
+--      let cub = asCub appS
+--          inf = helperPEM pem
 
-         localCub = clCubPickO addr cub
+--          localCub = clCubPickO addr cub
 
-         tail =
-            case localCub of
-                  Right (Cub _ _ (Just (CellExpr vI tail'))) -> tail'
+--          tail =
+--             case localCub of
+--                   Right (Cub _ _ (Just (CellExpr vI tail'))) -> tail'
 
-                  _ -> error "??"
+--                   _ -> error "??"
 
-     case ev of
-        (UI.EventKey win k scancode ks mk) ->
-            when (ks == GLFW.KeyState'Pressed) $ do
-              when (k == GLFW.Key'Enter) $ inf "Confirm" $ do
-                 -- transformExpr (AddSubFace (addr , sf))
-                 setUserMode (umNavigation addr)
+--      case ev of
+--         (UI.EventKey win k scancode ks mk) ->
+--             when (ks == GLFW.KeyState'Pressed) $ do
+--               when (k == GLFW.Key'Enter) $ inf "Confirm" $ do
+--                  -- transformExpr (AddSubFace (addr , sf))
+--                  setUserMode (umNavigation addr)
 
-              when (k == GLFW.Key'Q) $ inf "Abort" $ do
-                setUserMode $ umNavigation addr
+--               when (k == GLFW.Key'Q) $ inf "Abort" $ do
+--                 setUserMode $ umNavigation addr
 
-              when (k == GLFW.Key'T) $ inf "Cycle Tail Positions" $ do
-                setUserMode $ (UMEditTail addr (mod (pos + 1) (length tail) ) )
+--               when (k == GLFW.Key'T) $ inf "Cycle Tail Positions" $ do
+--                 setUserMode $ (UMEditTail addr (mod (pos + 1) (length tail) ) )
 
-                  -- when (isArrowKey k) $ inf "nav" $ do
+--                   -- when (isArrowKey k) $ inf "nav" $ do
 
-                  --    let nav = fromJust (arrowKey2nav k)
-                  --        vcnt = Set.toList $ vaccantSubFaces cub addr
-                  --        sfNext =
-                  --           case nav of
-                  --              DNext -> rotateFrom sf vcnt
-                  --              DPrev -> rotateFrom sf $ reverse vcnt
-                  --              _ -> sf
+--                   --    let nav = fromJust (arrowKey2nav k)
+--                   --        vcnt = Set.toList $ vaccantSubFaces cub addr
+--                   --        sfNext =
+--                   --           case nav of
+--                   --              DNext -> rotateFrom sf vcnt
+--                   --              DPrev -> rotateFrom sf $ reverse vcnt
+--                   --              _ -> sf
 
-                  --    setUserMode $ UMAddSubFace (addr , sfNext)
-
-
-        _ -> return ()
+--                   --    setUserMode $ UMAddSubFace (addr , sfNext)
 
 
-modesEvents pem um@(UMAddSubFace (addr , sf) ) ev = do
-     appS <- UI.getAppState
-     let cub = asCub appS
-         inf = helperPEM pem
-     case ev of
-        -- (UI.EventKey win k scancode ks mk) ->
-        --     when (ks == GLFW.KeyState'Pressed) $ do
-        --       when (k == GLFW.Key'Enter) $ inf "Confirm" $ do
-        --          transformExpr (AddSubFace (addr , sf))
-        --          setUserMode (UMNavigation { umCoursorAddress = sf : addr })
-
-        --       when (k == GLFW.Key'Q) $ inf "Abort" $ do
-        --         setUserMode $ UMNavigation addr
+--         _ -> return ()
 
 
-        --       when (isArrowKey k) $ inf "nav" $ do
+-- modesEvents pem um@(UMAddSubFace (addr , sf) ) ev = do
+--      appS <- UI.getAppState
+--      let cub = asCub appS
+--          inf = helperPEM pem
+--      case ev of
+--         -- (UI.EventKey win k scancode ks mk) ->
+--         --     when (ks == GLFW.KeyState'Pressed) $ do
+--         --       when (k == GLFW.Key'Enter) $ inf "Confirm" $ do
+--         --          transformExpr (AddSubFace (addr , sf))
+--         --          setUserMode (UMNavigation { umCoursorAddress = sf : addr })
 
-        --          let nav = fromJust (arrowKey2nav k)
-        --              vcnt = Set.toList $ vaccantSubFaces cub addr
-        --              sfNext =
-        --                 case nav of
-        --                    DNext -> rotateFrom sf vcnt
-        --                    DPrev -> rotateFrom sf $ reverse vcnt
-        --                    _ -> sf
-
-        --          setUserMode $ UMAddSubFace (addr , sfNext)
+--         --       when (k == GLFW.Key'Q) $ inf "Abort" $ do
+--         --         setUserMode $ UMNavigation addr
 
 
-        _ -> return ()
+--         --       when (isArrowKey k) $ inf "nav" $ do
+
+--         --          let nav = fromJust (arrowKey2nav k)
+--         --              vcnt = Set.toList $ vaccantSubFaces cub addr
+--         --              sfNext =
+--         --                 case nav of
+--         --                    DNext -> rotateFrom sf vcnt
+--         --                    DPrev -> rotateFrom sf $ reverse vcnt
+--         --                    _ -> sf
+
+--         --          setUserMode $ UMAddSubFace (addr , sfNext)
+
+
+--         _ -> return ()
 
 modesEvents pem um@(UMSelectGrid addr gsd ) ev = do
      appS <- UI.getAppState
@@ -710,8 +711,9 @@ modesEvents pem um@(UMSelectGrid addr gsd ) ev = do
         (UI.EventKey win k scancode ks mk) ->
             when (ks == GLFW.KeyState'Pressed) $ do
               when (k == GLFW.Key'Enter) $ inf "Confirm" $ do
-                gsdRunFinalAction gsd
                 setUserMode (umNavigation addr)
+                gsdRunFinalAction gsd
+
 
               when (k == GLFW.Key'Q) $ inf "Abort" $ do
                 gsdRunAbortAction gsd
@@ -846,10 +848,11 @@ updateGL =
      printConsoleView :: UIApp ()
      printConsoleView = do
         liftIO SCA.clearScreen
+        printExpr
         ei <- eventsInfo
         liftIO $ putStrLn ei
         liftIO $ putStrLn ""
-        printExpr
+
         -- liftIO $ putStrLn ""
         -- pKS <- fmap (\pK -> show (Set.toList pK)) UI.pressedKeys
         -- liftIO $ putStrLn pKS  
@@ -869,46 +872,130 @@ loadFile fName =
        return $ parseInteractive contents
 
 
-initEditTail :: PEMode -> Address -> UIAppDesc ()
-initEditTail pem addr = do
-    appS <- UI.getAppState
-    let inf = helperPEM pem
-        cubO = fromRight (error "bad addr") $ clCubPickO addr $ asCub appS
-    case cubO of
-      (Cub _ _ (Just (CellExpr vI (_ : _)))) ->
-           inf "Edit Tail" $ setUserMode $ UMEditTail addr 0
-      _ -> return ()
+-- initEditTail :: PEMode -> Address -> UIAppDesc ()
+-- initEditTail pem addr = do
+--     appS <- UI.getAppState
+--     let inf = helperPEM pem
+--         cubO = fromRight (error "bad addr") $ clCubPickO addr $ asCub appS
+--     case cubO of
+--       (Cub _ _ (Just (CellExpr vI (_ : _)))) ->
+--            inf "Edit Tail" $ setUserMode $ UMEditTail addr 0
+--       _ -> return ()
 
-initEditHead :: Address -> UIApp ()
-initEditHead addr = do
+-- initEditHead :: Address -> UIApp ()
+-- initEditHead addr = do
+--   appS <- UI.getAppState
+--   let (ee0@(env , ctx0@(Context vars _)) , _) = asExpression appS
+--       initialCub = fromMaybe (error "bad addr") $ clCubPick addr (asCub appS)
+--       ctx = contextAt ctx0 addr (asCub appS)
+--       varsInCtx = binsBy (getCTyDim env ctx . snd . fst) $ zip (reverse vars) (fmap VarIndex [0..])
+--       varsInCtxGrid = fmap snd $ Map.toList varsInCtx
+
+--       (initPos , initTail) =
+--          case clInterior initialCub of
+--             Cub _ _ (Just (CellExpr vI tail)) ->
+--                (fromJust $ gridIndexOf vI $ fmap (fmap snd) varsInCtxGrid ,
+--                   tail)
+--             _ -> ((0,0) , [])
+
+--       gsd = GridSelectionDesc
+--        { gsdChoices = fmap (fmap (fst . fst)) varsInCtxGrid
+--        , gsdPosition = initPos
+--        , gsdAction =
+--            \_ nPos -> do
+--              let newVi = snd $ gridLookup nPos varsInCtxGrid
+--              let newCell = mkCellExprForceDefTail (env , ctx) newVi initTail
+--              undefined --transformExpr (ReplaceAt addr (Cub () _ (Right newCell)))
+--        , gsdFinalAction = \_ _ -> return ()
+--        , gsdAbortAction = transformExpr undefined --(ReplaceAt addr initialCub)
+--        }
+--   gsdAction gsd (gridLookup initPos (gsdChoices gsd)) initPos
+--   setUserMode $ UMSelectGrid addr gsd
+
+
+-- initEditTail :: PEMode -> Address -> UIAppDesc ()
+-- initEditTail pem addr = do
+--     appS <- UI.getAppState
+--     let inf = helperPEM pem
+--         cubO = fromRight (error "bad addr") $ clCubPickO addr $ asCub appS
+--     case cubO of
+--       (Cub _ _ (Just (CellExpr vI (_ : _)))) ->
+--            inf "Edit Tail" $ setUserMode $ UMEditTail addr 0
+--       _ -> return ()
+
+initGiveCell :: CAddress -> UIApp ()
+initGiveCell caddr = do
   appS <- UI.getAppState
-  let (ee0@(env , ctx0@(Context vars _)) , _) = asExpression appS
-      initialCub = fromMaybe (error "bad addr") $ clCubPick addr (asCub appS)
+
+  let addr = head $ Set.toList (cAddress caddr)
+      holeDim = addresedDim addr
+      (ee0@(env , ctx0@(Context vars _)) , _) = asExpression appS
       ctx = contextAt ctx0 addr (asCub appS)
-      varsInCtx = binsBy (getCTyDim env ctx . snd . fst) $ zip (reverse vars) (fmap VarIndex [0..])
-      varsInCtxGrid = fmap snd $ Map.toList varsInCtx
+      varsInCtxWithMatchingDim = filter
+             (\x -> holeDim == (getCTyDim env ctx $ snd $ fst x)) $ zip (reverse vars) (fmap VarIndex [0..])
+             
+  when (isHoleClass (asCub appS) caddr && (not $ null varsInCtxWithMatchingDim)) $ do
 
-      (initPos , initTail) =
-         case clInterior initialCub of
-            Cub _ _ (Just (CellExpr vI tail)) ->
-               (fromJust $ gridIndexOf vI $ fmap (fmap snd) varsInCtxGrid ,
-                  tail)
-            _ -> ((0,0) , [])
+    let 
 
-      gsd = GridSelectionDesc
-       { gsdChoices = fmap (fmap (fst . fst)) varsInCtxGrid
-       , gsdPosition = initPos
-       , gsdAction =
-           \_ nPos -> do
+        
+        finalGive x = transformExpr (FillHole caddr (toClCubAt env ctx0 (asCub appS) caddr x ))
+
+
+      
+        initGiveOptions :: VarIndex  -> UIApp ()
+        initGiveOptions newVi = do
+            let opts = case holeDim of
+                          0 -> error "should be handled wihout second grid screen"
+                          1 -> [ ("i", [ dim 0 ] ) , ("~i" , [ neg (dim 0) ] ) ]
+                          2 -> error "todo"
+                gsd' opts = GridSelectionDesc
+                   { gsdChoices = [fmap fst opts]
+                        
+                   , gsdPosition = (0,0)
+                   , gsdAction =
+                       \_ nPos -> do
+                         -- let newVi = snd $ gridLookup nPos varsInCtxGrid
+                         -- let newCell = mkCellExprForceDefTail (env , ctx) newVi initTail
+                         -- undefined --transformExpr (ReplaceAt addr (Cub () _ (Right newCell)))
+                         return () 
+                   , gsdFinalAction =
+                       \_ nPos -> do
+                         let newTail = snd $ gridLookup nPos [opts]
+                         let newCell = mkCellExprForceDefTail (env , ctx) newVi newTail
+                         finalGive newCell
+                         
+                   , gsdAbortAction = return ()
+                     -- transformExpr undefined --(ReplaceAt addr initialCub)
+                   }
+
+            setUserMode $ UMSelectGrid addr (gsd' opts)
+
+      
+        varsInCtxGrid = [ varsInCtxWithMatchingDim ]
+
+        (initPos , initTail) = ((0,0) , [])
+    
+        gsd = GridSelectionDesc
+         { gsdChoices = fmap (fmap (fst . fst)) varsInCtxGrid
+         , gsdPosition = initPos
+         , gsdAction =
+             \_ nPos -> do
+               -- let newVi = snd $ gridLookup nPos varsInCtxGrid
+               -- let newCell = mkCellExprForceDefTail (env , ctx) newVi initTail
+               -- undefined --transformExpr (ReplaceAt addr (Cub () _ (Right newCell)))
+               return ()
+         , gsdFinalAction = \gDStr nPos ->             
              let newVi = snd $ gridLookup nPos varsInCtxGrid
-             let newCell = mkCellExprForceDefTail (env , ctx) newVi initTail
-             undefined --transformExpr (ReplaceAt addr (Cub () _ (Right newCell)))
-       , gsdFinalAction = \_ _ -> return ()
-       , gsdAbortAction = transformExpr undefined --(ReplaceAt addr initialCub)
-       }
-  gsdAction gsd (gridLookup initPos (gsdChoices gsd)) initPos
-  setUserMode $ UMSelectGrid addr gsd
-
+             in case holeDim of
+                   0 -> finalGive (CellExpr newVi [])
+                   1 -> initGiveOptions newVi             
+                   _ -> error $ "not implemented dim" ++ (show holeDim);   --else initGiveOptions
+         , gsdAbortAction = return ()
+           -- transformExpr undefined --(ReplaceAt addr initialCub)
+         }
+    gsdAction gsd (gridLookup initPos (gsdChoices gsd)) initPos
+    setUserMode $ UMSelectGrid addr gsd
 
 
 data GridSelectionDesc =
