@@ -307,6 +307,14 @@ addressSuperFaces (Address sf ((AOnBottom sfA) : xs)) =
 addressSuperFaces (Address sf ((AOnCylinder sfA) : xs)) =
    [ Address sf (AOnCylinder ssf : xs ) | ssf <- filter (not . isFullSF) $ superSubFaces sfA ]
 
+
+-- cAddressSuperFacesCub :: ClCub () -> CAddress -> [ CAddress ]
+-- cAddressSuperFacesCub clcub caddr =
+--   let addr = head $ Set.toList $ cAddress caddr
+--       addrs = addressSuperFaces addr
+--   in 
+
+
 -- --this is more usefull, it only gives addreses of Leafs
 -- addressSuperCells :: ClCub a -> Address -> [Address]
 -- addressSuperCells cub (Address sf []) | isFullSF sf = []
@@ -491,11 +499,19 @@ addressClassSuperCellsClass cl x =
     foldl Set.union Set.empty
   $ Set.map (Set.fromList . (fmap $ addressClass cl) . (addressSuperCells cl)) $ cAddress x
 
+--TODO write some docs about property of CAddress and "beeing subface" relation in both Address and CAddress
+
 addressClassSuperCellsClassLeafs :: ClCub a -> CAddress -> Set.Set CAddress
 addressClassSuperCellsClassLeafs cl x =  
     foldl Set.union Set.empty
   $ Set.map (Set.fromList . (fmap $ addressClass cl) . (onlyLeafs . addressSuperCells cl)) $ cAddress x
 
+addressClassSuperHoles :: ClCub a -> CAddress -> Set.Set CAddress 
+addressClassSuperHoles cl =    
+   (Set.filter (isHoleClass cl )) .
+   addressClassSuperCellsClassLeafs cl
+
+-- (filter ((\x -> True) . (head . Set.toList . cAddress))) . 
 
 directlyConstrainingSuperCells :: ClCub a -> CAddress -> Set.Set CAddress
 directlyConstrainingSuperCells cub x = 
@@ -530,7 +546,7 @@ addressSuperCells cl addr =
 
 
 -- TODO : create eficient, less naive , implementation
-
+-- TODO : investigate possible rpoblem here wich may result in ill constructed (bad n) FromLI in ClCub
 clDegenerate :: Int -> ClCub () -> ClCub () 
 clDegenerate k (ClCub (FromLI n f)) = 
   let f' x@(SubFace _ sfm0) =
@@ -619,7 +635,7 @@ traceConstraints cl caddrs =
     nf n addr a _ cy btm = 
       let 
           insQ :: Int
-          insQ = Prelude.max (maximum (fmap ((maybe (-1) id ) . fst) cy))
+          insQ = Prelude.max (maximumAlways (-1) (fmap ((maybe (-1) id ) . fst) cy))
                              (maximum (fmap ((maybe (-1) id ) . fst) btm) )
 
           ownQ = fst (cf n addr a undefined)
@@ -812,14 +828,14 @@ clClearAllCells :: ClCub [b] -> ClCub [b]
 clClearAllCells = cubMapWAddr (\_ _ -> [])
 
 
-cubMapMayReplace  :: forall a b . (Monad a) =>  (Int -> Address -> OCub b -> a (Maybe (OCub b)))
+cubMapMayReplace  :: forall a b . (Monad a , Show b) =>  (Int -> Address -> OCub b -> a (Maybe (OCub b)))
                  -> ClCub b
                  -> a (ClCub b)
 cubMapMayReplace f (ClCub xx) = ClCub <$>
    traverseMapLI (\sf -> cmm (Address sf [])) xx
 
   where
-    cmm :: (Monad a) =>  Address
+    cmm :: Address
                  -> OCub b
                  -> a (OCub b)
     cmm addr@(Address sf0 tla) x = do
@@ -830,9 +846,11 @@ cubMapMayReplace f (ClCub xx) = ClCub <$>
            case x of
              Hcomp b mbNm cyl btm ->
                 do cyl2 <- CylCub <$> traverseMapLI
-                       (\sf -> maybe (pure Nothing) (fmap Just . cmm (Address sf0 (AOnCylinder sf : tla))))
+                       (\sf -> maybe (pure Nothing)
+                                     (fmap Just . cmm (Address sf0 (AOnCylinder sf : tla))))
                         (cylCub cyl)
-                   btm2 <- ClCub <$> traverseMapLI (\sf -> cmm (Address sf0 (AOnBottom sf : tla))) (clCub btm)
+                   btm2 <- ClCub <$> traverseMapLI
+                              (\sf -> cmm (Address sf0 (AOnBottom sf : tla))) (clCub btm)
                    return (Hcomp b mbNm cyl2 btm2)
 
              Cub {} -> return x

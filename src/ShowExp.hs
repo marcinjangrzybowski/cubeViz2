@@ -105,7 +105,7 @@ asSecCursorAddress as =
   case um of
     UMNavigation {} ->
       fmap mnAddr $ umModalNav um        
-    UMSelectGrid {} -> Nothing
+    UMSelectGrid {} -> umHighlightedCell um
     -- UMEditTail {} -> Nothing
     -- UMAddSubFace {} -> Nothing
 
@@ -138,7 +138,7 @@ data UserMode =
   -- | UMAddSubFace { umSubFaceToAdd :: (Address , SubFace) }
   -- | UMEditCell { umEditedCell :: Address }
   -- | UMEditTail { umEditedCell :: Address , umTailPosition :: Int }
-  | UMSelectGrid { umEditedCell :: Address , umGSD :: GridSelectionDesc }
+  | UMSelectGrid { umEditedCell :: Address , umHighlightedCell :: Maybe Address , umGSD :: GridSelectionDesc }
 
 umNavigation :: Address -> UserMode
 umNavigation addr = UMNavigation { umCoursorAddress = addr , umModalNav = Nothing }
@@ -358,6 +358,9 @@ setUserMode um = do
     s { asUserMode = um })
    UI.flushDisplay
 
+setGridHighlightAddr :: Address -> UIApp ()
+setGridHighlightAddr addr = undefined
+
 
 data PEMode = PERuntime | PEInfo
 
@@ -566,6 +569,9 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
 
                 when (k == GLFW.Key'G) $ inf "GiveCell" $ do
                   initGiveCell addrClass
+                  
+                when (k == GLFW.Key'E) $ inf "ExtrudeCell" $ do
+                  initExtrudeCell addrClass
                
                 -- when (k == GLFW.Key'T) $ do
                 --   initEditTail pem addr
@@ -703,7 +709,7 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
 
 --         _ -> return ()
 
-modesEvents pem um@(UMSelectGrid addr gsd ) ev = do
+modesEvents pem um@(UMSelectGrid addr addr2 gsd ) ev = do
      appS <- UI.getAppState
      let cub = asCub appS
          inf = helperPEM pem
@@ -811,7 +817,7 @@ handleCellManipulationEvents pem ev addr = do
         _ -> return ()
 
 modalConsoleView :: UserMode -> UIApp ()
-modalConsoleView um@(UMSelectGrid addr gsd ) = do
+modalConsoleView um@(UMSelectGrid addr addr2 gsd ) = do
   let cho = gridMapWithIndex (\ij -> if ij == gsdPosition gsd then SCP.bgColor SCP.Yellow else id ) (gsdChoices gsd)
       choStr = concatMap ((++) "\n" . concat . fmap ((++) " ") ) cho
   liftIO $ putStrLn choStr
@@ -969,7 +975,7 @@ initGiveCell caddr = do
                      -- transformExpr undefined --(ReplaceAt addr initialCub)
                    }
 
-            setUserMode $ UMSelectGrid addr (gsd' opts)
+            setUserMode $ UMSelectGrid addr Nothing  (gsd' opts)
 
       
         varsInCtxGrid = [ varsInCtxWithMatchingDim ]
@@ -995,8 +1001,25 @@ initGiveCell caddr = do
            -- transformExpr undefined --(ReplaceAt addr initialCub)
          }
     gsdAction gsd (gridLookup initPos (gsdChoices gsd)) initPos
-    setUserMode $ UMSelectGrid addr gsd
+    setUserMode $ UMSelectGrid addr Nothing gsd
 
+initExtrudeCell :: CAddress -> UIApp ()
+initExtrudeCell caddr = do
+  appS <- UI.getAppState
+
+  let addr = head $ Set.toList (cAddress caddr)
+      cellDim = addresedDim addr
+      (ee0@(env , ctx0@(Context vars _)) , _) = asExpression appS
+      ctx = contextAt ctx0 addr (asCub appS)
+      superHoles = Set.toList $ addressClassSuperHoles (asCub appS) caddr 
+             
+  when ((not (isHoleClass (asCub appS) caddr)) && (not $ null superHoles)) $ do
+
+    case superHoles of
+      [] -> error "imposible"
+      [ sh ] -> undefined
+      _ -> undefined
+    
 
 data GridSelectionDesc =
   GridSelectionDesc
@@ -1042,8 +1065,8 @@ gsdRunDirection gsd d =
   in do
         gsdAction gsd (gridLookup newPos (gsdChoices gsd)) newPos
         UI.modifyAppState (\appS -> appS { asUserMode =
-                                (\(UMSelectGrid addr gsd) ->
-                                     UMSelectGrid addr
+                                (\(UMSelectGrid addr _ gsd) ->
+                                     UMSelectGrid addr Nothing
                                       (gsd { gsdPosition = newPos } ) )
                                  (asUserMode appS) } )
         UI.flushDisplay

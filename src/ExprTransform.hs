@@ -146,7 +146,8 @@ splitOCub sf x@(ClCub xx) = -- clInterior x
   where
     cylF sf' | sf `isSubFaceOf` sf' = Nothing
              | otherwise = --Just (Cub (subFaceDimEmb sf' + 1) () Nothing)
-                 Just $ oDegenerate ((getDim x) - 1) $ appLI sf' xx
+                 -- Just $ oDegenerate ((getDim x) - 1) $ appLI sf' xx
+                 Just $ oDegenerate (subFaceDimEmb sf') $ appLI sf' xx
 
 
 -- applyTransform (ClearCell addrToReplace OnlyInterior) z =

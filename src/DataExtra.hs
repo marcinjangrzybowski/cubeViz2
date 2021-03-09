@@ -205,3 +205,6 @@ disjointSetFamFold = DisjointFam . foldl visit Set.empty
           merged = foldl Set.union s toMerge
       in Set.insert merged toPass
        
+maximumAlways :: Foldable t => forall a. Ord a => a -> t a -> a
+maximumAlways x y | null y = x
+                  | otherwise = maximum y

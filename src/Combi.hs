@@ -377,10 +377,9 @@ fromMapFLI n = FromLI n . flip Map.lookup
 keysSetMapFLI :: ListInterpretable a b => FromLI a (Maybe c) -> Set.Set a
 keysSetMapFLI = Map.keysSet . Map.filter isJust . toMapFLI
 
-
+-- error here proofs that somwhere FromLI is created with wrong n
 fromMapFLIUnsafe :: ListInterpretable a b => Int -> Map.Map a c -> FromLI a c
 fromMapFLIUnsafe n = fmap fromJust . fromMapFLI n
-
 
 mkFaceLI :: [(a , a)] -> FromLI Face a
 mkFaceLI l = FromLI (length l) (\(Face _ (k , b)) -> pickFromPair b (l !! k))
