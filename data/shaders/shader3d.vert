@@ -5,6 +5,7 @@ layout(location = 1) in vec3 Normal;
 layout(location = 2) in vec4 Color;
 layout(location = 3) in float Mode;
 
+
 out vec4 vCol;
 
 out vec3 vNor;
@@ -16,6 +17,7 @@ out float vMode;
 
 layout(location = 0) uniform vec3 euler;
 layout(location = 1) uniform vec2 screen;
+layout(location = 4) uniform float scale;
 
 mat4 anglesToAxes(in vec3 angles)
 {
@@ -84,7 +86,6 @@ main()
 
    f = 3;
 
-   float scale = 1.3;
 
    frustum =
      mat4( n/r , 0.0 , 0.0 , 0.0
@@ -94,12 +95,22 @@ main()
 
    float aspect = screen.x/screen.y; // * 0.75;
 
+   float sx,sy;
+
+   if(aspect > 1.0){
+      sx = scale/aspect;
+      sy = scale;
+   } else {
+      sx = scale;
+      sy = scale * aspect;
+   }
+
    gl_Position =
                   (
 		   (
-		     vec4(scale/aspect , scale , 0.1 , 1.0)  *
+		     vec4(sx , sy , 0.1 , 1.0)  *
 		    ( anglesToAxes(euler) *
-		   (vec4(1.0 , 1.0 , 1.0 , 1.0) * ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
+		   (vec4(2.0 , 2.0 , 2.0 , 1.0) * ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
 		      - vec4(0.5 , 0.5 , 0.5 , 0.0)))))));
 
    worldPos = vPosition.xyz;

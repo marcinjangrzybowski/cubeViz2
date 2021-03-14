@@ -207,11 +207,14 @@ onDisplay win w h vp ds = do
     Just nowD -> uniform (UniformLocation 2 ) $= nowD
     Nothing -> return ()
 
+
   let (Descriptor pm verts firstIndex numVertices _) = ds
   case pm of
     Lines -> uniform (UniformLocation 3 ) $= (0 :: GLfloat)
     Points -> uniform (UniformLocation 3 ) $= (0 :: GLfloat)
     _ -> uniform (UniformLocation 3 ) $= (1 :: GLfloat)
+
+  uniform (UniformLocation 4 ) $= (1.0 :: GLfloat)
       
   bindVertexArrayObject $= Just verts
   drawArrays pm firstIndex numVertices
@@ -219,6 +222,14 @@ onDisplay win w h vp ds = do
 
 onDisplayAll :: Window -> Int -> Int -> Viewport -> [Descriptor] -> IO ()
 onDisplayAll win w h vp = void . sequence . map (onDisplay win w h vp) 
+
+mouseToModel2d :: Int -> Int -> (Double , Double) -> (Float , Float)
+mouseToModel2d w h (x , y) =
+  let p = 
+            if w > h
+            then (((x - (fromIntegral (w - h) * 0.5)) / fromIntegral h)  , (y / fromIntegral h)  )
+            else ((x / fromIntegral w) , (y - (fromIntegral (h - w) * 0.5)) / fromIntegral w)
+  in second (\y -> 1.0 - y) $ (bimap realToFrac realToFrac) $ p
 
   -- let (Descriptor pm1 verts1 firstIndex1 numVertices1) = ds1  
   -- bindVertexArrayObject $= Just verts1

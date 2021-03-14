@@ -208,3 +208,7 @@ disjointSetFamFold = DisjointFam . foldl visit Set.empty
 maximumAlways :: Foldable t => forall a. Ord a => a -> t a -> a
 maximumAlways x y | null y = x
                   | otherwise = maximum y
+
+pushUniq :: Eq a => a -> [ a ] -> [ a ]
+pushUniq x xs | elem x xs = xs
+              | otherwise = x : xs

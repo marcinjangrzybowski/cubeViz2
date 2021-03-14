@@ -168,7 +168,7 @@ embedSF (SubFace n mp) =
 --   Drawing $
 --     ( fmap (first $ extrudePrll v) l )
 
-data ExtrudeMode = Basic | ExtrudeLines | ExtrudePlanes
+data ExtrudeMode = Basic | ExtrudeLines | ExtrudePlanes | Midpoints
 
 extrudeBasicF :: Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a
 extrudeBasicF k (f0 , f1) (s , a) =
@@ -202,6 +202,12 @@ extrudeLinesF k (f0 , f1) (s , a) =
 
      in map ((, a)) ss
 
+extrudeMidpointsF :: Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a
+extrudeMidpointsF k (f0 , f1) ([ pt ] , a) =
+   [([listInsert k ((f0 pt + f1 pt) * 0.5) pt] , a)]
+
+extrudeMidpointsF _ _ _ = error "only points are expected for this Midpoints extrudemode"
+  
 extrudePlanesF :: Int -> ([Float] -> Float , [Float] -> Float) -> (Smplx , a) -> Drawing a
 extrudePlanesF k (f0 , f1) (s , a) =
     -- (=<<) (\(s , a) ->
@@ -211,6 +217,7 @@ extrudeF :: ExtrudeMode -> (Int -> ([Float] -> Float , [Float] -> Float) -> (Smp
 extrudeF Basic = extrudeBasicF
 extrudeF ExtrudeLines = extrudeLinesF
 extrudeF ExtrudePlanes = extrudePlanesF
+extrudeF Midpoints = extrudeMidpointsF
 
 class Extrudable a where
   extrudeMode :: a -> ExtrudeMode
@@ -226,8 +233,9 @@ instance Extrudable ([String],Color) where
 
 type MColor = (([String],ExtrudeMode),Color)
 
-instance Extrudable (([String],ExtrudeMode),Color) where
+instance Extrudable (( a ,ExtrudeMode),Color) where
   extrudeMode = snd . fst
+
 
 --first arg is dim of ambient, second dim of simplex
 mapWithDim :: (Int -> Int -> (Smplx , a) -> [(Smplx , a)]) -> Drawing a -> Drawing a
@@ -253,6 +261,10 @@ extrudeLines k sk (f0 , f1) = undefined
 type ZDrawing a = FromLI Piece (Drawing a)
 
 type ColorType = (([String] , ExtrudeMode) , Color)
+
+type ColorType2 a  = ((a , ExtrudeMode) , Color)
+
+
 
 
 

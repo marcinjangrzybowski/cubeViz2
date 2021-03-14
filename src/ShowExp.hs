@@ -83,10 +83,12 @@ data AppState = AppState
    , asViewport           :: Viewport
    , asDragStartVP        :: Maybe Viewport
    , asUserMode           :: UserMode
+   , asMarkedCAddresses   :: [ CAddress ]
    , asKeyPressed         :: Bool
    , asMessage            :: String
    , asDisplayPreferences :: DisplayPreferences
    , asTime               :: DiffTime
+   , asLastMousePos      :: (Double , Double)
    }
 
 asCursorAddress :: AppState -> Maybe Address
@@ -96,6 +98,7 @@ asCursorAddress as =
     UMNavigation {} ->
       let ca = umCoursorAddress um in Just $ ca        
     UMSelectGrid {} -> Just $ umEditedCell (um)
+    Idle -> Nothing
     -- UMEditTail {} -> Just $ umEditedCell (um)
     -- UMAddSubFace {} -> Just $ fst $ umSubFaceToAdd (um)
 
@@ -106,6 +109,7 @@ asSecCursorAddress as =
     UMNavigation {} ->
       fmap mnAddr $ umModalNav um        
     UMSelectGrid {} -> umHighlightedCell um
+    Idle -> Nothing
     -- UMEditTail {} -> Nothing
     -- UMAddSubFace {} -> Nothing
 
@@ -145,6 +149,7 @@ umNavigation addr = UMNavigation { umCoursorAddress = addr , umModalNav = Nothin
 
 
 
+
 umModalNavigation :: ClCub () -> ModalNav -> UserMode
 umModalNavigation cub z =
    UMNavigation { umCoursorAddress = rotateFrom (mnAddr z) (mnOptions cub z)  , umModalNav = Just z } 
@@ -181,13 +186,15 @@ umModalNavigationOptions cub = fromMaybe [] . (fmap $ mnOptions cub) . umModalNa
       --   Just (MNSup i) -> Just $ umCoursorAddress um
 
 
-data DrawExprMode = Stripes | StripesNoFill | Scaffold | Scaffold2 | Constraints
+data DrawExprMode = Stripes | StripesNoFill | Scaffold | Scaffold2 | Constraints | DebugDEM
   deriving (Show , Eq)
 
 drawExprModes = [
   -- Stripes ,
     Scaffold
-  , Constraints ]
+  , Constraints
+
+  ]
 
 drawExpr :: AppState -> DrawExprMode -> (Env , Context) -> ClCub ()
                   -> (Drawing (([String] , ExtrudeMode) , Color))
@@ -272,6 +279,19 @@ drawExpr as Constraints ee e =
               ) 
 
 
+-- drawExpr as DebugDEM ee e =
+
+--       concat (
+
+--               [                
+--                 mkDrawCub ClickPoints
+
+--               ] <*> (pure ee) <*> (pure e)
+--                -- ++
+--                -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
+--               ) 
+
+
 type UIApp = UI.UI AppState [Descriptor] Msg
 
 type UIAppDesc  = UI.UIWithInfo AppState [Descriptor] Msg
@@ -326,6 +346,8 @@ initialize =
                     , asMessage         = ""
                     , asDisplayPreferences = defaultDisplayPreferences
                     , asTime            = currTime
+                    , asMarkedCAddresses = []
+                    , asLastMousePos = (0,0)
                     }
        Left errorMsg -> do
           liftIO $ putStrLn errorMsg
@@ -507,6 +529,7 @@ eventsGlobal pem ev =
           let x' = round x :: Int
               y' = round y :: Int
           -- printEvent "cursor pos" [show x', show y']
+          UI.modifyAppState (\s -> s { asLastMousePos = (x , y) })  
           mouseD <- gets UI.stateMouseDown
           x0 <- gets UI.stateDragStartX
           y0 <- gets UI.stateDragStartY
@@ -522,18 +545,39 @@ eventsGlobal pem ev =
                      -- liftIO $ putStrLn $ show newV 
                      UI.setAppState $ s { asViewport = newV }
             )
+            
         (UI.EventMouseButton _ mb mbs mk) -> inf "" $
            when (mb == GLFW.MouseButton'1) $ do
             let pressed = mbs == GLFW.MouseButtonState'Pressed
-            when pressed $
-              do UI.modifyAppState $ \s -> s
-                   { asDragStartVP = Just (asViewport s)
-                   }
+                released = mbs == GLFW.MouseButtonState'Released
+            dsVP <- UI.getsAppState asDragStartVP
+            -- draggingView
+            when (pressed) $ do
+              if (GLFW.modifierKeysShift mk)
+              then when (isNothing dsVP ) $ UI.modifyAppState $ \s -> s
+                      { asDragStartVP = Just (asViewport s) }
+              else do
+                 mbAddr' <- getHoveredAddress
+                 case mbAddr' of
+                   Nothing -> UI.modifyAppState (\s -> s { asUserMode = Idle })
+                   Just addr' -> UI.modifyAppState (\s -> s { asUserMode = umNavigation addr' })
+            when (released) $ do
+              um <- UI.getsAppState asUserMode
+              cub <- UI.getsAppState asCub
+              case um of
+                 (UMNavigation addr0 _) -> do
+                     mbAddr' <- getHoveredAddress
+                     case mbAddr' of
+                       Nothing -> return ()
+                       Just addr' -> when (not $ compAddressClass cub addr0 addr') $
+                                       dragCellOntoCell addr0 addr'
+                
+                 _ -> return ()
 
-            unless pressed $
-              UI.modifyAppState $ \s -> s
-                { asDragStartVP = Nothing
-                }
+
+            when ((not pressed) && isJust dsVP) $ UI.modifyAppState $ \s -> s
+                   { asDragStartVP = Nothing }
+                
         (UI.EventKey win k scancode ks mk) ->
               when (ks == GLFW.KeyState'Pressed) $ do
                           -- Q, Esc: exit
@@ -562,6 +606,24 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
          addrClass = addressClass cub addr
      handleCellManipulationEvents pem ev addr
      case ev of
+
+        -- (UI.EventMouseButton _ mb mbs mk) -> inf "" $
+           -- when (mb == GLFW.MouseButton'1) $ do
+           --   let pressed = mbs == GLFW.MouseButtonState'Pressed
+           --   when (pressed && (not $ GLFW.modifierKeysShift mk)) $ do
+
+              
+            -- dsVP <- UI.getsAppState asDragStartVP
+            -- -- draggingView
+            -- when (pressed) $ do
+            --   if (GLFW.modifierKeysShift mk)
+            --   then when (isNothing dsVP ) $ UI.modifyAppState $ \s -> s
+            --           { asDragStartVP = Just (asViewport s) }
+            --   else return ()
+
+            -- when ((not pressed) && isJust dsVP) $ UI.modifyAppState $ \s -> s
+            --        { asDragStartVP = Nothing }
+       
         (UI.EventKey win k scancode ks mk) -> do
              when (ks == GLFW.KeyState'Pressed) $ do
                 -- when (k == GLFW.Key'H) $ inf "EditHead" $ do
@@ -571,8 +633,14 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                   initGiveCell addrClass
                   
                 when (k == GLFW.Key'E) $ inf "ExtrudeCell" $ do
-                  initExtrudeCell addrClass
-               
+                  extrudeCell
+
+                when (k == GLFW.Key'M) $ do
+                  if (GLFW.modifierKeysControl mk)
+                  then inf "Un-mark cells" $ unMarkAll
+                  else inf "Mark cell" $ markCell addrClass
+                  
+
                 -- when (k == GLFW.Key'T) $ do
                 --   initEditTail pem addr
 
@@ -929,6 +997,54 @@ loadFile fName =
 --            inf "Edit Tail" $ setUserMode $ UMEditTail addr 0
 --       _ -> return ()
 
+unMarkAll :: UIApp ()
+unMarkAll = UI.modifyAppState (\s -> s { asMarkedCAddresses = [] })
+
+markCell :: CAddress -> UIApp ()
+markCell x = UI.modifyAppState (\s -> s { asMarkedCAddresses = pushUniq x $ asMarkedCAddresses s })
+
+extrudeCell :: UIApp ()
+extrudeCell = do
+  mca <- UI.getsAppState asMarkedCAddresses
+  cub <- UI.getsAppState asCub
+  case mca of
+    [ f1 , caddr , f0 ] -> do
+       let isMiddleHole = isHoleClass cub caddr
+           isFirstNotHole = (not $ isHoleClass cub f0)
+           mbFace0 = isFaceOfClass cub caddr f0
+           mbFace1 = isFaceOfClass cub caddr f1
+       if (isMiddleHole && isFirstNotHole && isJust mbFace0 && isJust mbFace1) then do
+         let (Face _ (k0 , b0)) = fromJust mbFace0
+             (Face _ (k1 , b1)) = fromJust mbFace1
+             cubD = clDegenerateTest k0 (fromJust $ clCubPick (toAddress f0) cub)
+         transformExpr (FillHole caddr cubD)
+       else (error $ show [isMiddleHole ,isFirstNotHole ,isJust mbFace0 ,isJust mbFace1])
+    _ -> return ()
+
+dragCellOntoCell :: Address -> Address -> UIApp () 
+dragCellOntoCell addr0 addr1 = do
+  cub <- UI.getsAppState asCub
+  appS <- UI.getAppState
+  
+  let caddr0 = addressClass cub addr0
+      caddr1 = addressClass cub addr1
+
+      isFirstHole = (isHoleClass cub caddr0)
+
+      (ee0@(env , ctx0@(Context vars _)) , _) = asExpression appS
+
+  case (commonSuperFace cub caddr0 caddr1) of
+            Just (caddrPar , (fc1@(Face _ (k1 , b1) , fc2@(Face _ (k2 , b2))))) -> 
+               when (isHoleClass cub caddrPar && (not isFirstHole)) $
+                   
+                  if k1 == k2
+                  then do let cubD = clDegenerateTest k1 (fromJust $ clCubPick (toAddress caddr0) cub)
+                          transformExpr (FillHole caddrPar cubD)
+                  else do let cubD = undefined --(toClCubAt env ctx0 (asCub appS) caddr x )
+                          transformExpr (FillHole caddrPar cubD)
+
+            Nothing -> return ()
+
 initGiveCell :: CAddress -> UIApp ()
 initGiveCell caddr = do
   appS <- UI.getAppState
@@ -1003,23 +1119,47 @@ initGiveCell caddr = do
     gsdAction gsd (gridLookup initPos (gsdChoices gsd)) initPos
     setUserMode $ UMSelectGrid addr Nothing gsd
 
-initExtrudeCell :: CAddress -> UIApp ()
-initExtrudeCell caddr = do
-  appS <- UI.getAppState
+-- initExtrudeCell :: CAddress -> UIApp ()
+-- initExtrudeCell caddr = do
+--   appS <- UI.getAppState
 
-  let addr = head $ Set.toList (cAddress caddr)
-      cellDim = addresedDim addr
-      (ee0@(env , ctx0@(Context vars _)) , _) = asExpression appS
-      ctx = contextAt ctx0 addr (asCub appS)
-      superHoles = Set.toList $ addressClassSuperHoles (asCub appS) caddr 
+--   let addr = head $ Set.toList (cAddress caddr)
+--       cellDim = addresedDim addr
+--       (ee0@(env , ctx0@(Context vars _)) , _) = asExpression appS
+--       ctx = contextAt ctx0 addr (asCub appS)
+--       superHoles = Set.toList $ addressClassSuperHoles (asCub appS) caddr 
              
-  when ((not (isHoleClass (asCub appS) caddr)) && (not $ null superHoles)) $ do
+--   when ((not (isHoleClass (asCub appS) caddr)) && (not $ null superHoles)) $ do
 
-    case superHoles of
-      [] -> error "imposible"
-      [ sh ] -> undefined
-      _ -> undefined
+--     case superHoles of
+--       [] -> error "imposible"
+--       [ sh ] -> undefined
+--       _ -> undefined
     
+
+getHoveredAddress :: UIApp (Maybe Address)
+getHoveredAddress = do
+  appS <- UI.getAppState 
+  let (x , y) = asLastMousePos appS
+      ((ee , ctx ) , _) = asExpression appS
+      cub = asCub appS
+  w <- gets UI.stateWindowWidth
+  h <- gets UI.stateWindowHeight
+  case getDim $ asCub appS of
+    2 -> do let (mX , mY) = mouseToModel2d w h (x , y)
+                cutoffDist = 100.0 / fromIntegral h
+                clickPoints =   mkDrawCub ClickPoints (ee , ctx) cub                 
+                              & fmap (first head)
+                              & filter (\([x' , y'] , _ ) -> (abs (x' - mX) < cutoffDist) && (abs (y' - mY) < cutoffDist) )
+                mDist ([x' , y'] , _ ) = (x' - mX) ^ 2 + (y' - mY) ^ 2
+            consolePrint $ show (length clickPoints)
+            return $
+              case clickPoints of
+                  [] -> Nothing
+                  _ -> Just $ fst $ fst $ snd $ minimumBy (compare `on` mDist)
+                               clickPoints
+            
+    _ -> return Nothing
 
 data GridSelectionDesc =
   GridSelectionDesc

@@ -42,6 +42,8 @@ import Combi
 --    deriving (Show , Eq , Ord)
 
 
+-- TODO : parametrise this type by convention of indezes ov variables
+
 data IExpr = IExpr (Set.Set ( Set.Set (Int , Bool)))
   deriving (Eq)
 
@@ -90,6 +92,20 @@ substIExpr f x =
 
   in IExpr (unsafeMaxOf (fmap unsafeMinOf x2)) 
 
+-- slighlty difeent signature
+substIExpr' :: [IExpr] -> IExpr -> IExpr
+substIExpr' ies x = 
+  let x2 = elimIExpr (fmap (fmap (
+             \(k , b) ->
+                let a = ies !! k
+                    (IExpr aa) = if b
+                                 then a
+                                 else neg a
+                 in aa ))) x
+
+
+  in IExpr (unsafeMaxOf (fmap unsafeMinOf x2)) 
+
   
 
 --this do not refere DimIndexes, but to VarIndexes!
@@ -117,17 +133,39 @@ iExprToSubFace2 =
                )
   in catMaybes . z 
 
+-- TODO :: This would be good place to return type of subface which cant be Full
+iExprToSubFace :: Int -> IExpr -> [SubFace]
+iExprToSubFace n = 
+  let z = elimIExpr $ fmap
+             (\x ->
+               let (eq1 , eq0) = partition snd x
+               in if (null $ intersect (map fst eq0) (map fst eq1))
+                  then Just $ SubFace n (Map.fromList x)
+                  else Nothing
+               )
+  in catMaybes . z 
+
+
+
+
 subFace2ToIExpr :: SubFace2 -> IExpr
 subFace2ToIExpr sf2 =
     mapToSet sf2
   & Set.singleton
   & IExpr
 
+subFaceToIExpr :: SubFace -> IExpr
+subFaceToIExpr (SubFace _ sf) =
+    mapToSet sf
+  & Set.singleton
+  & IExpr
 
   
 substSubFace2 :: (VarIndex -> Maybe IExpr) -> SubFace2 -> [SubFace2]
 substSubFace2 f = (iExprToSubFace2 . substIExpr f . subFace2ToIExpr)
 
+substSubFace :: Int -> [IExpr] -> SubFace -> [SubFace]
+substSubFace n ies = (iExprToSubFace n . substIExpr' ies . subFaceToIExpr)
 
 
 
@@ -146,6 +184,23 @@ projIExpr sf2 x =
 
 
   in elimUnsafeIExpr (unsafeMaxOf (fmap unsafeMinOf x2))
+
+projIExpr' :: SubFace -> IExpr -> Either Bool IExpr
+projIExpr' (SubFace _ sf) x =
+  let x2 = elimIExpr (fmap (fmap (
+             \(k , b) ->
+                  case Map.lookup k sf of
+                    Just bb -> internalEnd (xor bb (not b))  
+                    Nothing -> (if b
+                                then (dim k)
+                                else (neg (dim k))) & (\(IExpr z) -> z)
+
+                                    
+                                    ))) x
+
+      toPunchOut = Map.keysSet sf
+  in elimUnsafeIExpr (unsafeMaxOf (fmap unsafeMinOf x2))
+     & second (remapIExpr (fromJust . punchOutMany toPunchOut ))
 
 
 

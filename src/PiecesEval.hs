@@ -14,7 +14,6 @@ import Data.Map
 
 import Data.Ord
 
-import Abstract
 
 import Data.Either
 

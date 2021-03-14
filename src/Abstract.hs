@@ -16,8 +16,10 @@ import Data.Bifunctor
 import Data.Traversable
 import Data.Functor
 import Data.Function
+import Data.Either
 import Data.List
 import Control.Applicative
+import Control.Monad
 
 
 import qualified Data.Foldable as Foldable
@@ -30,6 +32,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import DataExtra
+
+import Reorientable
 
 import Debug.Trace
 import Data.Either (fromRight)
@@ -70,9 +74,13 @@ data AddressPart = AOnCylinder SubFace | AOnBottom SubFace
 data Address = Address SubFace [AddressPart]
   deriving (Show , Eq, Ord)
 
+
+-- this is not only Set of Addresses, it should be quaranted to be valid in some ClCub , and NOT EMPTY!!!
+-- TODO :: make constructor private, and enforce this property
 newtype CAddress = CAddress {cAddress :: (Set.Set Address)}
   deriving (Show , Eq , Ord)
 
+toAddress = head . Set.toList . cAddress
 
 data CStatus = CSConstrained
   deriving (Show , Eq , Ord)
@@ -278,6 +286,7 @@ addressClass cub addr =
   fromJust $ find (Set.member addr . cAddress) $ getAllAddrClasses cub
 
 
+
 -- mkCAddress :: ClCub b -> Address -> CAddress
 -- mkCAddress cub addr = 
 --   fromJust $ find (Set.member addr . cAddress) $ getAllAddrClasses cub
@@ -296,7 +305,11 @@ isInternalAddress (Address sf tl) = isFullSF sf && not (null tl)
 -- isInternalAddress (Address _ []) = False
 -- isInternalAddress _ = True
 
--- this ingore fillings (can produce wrong addresses when there are missing faces in compositions)
+
+-- DANGER !!
+-- this ingore fillings (it will produce wrong addresses (OR miss some valid superfaces)
+-- when there are missing faces in compositions)
+
 addressSuperFaces :: Address -> [Address]
 addressSuperFaces (Address sf []) = [ Address ssf [] | ssf <- superSubFaces sf ]
 addressSuperFaces (Address sf ((AOnBottom sfA) : xs)) | isFullSF sfA  = []
@@ -307,7 +320,45 @@ addressSuperFaces (Address sf ((AOnBottom sfA) : xs)) =
 addressSuperFaces (Address sf ((AOnCylinder sfA) : xs)) =
    [ Address sf (AOnCylinder ssf : xs ) | ssf <- filter (not . isFullSF) $ superSubFaces sfA ]
 
+-- first argument is suspected parent
+-- TODO : good place to put some sanity check, asi it depends on few assumptions about other functions
+isFaceOfClass :: ClCub a -> CAddress -> CAddress -> Maybe Face
+isFaceOfClass cub caP ca =
+  let a = catMaybes [ mbSubFaceAddr pA chA >>= toFace | chA <- Set.toList $ cAddress ca , pA <- Set.toList $ cAddress caP ]
+  in case a of
+         [] -> Nothing
+         (f : _) -> Just f 
 
+-- wrong until better addressSuperFaces is written
+-- commonSuperFace :: ClCub a -> CAddress -> CAddress -> Maybe (CAddress , (Face , Face))
+-- commonSuperFace cub ca1 ca2 = 
+--   let a = catMaybes [ if (aL1 == aL2 && isValidAddressFor cub aL1) then (Just (addressClass cub aL1)) else Nothing
+--                     | aL1 <- concatMap addressSuperFaces $ Set.toList $ cAddress ca1
+--                     , aL2 <- concatMap addressSuperFaces $ Set.toList $ cAddress ca2 ]
+--   in if ((cAddresedDim ca1) /= (cAddresedDim ca2)) then Nothing else 
+--      case a of
+--          [] -> Nothing
+--          (x : _) -> case (isFaceOfClass cub x ca1 , isFaceOfClass cub x ca2) of
+--                          (Just f1 , Just f2) -> Just (x , (f1 , f2))
+--                          _ -> error "imposible"
+
+
+commonSuperFace :: ClCub a -> CAddress -> CAddress -> Maybe (CAddress , (Face , Face))
+commonSuperFace cub ca1 ca2 =
+  let a1 = Set.toList $ cAddress ca1
+      a2 = Set.toList $ cAddress ca2
+      f n addr = return (do
+         (fc1 , _ ) <- uncons $ catMaybes $ fmap (\x -> mbSubFaceAddr addr x >>= toFace ) a1
+         (fc2 , _ ) <- uncons $ catMaybes $ fmap (\x -> mbSubFaceAddr addr x >>= toFace ) a2
+         return (addressClass cub addr , (fc1 , fc2))) 
+         
+      fc n addr _ _ = f n addr
+      fn n addr  _ _ _ _ = f n addr
+
+  in join $ find isJust $ runIdentity $ cubMapTrav fn fc cub
+
+                    
+  --    addressSuperFaces
 -- cAddressSuperFacesCub :: ClCub () -> CAddress -> [ CAddress ]
 -- cAddressSuperFacesCub clcub caddr =
 --   let addr = head $ Set.toList $ cAddress caddr
@@ -546,7 +597,7 @@ addressSuperCells cl addr =
 
 
 -- TODO : create eficient, less naive , implementation
--- TODO : investigate possible rpoblem here wich may result in ill constructed (bad n) FromLI in ClCub
+
 clDegenerate :: Int -> ClCub () -> ClCub () 
 clDegenerate k (ClCub (FromLI n f)) = 
   let f' x@(SubFace _ sfm0) =
@@ -554,6 +605,9 @@ clDegenerate k (ClCub (FromLI n f)) =
           DCIns sf@(SubFace _ sfm) -> oDegenerate (fromJust $ punchOutMany (Map.keysSet sfm0) k) (f sf)
           DCEnd _ sf -> f sf
   in ClCub (FromLI (n + 1) f')
+
+clDegenerateMany :: ClCub () -> [ Int ] -> ClCub () 
+clDegenerateMany = foldr clDegenerate
   
 oDegenerate :: Int -> OCub () -> OCub () 
 oDegenerate k (Cub n () x) = Cub (n + 1) () $ fmap (degenerateCellExpr k) x
@@ -1148,6 +1202,15 @@ clCellType eee@(ee , ctx) btype addr clcub =
              | k <- range n ] 
 
 
+-- deContextualizeAt :: (Env , Context) -> ClCub () -> CAddress -> LExpr
+-- deContextualizeAt (ee , ctx) cub caddr =
+--   let addr = toAddress caddr
+--       ctx' = contextAt ctx addr cub
+--   in deContextualizeFace ctx' (fromClCub (ee , ctx') (fromJust $ clCubPick addr cub))
+
+
+-- getFrom
+
 
 
 
@@ -1441,3 +1504,51 @@ toClCubAt env ctx clcub caddr ce =
        ctx' = contextAt ctx addr clcub
        n = addresedDim addr
    in toClCub (env , ctx') (fromOCub (env , ctx') (Cub n () (Just ce)))
+
+
+-- IExpr here are made of DimIndexes
+
+substDimsOCub :: Int -> [IExpr] -> OCub () -> OCub ()
+substDimsOCub newN ies ocub =
+  case ocub of
+    Cub oldN () Nothing ->
+       Cub newN () Nothing
+    Cub oldN () (Just (CellExpr vi tl)) ->
+       Cub newN () (Just (CellExpr vi $ fmap (substIExpr' ies) tl))
+    Hcomp () mbn pa x ->
+      let pa' = substDimsCylCub newN ies pa
+          x' = substDimsClCub newN (fmap Right ies) x 
+      in Hcomp () mbn pa' x'
+  
+substDimsCylCub :: Int -> [IExpr] -> CylCub () -> CylCub ()
+substDimsCylCub newN ies (CylCub fli@(FromLI oldN _)) =
+  let m = fmap (second fromJust) $ filter (isJust . snd ) $ Map.toList $ toMapFLI fli
+      m' = [ (sf' , e')  
+           | (sf , e) <- m
+           , sf' <- substSubFace newN ies sf
+           , let ies' = (fmap snd $ filter (isNothing . fst) $ zip (toListLI sf) ies)
+                 (endsIE , ies'') = partitionEithers $ fmap (projIExpr' sf') ies'
+           , null endsIE
+           , let e' = substDimsOCub (subFaceDimEmb sf' + 1) (ies'' ++ [dim $ subFaceDimEmb sf']) e
+           ]
+  in traceShow (fmap fst m') $ CylCub (fromMapFLI newN $ Map.fromList m')
+
+substDimsClCub :: Int -> [(Either Bool IExpr)] -> ClCub () -> ClCub ()
+substDimsClCub newN ies cub
+   | getDim cub /= length ies = error "not enough IExprs , to substitute all free varaibles"
+   | otherwise = 
+  let oldN = getDim cub
+      (FromLI _ f0) = clCub cub
+      f sf = 
+         let ies' = fmap (join . second (projIExpr' sf)) ies
+             sf' = fromListLI $ fmap (either Just (\_ -> Nothing)) ies'             
+         in substDimsOCub (subFaceDimEmb sf) (rights ies') (f0 sf')
+
+  in ClCub $ FromLI newN f
+
+
+clDegenerateTest :: Int -> ClCub () -> ClCub () 
+clDegenerateTest k cub =
+  let n = getDim cub
+      
+  in substDimsClCub (n + 1) [ Right (dim (punchIn k i)) | i <- range n ] cub

@@ -491,6 +491,25 @@ instance DrawingCtx (Env , Context) ColorType Int CursorPT where
   -- finalProcess _ d = d
 
 
+data ClickPoints = ClickPoints
+  { 
+  }
+
+instance DrawingCtx (Env , Context) (ColorType2 Address) Int ClickPoints where
+  fromCtx _ = id
+
+  drawGenericTerm _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
+
+  drawD _ _ k = FromLI k (const [])
+
+  nodePainterCommon cpt _ k addr _ _ _ = []
+    
+  drawCellCommon cpt k addr _ _ =
+     [
+       ( [ replicate k 0.5 ] , ((addr , Midpoints) , gray 0))
+     ]
+  fillStyleProcess _ _ = []
+
 -- instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where    
 --   fromCtx _ _ = ()
 --   drawGenericTerm _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
