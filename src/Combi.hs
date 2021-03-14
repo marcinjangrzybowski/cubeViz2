@@ -554,6 +554,11 @@ allSuperSubFaces sf@(SubFace m sfm) =
   [ (SubFace m (Map.fromList (Set.toList sfml)))
     | sfml <- Set.toList (Set.powerSet $ Set.fromList (Map.toList sfm)) ]
 
+allSubSubFaces :: SubFace -> [SubFace]
+allSubSubFaces sf@(SubFace m sfm) =
+  [ injSubFace sf' sf
+    | sf' <- genAllLI (subFaceDimEmb sf) , not (isFullSF sf')  ]
+
 
 
 -- second is Parent

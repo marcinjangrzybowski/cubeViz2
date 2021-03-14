@@ -84,6 +84,7 @@ data AppState = AppState
    , asDragStartVP        :: Maybe Viewport
    , asUserMode           :: UserMode
    , asMarkedCAddresses   :: [ CAddress ]
+   , asDragStartAddress   :: Maybe Address
    , asKeyPressed         :: Bool
    , asMessage            :: String
    , asDisplayPreferences :: DisplayPreferences
@@ -147,8 +148,10 @@ data UserMode =
 umNavigation :: Address -> UserMode
 umNavigation addr = UMNavigation { umCoursorAddress = addr , umModalNav = Nothing }
 
-
-
+umAllowSelect :: UserMode -> Bool
+umAllowSelect UMNavigation {} = True
+umAllowSelect Idle = True
+umAllowSelect _ = False
 
 umModalNavigation :: ClCub () -> ModalNav -> UserMode
 umModalNavigation cub z =
@@ -341,12 +344,13 @@ initialize =
                     , asDragStartVP     = Nothing
                     , asSession         = initialSessionState
                     , asCub             = toClCub ee expr
-                    , asUserMode        = umNavigation (rootAddress (getDim ee))
+                    , asUserMode        = Idle --umNavigation (rootAddress (getDim ee))
                     , asKeyPressed      = False
                     , asMessage         = ""
                     , asDisplayPreferences = defaultDisplayPreferences
                     , asTime            = currTime
                     , asMarkedCAddresses = []
+                    , asDragStartAddress = Nothing
                     , asLastMousePos = (0,0)
                     }
        Left errorMsg -> do
@@ -558,19 +562,21 @@ eventsGlobal pem ev =
                       { asDragStartVP = Just (asViewport s) }
               else do
                  mbAddr' <- getHoveredAddress
-                 case mbAddr' of
-                   Nothing -> UI.modifyAppState (\s -> s { asUserMode = Idle })
-                   Just addr' -> UI.modifyAppState (\s -> s { asUserMode = umNavigation addr' })
+                 UI.modifyAppState (\s -> s { asDragStartAddress = mbAddr' })
+                 
             when (released) $ do
               um <- UI.getsAppState asUserMode
               cub <- UI.getsAppState asCub
-              case um of
-                 (UMNavigation addr0 _) -> do
-                     mbAddr' <- getHoveredAddress
-                     case mbAddr' of
-                       Nothing -> return ()
-                       Just addr' -> when (not $ compAddressClass cub addr0 addr') $
-                                       dragCellOntoCell addr0 addr'
+              mbAddr' <- getHoveredAddress
+              mbSda <- UI.getsAppState asDragStartAddress
+              when (umAllowSelect um && mbAddr' == mbSda && isJust mbSda) $ do
+                   UI.modifyAppState (\s -> s { asUserMode = umNavigation $ fromJust mbSda })
+              case (um , mbAddr' , mbSda) of
+                 (UMNavigation addrSel _ , Just addr0 , Just addr1 ) -> do
+                     consolePrint (show (addr0 , addr1 ))
+                     case (mbSelectFaces cub addrSel addr0 addr1) of
+                        Just x -> dragFaceOntoFace x
+                        Nothing -> return ()
                 
                  _ -> return ()
 
@@ -1021,29 +1027,39 @@ extrudeCell = do
        else (error $ show [isMiddleHole ,isFirstNotHole ,isJust mbFace0 ,isJust mbFace1])
     _ -> return ()
 
-dragCellOntoCell :: Address -> Address -> UIApp () 
-dragCellOntoCell addr0 addr1 = do
+dragFaceOntoFace :: (CAddress , (Face , Face)) -> UIApp () 
+dragFaceOntoFace (caddrPar , ((fc1@(Face _ (k1 , b1)) , fc2@(Face _ (k2 , b2))))) = do
   cub <- UI.getsAppState asCub
   appS <- UI.getAppState
   
-  let caddr0 = addressClass cub addr0
-      caddr1 = addressClass cub addr1
-
-      isFirstHole = (isHoleClass cub caddr0)
+  let caddr0 = (cAddressSubFace cub caddrPar (toSubFace fc1))
+      caddr1 = (cAddressSubFace cub caddrPar (toSubFace fc2))
 
       (ee0@(env , ctx0@(Context vars _)) , _) = asExpression appS
 
-  case (commonSuperFace cub caddr0 caddr1) of
-            Just (caddrPar , (fc1@(Face _ (k1 , b1) , fc2@(Face _ (k2 , b2))))) -> 
-               when (isHoleClass cub caddrPar && (not isFirstHole)) $
-                   
-                  if k1 == k2
-                  then do let cubD = clDegenerateTest k1 (fromJust $ clCubPick (toAddress caddr0) cub)
-                          transformExpr (FillHole caddrPar cubD)
-                  else do let cubD = undefined --(toClCubAt env ctx0 (asCub appS) caddr x )
-                          transformExpr (FillHole caddrPar cubD)
+      cub0 = (fromJust $ clCubPick (toAddress caddr0) cub)
+      cub1 = (fromJust $ clCubPick (toAddress caddr1) cub)
+        
+  when (isHoleClass cub caddrPar) $ do
 
-            Nothing -> return ()
+
+       let n = cAddresedDim caddrPar
+       if k1 == k2
+       then case (unifyClCub cub0 cub1) of
+               Left () -> consolePrint $ "faces uncompatibile - unification failed"
+               Right cub' -> do
+                   let cubD = clDegenerateTest k1 cub'
+                   transformExpr (FillHole caddrPar cubD)
+       else do let cub1' = if (b1 == b2)
+                           then cub1
+                           else negateDim (fromJust (punchOut k2 k1)) cub1  
+               case (unifyClCub cub0 cub1') of
+                  Left () -> consolePrint $ "faces uncompatibile - unification failed"
+                  Right cub' -> do
+                     let cubD = substDimsClCub n (fmap Right (cornerTail fc1 fc2)) cub'
+                     transformExpr (FillHole caddrPar cubD)
+
+
 
 initGiveCell :: CAddress -> UIApp ()
 initGiveCell caddr = do
@@ -1152,7 +1168,7 @@ getHoveredAddress = do
                               & fmap (first head)
                               & filter (\([x' , y'] , _ ) -> (abs (x' - mX) < cutoffDist) && (abs (y' - mY) < cutoffDist) )
                 mDist ([x' , y'] , _ ) = (x' - mX) ^ 2 + (y' - mY) ^ 2
-            consolePrint $ show (length clickPoints)
+            -- consolePrint $ show (length clickPoints)
             return $
               case clickPoints of
                   [] -> Nothing

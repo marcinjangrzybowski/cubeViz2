@@ -357,6 +357,18 @@ commonSuperFace cub ca1 ca2 =
 
   in join $ find isJust $ runIdentity $ cubMapTrav fn fc cub
 
+
+mbSelectFaces :: ClCub a -> Address -> Address -> Address -> Maybe (CAddress , (Face , Face))
+mbSelectFaces cub aP a1 a2 =
+  let l = [ fc
+          | fc <- genAllLI (addresedDim aP)
+          , let addr = addressSubFace aP (toSubFace fc)
+          , (isJust $ mbSubAddress addr a1) `xor` (isJust $ mbSubAddress addr a2) ] 
+
+  in case l of
+       [ f0 , f1 ] -> Just (addressClass cub aP , (f0 , f1))
+       _ -> Nothing
+  
                     
   --    addressSuperFaces
 -- cAddressSuperFacesCub :: ClCub () -> CAddress -> [ CAddress ]
@@ -1526,12 +1538,12 @@ substDimsCylCub newN ies (CylCub fli@(FromLI oldN _)) =
       m' = [ (sf' , e')  
            | (sf , e) <- m
            , sf' <- substSubFace newN ies sf
-           , let ies' = (fmap snd $ filter (isNothing . fst) $ zip (toListLI sf) ies)
+           , let ies' = (fmap snd $ filter (isNothing . fst) $ safeZip (toListLI sf) ies)
                  (endsIE , ies'') = partitionEithers $ fmap (projIExpr' sf') ies'
-           , null endsIE
+           -- , null endsIE <- this should always be True, but maybe be usefull for debuging purposes as sanity check
            , let e' = substDimsOCub (subFaceDimEmb sf' + 1) (ies'' ++ [dim $ subFaceDimEmb sf']) e
            ]
-  in traceShow (fmap fst m') $ CylCub (fromMapFLI newN $ Map.fromList m')
+  in CylCub (fromMapFLI newN $ Map.fromList m')
 
 substDimsClCub :: Int -> [(Either Bool IExpr)] -> ClCub () -> ClCub ()
 substDimsClCub newN ies cub
@@ -1552,3 +1564,21 @@ clDegenerateTest k cub =
   let n = getDim cub
       
   in substDimsClCub (n + 1) [ Right (dim (punchIn k i)) | i <- range n ] cub
+
+cornerTail :: Face -> Face -> [IExpr]
+cornerTail (Face n (k0 , b0)) (Face n' (k1 , b1))
+                   | n /= n' = error "bad dims"
+                   | otherwise =
+                          if k0 == k1
+                          then error "faces should have only one common edge"
+                          else let ie1 = if (b0 == b1) then dim k0 else neg (dim k0)
+                                   op = if b1 then Syntax.min else Syntax.max
+                                   ie01 = op ie1 (dim k1)
+                               in [ let i' = punchIn k0 i in
+                                    if i' == k1
+                                    then ie01
+                                    else dim i'
+                                  | i <- range (n - 1)]
+
+negateDim :: Int -> ClCub () -> ClCub ()
+negateDim k x = substDimsClCub (getDim x) [ Right $ if i == k then neg (dim i) else dim i | i <- range (getDim x) ] x 

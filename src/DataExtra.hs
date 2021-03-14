@@ -212,3 +212,7 @@ maximumAlways x y | null y = x
 pushUniq :: Eq a => a -> [ a ] -> [ a ]
 pushUniq x xs | elem x xs = xs
               | otherwise = x : xs
+
+safeZip :: [a] -> [b] -> [(a , b)]
+safeZip [] [] = []
+safeZip (x : xs) (y : ys) = (x , y) : safeZip xs ys

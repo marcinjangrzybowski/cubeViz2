@@ -165,9 +165,17 @@ substSubFace2 :: (VarIndex -> Maybe IExpr) -> SubFace2 -> [SubFace2]
 substSubFace2 f = (iExprToSubFace2 . substIExpr f . subFace2ToIExpr)
 
 substSubFace :: Int -> [IExpr] -> SubFace -> [SubFace]
-substSubFace n ies = (iExprToSubFace n . substIExpr' ies . subFaceToIExpr)
-
-
+substSubFace n ies sf0 = --(iExprToSubFace n . substIExpr' ies . subFaceToIExpr)
+  let ie0 = subFaceToIExpr sf0
+      ie1 = substIExpr' ies ie0 
+      sfs = iExprToSubFace n ie1
+      ies' = (fmap snd $ filter (isNothing . fst) $ safeZip (toListLI sf0) ies)
+      subs = filter (\sf' ->
+                let ies'' = fmap (projIExpr' sf') ies'
+                in all isRight ies''
+             ) $ nub (concatMap (allSubSubFaces) sfs)
+      
+  in sfs ++ subs
 
 projIExpr :: SubFace2 -> IExpr -> Either Bool IExpr
 projIExpr sf2 x =
