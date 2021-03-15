@@ -38,6 +38,9 @@ import Reorientable
 import Debug.Trace
 import Data.Either (fromRight)
 
+import GHC.Stack.Types ( HasCallStack )
+
+
 data ClCub b = ClCub {clCub :: FromLI SubFace (OCub b)}
   deriving (Show ,  Functor)
 
@@ -101,9 +104,22 @@ data CStatus = CSConstrained
 -- addressClass cub addr = undefined 
 
 
-isHcompSideAddr :: Address -> Bool
-isHcompSideAddr (Address _ (AOnCylinder _ : _)) = True 
-isHcompSideAddr _ = False
+isHcompSideAddr :: Address -> Maybe (Address , SubFace)
+isHcompSideAddr (Address a (AOnCylinder sf : sff)) = Just (Address a (sff) , sf) 
+isHcompSideAddr _ = Nothing
+
+isHcompSideAddrToAdd :: ClCub () -> Address -> Maybe (Address , SubFace)
+isHcompSideAddrToAdd cub addr@(Address y (AOnBottom sf : xs))
+   | isFullSF sf = Nothing
+   | otherwise =
+      case (fmap clInterior $ clCubPick (Address y (xs)) cub) of
+        Just (Hcomp () mbn si a) ->
+           case (appLI sf (cylCub si)) of
+              Nothing -> Just ((Address y (xs)) , sf)
+              _ -> Nothing
+        _ -> Nothing
+         
+isHcompSideAddrToAdd _ _ = Nothing
 
 addresedDimPart :: AddressPart -> Int
 addresedDimPart (AOnCylinder sf) = subFaceDimEmb sf + 1
@@ -283,7 +299,7 @@ getAllAddrClasses cub =
   $ disjointSetFamFold
   $ cubMapWAddr (\addr _ -> Set.insert addr (toFillParent cub addr)) cub
 
-addressClass :: ClCub b -> Address -> CAddress
+addressClass :: HasCallStack => ClCub b -> Address -> CAddress
 addressClass cub addr =   
   fromJust $ find (Set.member addr . cAddress) $ getAllAddrClasses cub
 
@@ -362,13 +378,14 @@ commonSuperFace cub ca1 ca2 =
 
 mbSelectFaces :: ClCub a -> Address -> Address -> Address -> Maybe (CAddress , (Face , Face))
 mbSelectFaces cub aP a1 a2 =
-  let l = [ fc
+  let l a = [ fc
           | fc <- genAllLI (addresedDim aP)
           , let addr = addressSubFace aP (toSubFace fc)
-          , (isJust $ mbSubAddress addr a1) `xor` (isJust $ mbSubAddress addr a2) ] 
+          , (isJust $ mbSubAddress addr a) ]
+      
 
-  in case l of
-       [ f0 , f1 ] -> Just (addressClass cub aP , (f0 , f1))
+  in case (l a1 , l a2) of
+       ([f0] , [f1]) -> if f0 /= f1 then Just (addressClass cub aP , (f0 , f1)) else Nothing
        _ -> Nothing
   
                     
@@ -1586,11 +1603,30 @@ negateDim :: Int -> ClCub () -> ClCub ()
 negateDim k x = substDimsClCub (getDim x) [ Right $ if i == k then neg (dim i) else dim i | i <- range (getDim x) ] x 
 
 -- use only for subfaces without parents in particular cylinder
-clCubRemoveSideMaximal :: SubFace -> ClCub () -> Maybe (ClCub ())
-clCubRemoveSideMaximal sf clcub =
+-- TODO : good place to intoduce NotFullSubFace type
+clCubRemoveSideMaximal :: SubFace -> ClCub () -> ClCub ()
+clCubRemoveSideMaximal sf clcub@(ClCub (FromLI n g))
+  | isFullSF sf = error "subface of codim > 0 is required here"
+  | otherwise = 
   case (clInterior clcub) of
-    Cub {} -> Nothing
-    Hcomp _ mbn si a ->
+    Cub {} -> error "fatal, clCubRemoveSideMaximal accept only adequate ClCubs, suplied arg is not Hcomp" 
+    Hcomp _ mbn si@(CylCub (FromLI n f)) a ->
       if (isNothing (appLI sf (cylCub si)))
-      then Nothing
-      else undefined
+      then error "fatal, clCubRemoveSideMaximal accept only adequate ClCubs, suplied arg do not have particular subface"
+      else let f' sfCyl | getDim sfCyl /= getDim sf = error "fatal"
+                        | sfCyl == sf = Nothing
+                        | otherwise = f sfCyl
+               g' sfBd | getDim sfBd /= getDim sf = error "fatal"
+                       | isFullSF sfBd = Hcomp () mbn (CylCub (FromLI n f')) a
+                       | sf == sfBd =
+                           let a' = clCubSubFace sf a
+                               f'' sfCyl' | isFullSF sfCyl' = Nothing
+                                          | otherwise = f $ injSubFace sfCyl' sf                                
+                           in --Cub (subFaceDimEmb sf) () Nothing
+                              Hcomp () mbn (CylCub (FromLI (subFaceDimEmb sf) f'')) a'
+                       | sf `isSubFaceOf` sfBd = 
+                           let sf' = jniSubFace sf sfBd
+                           in clInterior $ clCubRemoveSideMaximal sf' (clCubSubFace sfBd clcub)
+                       | otherwise = g sfBd
+           
+           in ClCub (FromLI n g')

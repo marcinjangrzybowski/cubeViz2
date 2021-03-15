@@ -100,6 +100,7 @@ asCursorAddress as =
       let ca = umCoursorAddress um in Just $ ca        
     UMSelectGrid {} -> Just $ umEditedCell (um)
     Idle -> Nothing
+    UMHoleConflict {} -> Just $ umEditedCell (um)
     -- UMEditTail {} -> Just $ umEditedCell (um)
     -- UMAddSubFace {} -> Just $ fst $ umSubFaceToAdd (um)
 
@@ -110,7 +111,7 @@ asSecCursorAddress as =
     UMNavigation {} ->
       fmap mnAddr $ umModalNav um        
     UMSelectGrid {} -> umHighlightedCell um
-    Idle -> Nothing
+    _ -> Nothing
     -- UMEditTail {} -> Nothing
     -- UMAddSubFace {} -> Nothing
 
@@ -144,7 +145,9 @@ data UserMode =
   -- | UMEditCell { umEditedCell :: Address }
   -- | UMEditTail { umEditedCell :: Address , umTailPosition :: Int }
   | UMSelectGrid { umEditedCell :: Address , umHighlightedCell :: Maybe Address , umGSD :: GridSelectionDesc }
-
+  | UMHoleConflict { umEditedCell :: Address , -- <-- not necesarly same as CAddress in umFillHoleConflict
+                     umFillHoleConflict :: FillHoleConflict , umMbResolution :: Maybe HoleConflictResolutionStrategy }
+    
 umNavigation :: Address -> UserMode
 umNavigation addr = UMNavigation { umCoursorAddress = addr , umModalNav = Nothing }
 
@@ -477,25 +480,37 @@ modifyDrawingPreferences f = do
 
 setFromCub :: ClCub () -> UIApp ()
 setFromCub newCub = do
+    setFromCubNoFlush newCub
+    UI.flushDisplay
+
+setFromCubNoFlush :: ClCub () -> UIApp ()
+setFromCubNoFlush newCub = do
     UI.modifyAppState (\s ->
                let ss = asSession s
+                                      
                    newS = ssSetExpression ss (fromClCub (fst (ssEnvExpr ss) ) newCub)
-               in s {
-                       asSession =
-                       newS
+                   --um = maybe um ( \addr -> if isValidAddressFor newCub addr then um else Idle) $ asCursorAddress s
+                     
+                     
+               in s { --asUserMode = um ,
+                      asSession = newS
                      , asCub = newCub -- toCub $ ssEnvExpr newS
                                 })
-    UI.flushDisplay
+
+
 
 transformExpr :: CubTransformation -> UIApp ()
 transformExpr trns =
    do
       appS <- UI.getAppState
       case applyTransform trns (asCub appS) of
-        (Left err) -> consolePrint $ "transform error: " ++ show err
-        (Right newCub) -> setFromCub $ void newCub
-
-
+        (Left (CubTransformationConflict fhc)) -> initHoleConflict (toAddress $ fhcHoleCAddress fhc) fhc
+          
+        (Left err) ->
+            consolePrint $ "transform error: " ++ show err
+        (Right newCub) -> do setFromCubNoFlush $ void newCub
+                             setUserMode (Idle)    
+                             
 printExprCode :: UIApp ()
 printExprCode =
   do (ee , expr) <- UI.getsAppState asExpression
@@ -571,13 +586,15 @@ eventsGlobal pem ev =
               cub <- UI.getsAppState asCub
               mbAddr' <- getHoveredAddress
               mbSda <- UI.getsAppState asDragStartAddress
-              when (umAllowSelect um && mbAddr' == mbSda && isJust mbSda) $ do
+              when (umAllowSelect um && mbAddr' == mbSda && isJust mbSda) $ do                   
                    UI.modifyAppState (\s -> s { asUserMode = umNavigation $ fromJust mbSda })
-              case (um , mbAddr' , mbSda) of
+                   UI.flushDisplay
+              case (um , mbSda , mbAddr') of
                  (UMNavigation addrSel _ , Just addr0 , Just addr1 ) -> do
-                     consolePrint (show (addr0 , addr1 ))
+                     -- consolePrint (show (addr0 , addr1 ))
                      case (mbSelectFaces cub addrSel addr0 addr1) of
-                        Just x -> dragFaceOntoFace x
+                        Just x -> do dragFaceOntoFace x
+                                     UI.flushDisplay
                         Nothing -> return ()
                 
                  _ -> return ()
@@ -654,10 +671,10 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                 when (k == GLFW.Key'V) $ inf "CycleDrawMode" $ do
                   UI.modifyAppState (\s -> s { asDrawMode = rotateFrom (asDrawMode s) drawExprModes } )
 
-                -- when (k == GLFW.Key'A) $ do
-                --   case (uncons addr) of
-                --     Just (_ , addrTail) -> inf "Add sub-face" $ setAddSubFaceMode addrTail
-                --     Nothing -> return ()
+                when (k == GLFW.Key'A) $ do
+                  case (isHcompSideAddrToAdd cub addr) of
+                    Just (addr , sf) -> inf "Add side cell" $  transformExpr (AddSide (addressClass cub addr) sf )
+                    Nothing -> return ()
 
 
                 -- when (k == GLFW.Key'C) $ do
@@ -674,8 +691,13 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                   then inf "Insert Hole Interior" $ transformExpr (ClearCell addrClass WithFreeSubFaces )
                   else inf "Insert Hole WithFreeFaces" $ transformExpr (ClearCell addrClass OnlyInterior )
 
-                when (k == GLFW.Key'Delete && isHcompSideAddr addr ) $ inf "Delete Side in Hcomp" $ do
-                  return ()
+
+
+                when (k == GLFW.Key'Delete) $
+                  case (isHcompSideAddr addr) of
+                     Nothing -> return ()
+                     Just (addrClass' , sf) -> inf "Delete Side in Hcomp" $ do
+                                 transformExpr (RemoveSide (addressClass cub addrClass') (sf , RSRKeepLeaves))
 
                 when (k == GLFW.Key'S) $ do
                   if (GLFW.modifierKeysControl mk)
@@ -786,6 +808,33 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
 
 
 --         _ -> return ()
+
+modesEvents pem um@(UMHoleConflict {} ) ev = do
+     appS <- UI.getAppState
+     let cub = asCub appS
+         inf = helperPEM pem
+     case ev of
+        (UI.EventKey win k scancode ks mk) ->
+            when (ks == GLFW.KeyState'Pressed) $ do
+              when (k == GLFW.Key'Enter) $ inf "Confirm" $ do
+                case (umMbResolution um) of
+                  Nothing -> setUserMode $ umNavigation (umEditedCell um)
+                  Just res -> do setFromCubNoFlush $ void $ resolveConflict (umFillHoleConflict um) res 
+                                 setUserMode $ umNavigation (toAddress $ fhcHoleCAddress $ umFillHoleConflict um)
+
+              when (k == GLFW.Key'Q) $ inf "Abort" $ do
+                setUserMode $ umNavigation (umEditedCell um)
+
+              when (isArrowKey k) $ inf "nav" $ do
+
+                 let dir = arrowKey2Bool k
+
+                 setUserMode $ um {
+                   umMbResolution = rotateFromDir dir (umMbResolution um)
+                   ((Nothing : (fmap Just [minBound ..])) :: [Maybe HoleConflictResolutionStrategy])
+                   }
+
+        _ -> return ()
 
 modesEvents pem um@(UMSelectGrid addr addr2 gsd ) ev = do
      appS <- UI.getAppState
@@ -900,7 +949,15 @@ modalConsoleView um@(UMSelectGrid addr addr2 gsd ) = do
       choStr = concatMap ((++) "\n" . concat . fmap ((++) " ") ) cho
   liftIO $ putStrLn choStr
 
-
+modalConsoleView um@(UMHoleConflict {}) = do
+  let cho = intercalate "," $ map (\x -> let t = maybe "abort" show x
+                                         in if x == umMbResolution um then SCP.bgColor SCP.Yellow t else t
+                                           )
+                 $ ((Nothing : (fmap Just [minBound ..])) :: [Maybe HoleConflictResolutionStrategy])
+            
+  liftIO $ putStrLn "unify conflict resolution :"
+  liftIO $ putStrLn cho
+  
 modalConsoleView _ = return ()
 
 drawingInterpreter :: DrawingInterpreter ColorType
@@ -1032,19 +1089,15 @@ dragFaceOntoFace (caddrPar , ((fc1@(Face _ (k1 , b1)) , fc2@(Face _ (k2 , b2))))
 
        let n = cAddresedDim caddrPar
        if k1 == k2
-       then case (unifyClCub cub0 cub1) of
-               Left () -> consolePrint $ "faces uncompatibile - unification failed"
-               Right cub' -> do
-                   let cubD = clDegenerateTest k1 cub'
-                   transformExpr (FillHole caddrPar cubD)
+       then let cubToDeg = either (const cub0) id (unifyClCub cub0 cub1)
+                cubD = clDegenerateTest k1 cubToDeg
+            in transformExpr (FillHole caddrPar cubD)
        else do let cub1' = if (b1 == b2)
                            then cub1
                            else negateDim (fromJust (punchOut k2 k1)) cub1  
-               case (unifyClCub cub0 cub1') of
-                  Left () -> consolePrint $ "faces uncompatibile - unification failed"
-                  Right cub' -> do
-                     let cubD = substDimsClCub n (fmap Right (cornerTail fc1 fc2)) cub'
-                     transformExpr (FillHole caddrPar cubD)
+                   cubToDeg = either (const cub0) id (unifyClCub cub0 cub1')
+                   cubD = substDimsClCub n (fmap Right (cornerTail fc1 fc2)) cubToDeg
+               transformExpr (FillHole caddrPar cubD)
 
 
 
@@ -1146,6 +1199,16 @@ getHoveredAddress = do
                                clickPoints
             
     _ -> return Nothing
+
+-- (Nothing : (fmap Just [minBound ..]))
+
+initHoleConflict :: Address -> FillHoleConflict -> UIApp ()
+initHoleConflict addr fhc = do
+  setUserMode $ UMHoleConflict
+     { umEditedCell = addr
+     , umFillHoleConflict = fhc
+     , umMbResolution = Nothing }
+  UI.flushDisplay
 
 data GridSelectionDesc =
   GridSelectionDesc
@@ -1276,6 +1339,13 @@ arrowKey2BoolBool k =
     GLFW.Key'Down -> Just (True , False)
     GLFW.Key'Right -> Just (False , True)
     GLFW.Key'Left -> Just (False , False)
+
+arrowKey2Bool k =
+  case k of
+    GLFW.Key'Up -> False
+    GLFW.Key'Down -> True
+    GLFW.Key'Right -> True
+    GLFW.Key'Left -> False
 
 
 
