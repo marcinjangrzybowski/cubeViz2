@@ -101,7 +101,9 @@ data CStatus = CSConstrained
 -- addressClass cub addr = undefined 
 
 
-
+isHcompSideAddr :: Address -> Bool
+isHcompSideAddr (Address _ (AOnCylinder _ : _)) = True 
+isHcompSideAddr _ = False
 
 addresedDimPart :: AddressPart -> Int
 addresedDimPart (AOnCylinder sf) = subFaceDimEmb sf + 1
@@ -1582,3 +1584,13 @@ cornerTail (Face n (k0 , b0)) (Face n' (k1 , b1))
 
 negateDim :: Int -> ClCub () -> ClCub ()
 negateDim k x = substDimsClCub (getDim x) [ Right $ if i == k then neg (dim i) else dim i | i <- range (getDim x) ] x 
+
+-- use only for subfaces without parents in particular cylinder
+clCubRemoveSideMaximal :: SubFace -> ClCub () -> Maybe (ClCub ())
+clCubRemoveSideMaximal sf clcub =
+  case (clInterior clcub) of
+    Cub {} -> Nothing
+    Hcomp _ mbn si a ->
+      if (isNothing (appLI sf (cylCub si)))
+      then Nothing
+      else undefined

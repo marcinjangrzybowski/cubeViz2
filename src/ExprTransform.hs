@@ -45,11 +45,13 @@ data ConstraintsOverrideStrategy =
 
 data ConstraintsOverrideRegime = NoConstraintsOverride | ConstraintsOverride ConstraintsOverrideStrategy
 
+data RemoveSideRegime = RSRRemoveLeavesAlso | RSRKeepLeaves
    
 data CubTransformation =
      ClearCell CAddress ClearCellRegime
    | SplitCell CAddress
    | FillHole CAddress (ClCub ())
+   | RemoveSide CAddress RemoveSideRegime
    -- | ReplaceAt Address (ClCub ())
    -- | RemoveCell Address
    -- | RemoveCellLeaveFaces Address
@@ -138,7 +140,19 @@ applyTransform (SplitCell caddr) clcub =
             (splitOCub sf (fromMaybe (error "bad address") (clCubPick addr clcub))) 
   in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
 
-
+-- TODO : investigate safety of it, reasembly afeter removing cell sems to be made "by force" 
+applyTransform (RemoveSide caddr RSRKeepLeaves) clcub = do
+  let parCub@(ClCub (FromLI n f)) = fromJust $ clCubPick (toAddress caddr) clcub
+  let parOCub = clInterior parCub
+  case parOCub of
+    Cub _ _ _ -> Left (CubTransformationError "not address of side cell!")
+    Hcomp _ mbN si a -> do
+      cubWithHole <- fmap void $ applyTransform (ClearCell caddr OnlyInterior) clcub
+      let f' = undefined
+          newCell = ClCub (FromLI n f') 
+      applyTransform (FillHole caddr newCell) cubWithHole 
+      
+  
 
 splitOCub :: SubFace -> ClCub () ->  OCub ()
 splitOCub sf x@(ClCub xx) = -- clInterior x

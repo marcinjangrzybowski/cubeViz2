@@ -196,7 +196,7 @@ drawExprModes = [
   -- Stripes ,
     Scaffold
   , Constraints
-
+  
   ]
 
 drawExpr :: AppState -> DrawExprMode -> (Env , Context) -> ClCub ()
@@ -233,6 +233,8 @@ drawExpr as Scaffold ee e =
                               -- 0.5 * (sin (realToFrac $ asTime as) + 1)
 
                           })
+                
+                
 
               -- ,
               --   mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True
@@ -637,15 +639,14 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
 
                 when (k == GLFW.Key'G) $ inf "GiveCell" $ do
                   initGiveCell addrClass
-                  
-                when (k == GLFW.Key'E) $ inf "ExtrudeCell" $ do
-                  extrudeCell
 
+               
                 when (k == GLFW.Key'M) $ do
                   if (GLFW.modifierKeysControl mk)
                   then inf "Un-mark cells" $ unMarkAll
                   else inf "Mark cell" $ markCell addrClass
                   
+
 
                 -- when (k == GLFW.Key'T) $ do
                 --   initEditTail pem addr
@@ -671,7 +672,10 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                 when (k == GLFW.Key'Backspace) $ do
                   if (GLFW.modifierKeysControl mk)
                   then inf "Insert Hole Interior" $ transformExpr (ClearCell addrClass WithFreeSubFaces )
-                  else inf "Insert Hole WithFreeFaces" $ transformExpr (ClearCell addrClass OnlyInterior )  
+                  else inf "Insert Hole WithFreeFaces" $ transformExpr (ClearCell addrClass OnlyInterior )
+
+                when (k == GLFW.Key'Delete && isHcompSideAddr addr ) $ inf "Delete Side in Hcomp" $ do
+                  return ()
 
                 when (k == GLFW.Key'S) $ do
                   if (GLFW.modifierKeysControl mk)
@@ -1009,23 +1013,6 @@ unMarkAll = UI.modifyAppState (\s -> s { asMarkedCAddresses = [] })
 markCell :: CAddress -> UIApp ()
 markCell x = UI.modifyAppState (\s -> s { asMarkedCAddresses = pushUniq x $ asMarkedCAddresses s })
 
-extrudeCell :: UIApp ()
-extrudeCell = do
-  mca <- UI.getsAppState asMarkedCAddresses
-  cub <- UI.getsAppState asCub
-  case mca of
-    [ f1 , caddr , f0 ] -> do
-       let isMiddleHole = isHoleClass cub caddr
-           isFirstNotHole = (not $ isHoleClass cub f0)
-           mbFace0 = isFaceOfClass cub caddr f0
-           mbFace1 = isFaceOfClass cub caddr f1
-       if (isMiddleHole && isFirstNotHole && isJust mbFace0 && isJust mbFace1) then do
-         let (Face _ (k0 , b0)) = fromJust mbFace0
-             (Face _ (k1 , b1)) = fromJust mbFace1
-             cubD = clDegenerateTest k0 (fromJust $ clCubPick (toAddress f0) cub)
-         transformExpr (FillHole caddr cubD)
-       else (error $ show [isMiddleHole ,isFirstNotHole ,isJust mbFace0 ,isJust mbFace1])
-    _ -> return ()
 
 dragFaceOntoFace :: (CAddress , (Face , Face)) -> UIApp () 
 dragFaceOntoFace (caddrPar , ((fc1@(Face _ (k1 , b1)) , fc2@(Face _ (k2 , b2))))) = do
@@ -1134,23 +1121,6 @@ initGiveCell caddr = do
          }
     gsdAction gsd (gridLookup initPos (gsdChoices gsd)) initPos
     setUserMode $ UMSelectGrid addr Nothing gsd
-
--- initExtrudeCell :: CAddress -> UIApp ()
--- initExtrudeCell caddr = do
---   appS <- UI.getAppState
-
---   let addr = head $ Set.toList (cAddress caddr)
---       cellDim = addresedDim addr
---       (ee0@(env , ctx0@(Context vars _)) , _) = asExpression appS
---       ctx = contextAt ctx0 addr (asCub appS)
---       superHoles = Set.toList $ addressClassSuperHoles (asCub appS) caddr 
-             
---   when ((not (isHoleClass (asCub appS) caddr)) && (not $ null superHoles)) $ do
-
---     case superHoles of
---       [] -> error "imposible"
---       [ sh ] -> undefined
---       _ -> undefined
     
 
 getHoveredAddress :: UIApp (Maybe Address)
