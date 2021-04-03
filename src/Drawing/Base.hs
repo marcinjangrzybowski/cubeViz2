@@ -43,8 +43,15 @@ class InSpace a where
   translate :: [Float] -> a -> a
   translate x = sMap (zipWith (+) x)
 
+  scaleNonUniform :: [Float] -> a -> a
+  scaleNonUniform x = sMap (zipWith (*) x)
+
   scaleOrigin :: Float -> [Float] -> a -> a
   scaleOrigin s o = translate o . scale s  . translate ((map negate) o)
+
+  scaleNonUniformOrigin :: [Float] -> [Float] -> a -> a
+  scaleNonUniformOrigin x o = translate o . scaleNonUniform x . translate ((map negate) o)
+
 
 instance {-# OVERLAPPING #-} InSpace [Float] where
   sMap = id

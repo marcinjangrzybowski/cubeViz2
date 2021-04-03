@@ -510,6 +510,52 @@ instance DrawingCtx (Env , Context) (ColorType2 Address) Int ClickPoints where
      ]
   fillStyleProcess _ _ = []
 
+
+data FaceHandles = FaceHandles
+  { 
+  }
+
+faceHandleDepth = 0.1
+faceHandleDist = 0.3
+faceHandleSize = 0.3
+
+instance DrawingCtx (Env , Context) (ColorType2 Address) Int FaceHandles where
+  fromCtx _ = id
+
+  drawGenericTerm _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
+
+  drawD _ _ k = FromLI k (const [])
+
+  nodePainterCommon cpt _ k addr _ _ _ = []
+    
+  drawCellCommon cpt k addr _ _ =
+     [
+     ]
+  fillStyleProcess _ _ = []
+
+  drawHole _ k addr _ = concat
+    [
+
+      translate [ if j==i
+                  then (faceHandleDist * (if s then (1.0) else (-1.0)))
+                  else  0.0
+                | j <- [0..(k - 1)] ] $
+      scaleNonUniformOrigin
+                [ if j==i
+                  then faceHandleDepth
+                  else faceHandleSize
+                | j <- [0..(k - 1)] ] (replicate k 0.5) $
+      fmap (Bf.second (const ((addr , Basic) , gray 0)))
+        (unitHyCube k)
+
+    | i <- [0..(k - 1)]
+    , s <- [False , True]
+    ]
+    
+    -- [
+    --   ( [ replicate k 0.5 ] , ((addr , Midpoints) , gray 0))
+    -- ]
+
 -- instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where    
 --   fromCtx _ _ = ()
 --   drawGenericTerm _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  

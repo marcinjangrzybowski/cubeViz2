@@ -196,7 +196,7 @@ drawExprModes = [
   -- Stripes ,
     Scaffold
   , Constraints
-  
+  , DebugDEM
   ]
 
 drawExpr :: AppState -> DrawExprMode -> (Env , Context) -> ClCub ()
@@ -234,6 +234,9 @@ drawExpr as Scaffold ee e =
 
                           })
                 
+               , \ee e ->
+                    fmap (second $ const (([] , Basic ) , nthColor 3))
+                           (mkDrawCub FaceHandles ee e) 
                 
 
               -- ,
@@ -277,24 +280,22 @@ drawExpr as Constraints ee e =
                                            , cvptScaffDim = 1
                                            , cvptCub = cub })
               
-
               ] <*> (pure ee) <*> (pure e)
                -- ++
                -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
               ) 
 
 
--- drawExpr as DebugDEM ee e =
+drawExpr as DebugDEM ee e =
+        concat (
 
---       concat (
+              [                
+                fmap (second $ const (([] , Basic ) , nthColor 3)) (mkDrawCub ClickPoints ee e)
 
---               [                
---                 mkDrawCub ClickPoints
-
---               ] <*> (pure ee) <*> (pure e)
---                -- ++
---                -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
---               ) 
+              ] 
+               -- ++
+               -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
+              ) 
 
 
 type UIApp = UI.UI AppState [Descriptor] Msg
@@ -312,6 +313,12 @@ main =
        , UI.uiUpdateGLDescriptor         = updateGL
        }
 
+render
+  :: GLFW.Window
+     -> Int
+     -> Int
+     -> [Descriptor]
+     -> RWST UI.Env [uiMsg] (UI.State AppState glDesc uiMsg) IO ()
 render win w h descriptors =
    do
       viewport <- UI.getsAppState asViewportProc
@@ -321,6 +328,7 @@ render win w h descriptors =
       -- UI.flushDisplay
       return ()
 
+initialize :: WriterT [Msg] IO (Maybe AppState)
 initialize =
   do args <- liftIO getArgs
 
