@@ -37,6 +37,8 @@ import Debug.Trace
 
 import Algebra.Lattice
 
+import GHC.Stack.Types ( HasCallStack )
+
 
 factorial :: Int -> Int
 factorial n =
@@ -466,7 +468,7 @@ makeAntiH2 y = Set.filter (\x -> not (any (Set.isProperSubsetOf x) y)) y
 --- subface specyfic code
 
 -- works only for SFacesd of codim >= 1 !
-unconsSF :: SubFace -> (Face , SubFace)
+unconsSF :: HasCallStack => SubFace -> (Face , SubFace)
 unconsSF (SubFace n mp) =
   case Map.toList mp of
     [] -> error "subFace of codim 0!"

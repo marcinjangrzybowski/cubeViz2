@@ -31,19 +31,22 @@ import Abstract
 
 import Debug.Trace
 
+import Control.Monad.State.Strict
+
+
 data ClearCellRegime =
     OnlyInterior
   | WithFreeSubFaces
  deriving (Eq)
 
 
-data ConstraintsOverrideStrategy =
-     COSClearWithConstrained
-   | COSClearNecessary
-   | COSInflate
-  deriving (Eq)
+-- data ConstraintsOverrideStrategy =
+--      COSClearWithConstrained
+--    | COSClearNecessary
+--    | COSInflate
+--   deriving (Eq)
 
-data ConstraintsOverrideRegime = NoConstraintsOverride | ConstraintsOverride ConstraintsOverrideStrategy
+-- data ConstraintsOverrideRegime = NoConstraintsOverride | ConstraintsOverride ConstraintsOverrideStrategy
 
 data RemoveSideRegime = RSRRemoveLeavesAlso | RSRKeepLeaves
    
@@ -51,7 +54,8 @@ data CubTransformation =
      ClearCell CAddress ClearCellRegime
    | SplitCell CAddress
    | FillHole CAddress (ClCub ())
-   | RemoveSide CAddress RemoveSideRegime
+   | RemoveSide CAddress (SubFace , RemoveSideRegime)
+   | AddSide CAddress SubFace
    -- | ReplaceAt Address (ClCub ())
    -- | RemoveCell Address
    -- | RemoveCellLeaveFaces Address
@@ -62,12 +66,32 @@ data CubTransformation =
 -- TODO :: transofrmations for filling - automaticly recognises holes in faces of compositions  which can be removed
 
 
-data CubTransformationError = CubTransformationError String
+data FillHoleConflict =
+  FillHoleConflict
+  { fhcOuter :: ClCub ()
+  , fhcHoleCAddress :: CAddress
+  , fhcCandidate :: ClCub ()
+  , fhcConflictingAddresses :: Set.Set (Address , Address)
+  }
+ deriving (Show)
 
+data HoleConflictResolutionStrategy =
+    ClearOutwards
+  | ClearInwards
+  | InflateInwards
+  | InflateOutwards
+  deriving (Enum, Show, Bounded, Eq)
+
+data CubTransformationError =
+     CubTransformationError String
+   | CubTransformationConflict FillHoleConflict
+
+ 
 
 
 instance Show CubTransformationError where
   show (CubTransformationError x) = x
+  show (CubTransformationConflict x) = show x
 
 
 -- rodzaje nadpisywania adresu tylko dla hole :
@@ -75,10 +99,59 @@ instance Show CubTransformationError where
 -- -- hole w interior + wolne scinay
 -- rodzaje nadpisywania adresu
 
+fillHole :: ClCub () -> CAddress -> ClCub () -> Either FillHoleConflict (ClCub Bool)
+fillHole x caddr cub =
+    fillAllSubFaces
+      
+  where
+
+    holeDim = addresedDim $ head $ Set.toList (cAddress caddr)
 
 
+
+    -- TODO : boleans here are set to True, even if no transformation is aplied (becouse term is already there)
+    ff :: (ClCub Bool) -> SubFace -> State (Set.Set (Address , Address)) (ClCub Bool)    
+    ff y sf =        
+        
+      let caddr' = cAddressSubFace x caddr sf
+          cubO = appLI sf (clCub cub)
+          f n addr x = 
+             if Set.member addr (cAddress caddr')
+             then --trace (show (clCub cub) ) $ Right Nothing
+                   case unifyOCub (void x) (void cubO) of
+                     Left () -> do modify (Set.insert (addr , Address sf []))
+                                   return Nothing
+                     Right y -> return (Just (True <$ y) )
+                  
+             else return Nothing
+          (newCub , sa) = runState (cubMapMayReplace f y) Set.empty
+       in if Set.null sa
+          then return newCub
+          else do modify (Set.union sa)
+                  return (False <$ x)
+
+    fillAllSubFaces' :: State (Set.Set (Address , Address)) ((ClCub Bool))
+    fillAllSubFaces' = foldlM ff (False <$ x) (allSubFaces holeDim)
+
+
+    fillAllSubFaces :: Either FillHoleConflict (ClCub Bool)
+    fillAllSubFaces = 
+      let (newCub , sa) = runState fillAllSubFaces' Set.empty
+
+      in 
+         if Set.null sa
+         then Right newCub
+         else Left $ FillHoleConflict
+                              { fhcOuter = x
+                              , fhcHoleCAddress = caddr
+                              , fhcCandidate = cub
+                              , fhcConflictingAddresses = sa
+                              } 
+         
+              
 applyTransform ::  CubTransformation -> ClCub () -> Either CubTransformationError (ClCub Bool)
 
+-- TODO : move to function which cannot fail, becouse this is safe operation
 applyTransform (ClearCell caddr OnlyInterior) clcub =
   let tracked = traceConstraints clcub (Set.singleton caddr)
       f n addr x =
@@ -96,40 +169,7 @@ applyTransform (ClearCell caddr WithFreeSubFaces) clcub' =
           (Just k , _) -> Right $ Just $ (Cub n (Just k , ()) Nothing) 
   in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
 
-applyTransform (FillHole caddr cub) x =
-  fillAllSubFaces x
-      
-  -- let f n addr x =
-  --       if Set.member addr (cAddress caddr)
-  --       then Right Nothing
-  --       else Right Nothing
-  -- in do clcub' <- cubMapMayReplace f clcub
-  --       return $ False <$ clcub'
-  where
-    -- this function should ba aplied always in specyfic , for subaddreses of incrasing dimension 
-    fillHoleUnsafe :: SubFace -> OCub () -> ClCub Bool -> Either CubTransformationError (ClCub Bool)
-    fillHoleUnsafe = undefined
-
-    holeDim = addresedDim $ head $ Set.toList (cAddress caddr)
-
-
-    -- TODO : boleans here are set to True, even if no transformation is aplied (becouse term is already there)
-    ff :: (ClCub Bool) -> SubFace -> Either CubTransformationError (ClCub Bool)
-    ff y sf =
-      let caddr' = cAddressSubFace x caddr sf
-          cubO = appLI sf (clCub cub)
-          f n addr x = 
-             if Set.member addr (cAddress caddr')
-             then --trace (show (clCub cub) ) $ Right Nothing
-                   case unifyOCub (void x) (void cubO) of
-                     Left () -> Left (CubTransformationError "unification Fail")
-                     Right y -> Right (Just (True <$ y) )
-                  
-             else Right Nothing
-      in cubMapMayReplace f y
-
-    fillAllSubFaces :: ClCub () -> Either CubTransformationError (ClCub Bool)
-    fillAllSubFaces x = foldlM ff (False <$ x) (allSubFaces holeDim)
+applyTransform (FillHole caddr cub) x = first CubTransformationConflict $ fillHole x caddr cub
 
 applyTransform (SplitCell caddr) clcub =
   let tracked = traceConstraintsSingle clcub caddr
@@ -140,18 +180,34 @@ applyTransform (SplitCell caddr) clcub =
             (splitOCub sf (fromMaybe (error "bad address") (clCubPick addr clcub))) 
   in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
 
--- TODO : investigate safety of it, reasembly afeter removing cell sems to be made "by force" 
-applyTransform (RemoveSide caddr RSRKeepLeaves) clcub = do
+
+applyTransform (RemoveSide caddr (sf , RSRKeepLeaves)) clcub = do
+  let cub = fromJust $ clCubPick (toAddress caddr) clcub  
+  cubWithHole <- fmap void $ applyTransform (ClearCell caddr OnlyInterior) clcub
+  let newCell = clCubRemoveSideMaximal sf cub 
+  applyTransform (FillHole caddr newCell) cubWithHole 
+
+-- should be safe but uses unsafe operation
+applyTransform (AddSide caddr sf) clcub = do
   let parCub@(ClCub (FromLI n f)) = fromJust $ clCubPick (toAddress caddr) clcub
   let parOCub = clInterior parCub
   case parOCub of
     Cub _ _ _ -> Left (CubTransformationError "not address of side cell!")
-    Hcomp _ mbN si a -> do
+    Hcomp _ mbN (CylCub (FromLI n' g)) a -> do
       cubWithHole <- fmap void $ applyTransform (ClearCell caddr OnlyInterior) clcub
-      let f' = undefined
+      let f' sff | isFullSF sff =
+                    let g' sf' =
+                          case (g sf') of
+                            Just x -> Just x
+                            Nothing -> 
+                              if isSubFaceOf sf' sf
+                              then Just (Cub (subFaceDimEmb sf' + 1) () Nothing)
+                              else Nothing
+                    in Hcomp () mbN (CylCub (FromLI n' g')) a
+                | otherwise = f sff
           newCell = ClCub (FromLI n f') 
       applyTransform (FillHole caddr newCell) cubWithHole 
-      
+
   
 
 splitOCub :: SubFace -> ClCub () ->  OCub ()
@@ -163,6 +219,28 @@ splitOCub sf x@(ClCub xx) = -- clInterior x
                  -- Just $ oDegenerate ((getDim x) - 1) $ appLI sf' xx
                  Just $ oDegenerate (subFaceDimEmb sf') $ appLI sf' xx
 
+
+resolveConflict :: FillHoleConflict -> HoleConflictResolutionStrategy -> ClCub ()
+resolveConflict fhc ClearOutwards =
+  let caddr = fhcHoleCAddress fhc
+      caddrList = Set.toList $ Set.map ((addressClass $ fhcOuter fhc) . fst) $ fhcConflictingAddresses fhc
+      cleared = foldl
+                  (\cu caddr' -> either (error "fatal") void
+                      $ applyTransform (ClearCell caddr' OnlyInterior) cu)
+                  (fhcOuter fhc) caddrList 
+  in either (error "fatal - unification failed after resolving") void $ fillHole cleared caddr (fhcCandidate fhc)
+
+resolveConflict fhc ClearInwards = 
+  let caddr = fhcHoleCAddress fhc
+      caddrList = Set.toList $ Set.map ((addressClass $ fhcCandidate fhc) . snd) $ fhcConflictingAddresses fhc
+      cleared = foldl
+                  (\cu caddr' -> either (error "fatal") void
+                      $ applyTransform (ClearCell caddr' OnlyInterior) cu)
+                  (fhcCandidate fhc) caddrList 
+  in either (error "fatal - unification failed after resolving") void $ fillHole (fhcOuter fhc) caddr cleared
+
+     
+resolveConflict fhc _ = error "todo"
 
 -- applyTransform (ClearCell addrToReplace OnlyInterior) z =
 --    cubMapMayReplace 
