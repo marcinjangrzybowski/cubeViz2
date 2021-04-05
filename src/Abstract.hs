@@ -913,7 +913,7 @@ clClearAllCells :: ClCub [b] -> ClCub [b]
 clClearAllCells = cubMapWAddr (\_ _ -> [])
 
 
-cubMapMayReplace  :: forall a b . (Monad a , Show b) =>  (Int -> Address -> OCub b -> a (Maybe (OCub b)))
+cubMapMayReplace  :: forall a b . (Monad a) =>  (Int -> Address -> OCub b -> a (Maybe (OCub b)))
                  -> ClCub b
                  -> a (ClCub b)
 cubMapMayReplace f (ClCub xx) = ClCub <$>
@@ -1489,34 +1489,217 @@ occupiedCylCells cc = keysSetMapFLI $ cylCub cc
 
 ---- unify
 -- TODO : investigate performance , be sure to recognise that unification fails AEAP
--- TODO : add tracing of unification, margin where left,right,both and no term is defined (to use with Bool in ExprTransform)
+-- TODO : add tracing of unification, merging where left,right,both and no term is defined (to use with Bool in ExprTransform)
+
+data UnificationResult a1 a2  =
+     Agreement a1 a2
+   | Val1 a1 (Maybe a2)
+   | Val2 (Maybe a1) a2
+   | Mixed a1 a2
+   | Conflict (OCub a1) (OCub a2) 
+ deriving (Show)
+
+instance Bifunctor (UnificationResult) where
+  bimap f g x =
+    case x of
+     Agreement a1 a2 -> Agreement (f a1) (g a2) 
+     Val1 a1 mba2 -> Val1 (f a1) (fmap g mba2) 
+     Val2 mba1 a2 -> Val2 (fmap f mba1) (g a2)
+     Mixed a1 a2 -> Mixed (f a1) (g a2)
+     Conflict oca1 oca2 -> Conflict (fmap f oca1) (fmap g oca2) 
+
   
-unifyCylCub :: CylCub () -> CylCub () -> Either () (CylCub ())
+isAgreementQ :: UnificationResult a1 a2 -> Bool
+isAgreementQ (Agreement _ _) = True
+isAgreementQ _ = False
+
+isConflictQ :: UnificationResult a1 a2 -> Bool
+isConflictQ (Conflict _ _) = True
+isConflictQ _ = False
+
+
+isAgreementOCub :: OCub (UnificationResult a1 a2) -> Bool
+isAgreementOCub = isAgreementQ . oCubPickTopLevelData
+
+hasConflict :: (Foldable t) => t (UnificationResult a1 a2) -> Bool
+hasConflict = any isConflictQ
+
+isAgreementClCub :: ClCub (UnificationResult a1 a2) -> Bool
+isAgreementClCub = all isAgreementOCub . clCub
+
+
+
+data StrictUnificationResult a1 a2  =
+     SURAgreement a1 a2
+   | SURVal1 a1 (Maybe a2)
+   | SURVal2 (Maybe a1) a2
+   | SURMixed a1 a2
+
+ deriving (Eq, Show)
+
+tryExtractUnifyStrict :: (Functor t , Foldable t) =>
+                           t (UnificationResult a1 a2)
+                            -> Maybe (t (StrictUnificationResult a1 a2))
+tryExtractUnifyStrict x
+  | hasConflict x = Nothing
+  | otherwise = Just (fmap f x)
+     where
+      f (Agreement a1 a2) = SURAgreement a1 a2
+      f (Val1 a1 mba2) = SURVal1 a1 mba2 
+      f (Val2 mba1 a2) = SURVal2 mba1 a2
+      f (Mixed a1 a2) = SURMixed a1 a2 
+      f (Conflict _ _) = error "imposible"
+
+
+  
+
+data UnificationResultCyl a1 a2  =
+       CylUAgreement (CylCub (a1 , a2))
+     | CylUMixed (CylCub (UnificationResult a1 a2))
+     | CylUConflict
+
+
+unifyCylCub :: CylCub a1 -> CylCub a2 -> UnificationResultCyl a1 a2
 unifyCylCub (CylCub (FromLI aN _)) (CylCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
-unifyCylCub (CylCub (FromLI n a)) (CylCub (FromLI _ b)) =
-  CylCub <$> sequence (FromLI n
-    (\sf -> case (a sf , b sf) of
-              (Just aO , Just bO) -> Just <$> unifyOCub aO bO 
-              (Nothing , Nothing) -> Right Nothing
-              _ -> Left ()
-                                     ))
+unifyCylCub (CylCub f1@(FromLI n _)) (CylCub f2@(FromLI _ _)) = 
+ let m1 = toMapFLI f1 
+     m2 = toMapFLI f2
+     
+ in if (Map.keysSet m1 /= Map.keysSet m2)
+    then CylUConflict
+    else let (l1 , l2) = ((map (second fromJust)) $ filter (isJust . snd) (Map.toAscList m1)
+                         ,(map (second fromJust)) $ filter (isJust . snd) (Map.toAscList m2))
+             f (sf,v1) (_,v2) =
+                 (sf , unifyOCub v1 v2)
+             zipped = fromMapFLI n (Map.fromList (zipWith f l1 l2))
+             aggrees =
+                all (fromMaybe True . (fmap isAgreementOCub))
+                  zipped
+         in if aggrees
+            then (CylUAgreement (fmap (\(Agreement a1 a2) -> (a1,a2)) (CylCub zipped))) 
+            else (CylUMixed (CylCub zipped))
+            
+    
+unifyOCub :: OCub a1 -> OCub a2 -> (OCub (UnificationResult a1 a2))
 
-unifyOCub :: OCub () -> OCub () -> Either () (OCub ())
-unifyOCub a b | isHole a = Right b
-unifyOCub a b | isHole b = Right a
-unifyOCub a@(Cub _ _ (Just x)) (Cub _ _ (Just y)) | x == y = Right a
-unifyOCub (Hcomp _ nameA sidesA btmA) (Hcomp _ nameB sidesB btmB) = do
-  btmU <- unifyClCub btmA btmB
-  sidesU <- unifyCylCub sidesA sidesB
-  let nameU = maybe nameA Just nameB 
-  return $ Hcomp () nameU sidesU btmU
+unifyOCub a b | isHole a || isHole b =
+ case (a , b) of
+    (Cub n x1 Nothing , Cub _ x2 Nothing) ->
+        Cub n (Agreement x1 x2) Nothing
+    (Cub _ x Nothing , _) ->
+        g (Val2 Nothing) (Val2 (Just x)) b
+    (_ , Cub _ x Nothing) ->
+        g (flip Val1 Nothing) (flip Val1 (Just x)) a
+  where
 
-unifyOCub _ _ = Left () 
+    g _ f' (Cub n x2 (Just cE)) = (Cub n (f' x2) (Just cE))
+    g f f' (Hcomp x2 nameA sidesA btmA) =
+       (Hcomp (f' x2) nameA
+        (fmap f (sidesA))
+        (fmap f (btmA))
+       )
+      
+
+unifyOCub a@(Cub n a1 (Just x)) (Cub _ a2 (Just y)) | x == y =
+       (Cub n (Agreement a1 a2) (Just x))                                               
+unifyOCub e1@(Hcomp x1 nameA sidesA btmA) e2@(Hcomp x2 nameB sidesB btmB) =
+  let btmU = unifyClCub btmA btmB
+      sidesU = unifyCylCub sidesA sidesB
+      nameU = maybe nameA Just nameB 
+  in case (sidesU , isAgreementClCub btmU) of
+        (CylUAgreement x , True) ->
+            Hcomp (Agreement x1 x2)
+                  nameU
+                  (fmap (uncurry Agreement) x)
+                  btmU
+        (CylUConflict , _) ->
+           Cub (getDim e1) (Conflict e1 e2 ) Nothing
+        (CylUMixed x , _) ->
+            Hcomp (Mixed x1 x2)
+                  nameU
+                  x
+                  btmU
+    
+unifyOCub e1 e2 =
+   Cub (getDim e1) (Conflict e1 e2 ) Nothing
   
-unifyClCub :: ClCub () -> ClCub () -> Either () (ClCub ())
+unifyClCub :: ClCub a1 -> ClCub a2 -> ClCub (UnificationResult a1 a2)
 unifyClCub (ClCub (FromLI aN _)) (ClCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
-unifyClCub (ClCub (FromLI n a)) (ClCub (FromLI _ b)) =
-  ClCub <$> sequence (FromLI n (\sf -> unifyOCub (a sf) (b sf)))
+unifyClCub (ClCub (FromLI n f1)) (ClCub (FromLI _ f2)) =
+  ClCub (FromLI n (\sf -> unifyOCub (f1 sf) (f2 sf)))
+  
+  -- ClCub <$> sequence (FromLI n (\sf -> unifyOCub (a sf) (b sf)))
+
+  
+-- unifyCylCub :: CylCub () -> CylCub () -> Either () (CylCub ())
+-- unifyCylCub (CylCub (FromLI aN _)) (CylCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+-- unifyCylCub (CylCub (FromLI n a)) (CylCub (FromLI _ b)) =
+--   CylCub <$> sequence (FromLI n
+--     (\sf -> case (a sf , b sf) of
+--               (Just aO , Just bO) -> Just <$> unifyOCub aO bO 
+--               (Nothing , Nothing) -> Right Nothing
+--               _ -> Left ()
+--                                      ))
+
+-- unifyOCub :: OCub () -> OCub () -> Either () (OCub ())
+-- unifyOCub a b | isHole a = Right b
+-- unifyOCub a b | isHole b = Right a
+-- unifyOCub a@(Cub _ _ (Just x)) (Cub _ _ (Just y)) | x == y = Right a
+-- unifyOCub (Hcomp _ nameA sidesA btmA) (Hcomp _ nameB sidesB btmB) = do
+--   btmU <- unifyClCub btmA btmB
+--   sidesU <- unifyCylCub sidesA sidesB
+--   let nameU = maybe nameA Just nameB 
+--   return $ Hcomp () nameU sidesU btmU
+
+-- unifyOCub _ _ = Left () 
+  
+-- unifyClCub :: ClCub () -> ClCub () -> Either () (ClCub ())
+-- unifyClCub (ClCub (FromLI aN _)) (ClCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+-- unifyClCub (ClCub (FromLI n a)) (ClCub (FromLI _ b)) =
+--   ClCub <$> sequence (FromLI n (\sf -> unifyOCub (a sf) (b sf)))
+
+
+
+
+
+
+
+data UnifySchema a b =
+  UnifySchema
+  { usUnify :: OCub a -> OCub a -> Either () (CylCub b) 
+  }
+
+
+unifyCylCubSchema :: UnifySchema a b -> CylCub a -> CylCub a -> Either () (CylCub b)
+unifyCylCubSchema = undefined
+-- unifyCylCub (CylCub (FromLI aN _)) (CylCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+-- unifyCylCub (CylCub (FromLI n a)) (CylCub (FromLI _ b)) =
+--   CylCub <$> sequence (FromLI n
+--     (\sf -> case (a sf , b sf) of
+--               (Just aO , Just bO) -> Just <$> unifyOCub aO bO 
+--               (Nothing , Nothing) -> Right Nothing
+--               _ -> Left ()
+--                                      ))
+
+unifyOCubSchema :: UnifySchema a b -> OCub a -> OCub a -> Either () (OCub b)
+unifyOCubSchema = undefined
+-- unifyOCub a b | isHole a = Right b
+-- unifyOCub a b | isHole b = Right a
+-- unifyOCub a@(Cub _ _ (Just x)) (Cub _ _ (Just y)) | x == y = Right a
+-- unifyOCub (Hcomp _ nameA sidesA btmA) (Hcomp _ nameB sidesB btmB) = do
+--   btmU <- unifyClCub btmA btmB
+--   sidesU <- unifyCylCub sidesA sidesB
+--   let nameU = maybe nameA Just nameB 
+--   return $ Hcomp () nameU sidesU btmU
+
+-- unifyOCub _ _ = Left () 
+  
+unifyClCubSchema :: UnifySchema a b -> ClCub a -> ClCub a -> Either () (ClCub b)
+unifyClCubSchema = undefined
+-- unifyClCub (ClCub (FromLI aN _)) (ClCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+-- unifyClCub (ClCub (FromLI n a)) (ClCub (FromLI _ b)) =
+--   ClCub <$> sequence (FromLI n (\sf -> unifyOCub (a sf) (b sf)))
+
 
 
 
