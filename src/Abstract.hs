@@ -1559,9 +1559,9 @@ data UnificationResultCyl a1 a2  =
      | CylUConflict
 
 
-unifyCylCub :: CylCub a1 -> CylCub a2 -> UnificationResultCyl a1 a2
-unifyCylCub (CylCub (FromLI aN _)) (CylCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
-unifyCylCub (CylCub f1@(FromLI n _)) (CylCub f2@(FromLI _ _)) = 
+preUnifyCylCub :: CylCub a1 -> CylCub a2 -> UnificationResultCyl a1 a2
+preUnifyCylCub (CylCub (FromLI aN _)) (CylCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+preUnifyCylCub (CylCub f1@(FromLI n _)) (CylCub f2@(FromLI _ _)) = 
  let m1 = toMapFLI f1 
      m2 = toMapFLI f2
      
@@ -1570,7 +1570,7 @@ unifyCylCub (CylCub f1@(FromLI n _)) (CylCub f2@(FromLI _ _)) =
     else let (l1 , l2) = ((map (second fromJust)) $ filter (isJust . snd) (Map.toAscList m1)
                          ,(map (second fromJust)) $ filter (isJust . snd) (Map.toAscList m2))
              f (sf,v1) (_,v2) =
-                 (sf , unifyOCub v1 v2)
+                 (sf , preUnifyOCub v1 v2)
              zipped = fromMapFLI n (Map.fromList (zipWith f l1 l2))
              aggrees =
                 all (fromMaybe True . (fmap isAgreementOCub))
@@ -1580,9 +1580,9 @@ unifyCylCub (CylCub f1@(FromLI n _)) (CylCub f2@(FromLI _ _)) =
             else (CylUMixed (CylCub zipped))
             
     
-unifyOCub :: OCub a1 -> OCub a2 -> (OCub (UnificationResult a1 a2))
+preUnifyOCub :: OCub a1 -> OCub a2 -> (OCub (UnificationResult a1 a2))
 
-unifyOCub a b | isHole a || isHole b =
+preUnifyOCub a b | isHole a || isHole b =
  case (a , b) of
     (Cub n x1 Nothing , Cub _ x2 Nothing) ->
         Cub n (Agreement x1 x2) Nothing
@@ -1600,11 +1600,11 @@ unifyOCub a b | isHole a || isHole b =
        )
       
 
-unifyOCub a@(Cub n a1 (Just x)) (Cub _ a2 (Just y)) | x == y =
+preUnifyOCub a@(Cub n a1 (Just x)) (Cub _ a2 (Just y)) | x == y =
        (Cub n (Agreement a1 a2) (Just x))                                               
-unifyOCub e1@(Hcomp x1 nameA sidesA btmA) e2@(Hcomp x2 nameB sidesB btmB) =
-  let btmU = unifyClCub btmA btmB
-      sidesU = unifyCylCub sidesA sidesB
+preUnifyOCub e1@(Hcomp x1 nameA sidesA btmA) e2@(Hcomp x2 nameB sidesB btmB) =
+  let btmU = preUnifyClCub btmA btmB
+      sidesU = preUnifyCylCub sidesA sidesB
       nameU = maybe nameA Just nameB 
   in case (sidesU , isAgreementClCub btmU) of
         (CylUAgreement x , True) ->
@@ -1620,43 +1620,50 @@ unifyOCub e1@(Hcomp x1 nameA sidesA btmA) e2@(Hcomp x2 nameB sidesB btmB) =
                   x
                   btmU
     
-unifyOCub e1 e2 =
+preUnifyOCub e1 e2 =
    Cub (getDim e1) (Conflict e1 e2 ) Nothing
   
+preUnifyClCub :: ClCub a1 -> ClCub a2 -> ClCub (UnificationResult a1 a2)
+preUnifyClCub (ClCub (FromLI aN _)) (ClCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+preUnifyClCub (ClCub (FromLI n f1)) (ClCub (FromLI _ f2)) =
+  ClCub (FromLI n (\sf -> preUnifyOCub (f1 sf) (f2 sf)))
+
+
 unifyClCub :: ClCub a1 -> ClCub a2 -> ClCub (UnificationResult a1 a2)
-unifyClCub (ClCub (FromLI aN _)) (ClCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
-unifyClCub (ClCub (FromLI n f1)) (ClCub (FromLI _ f2)) =
-  ClCub (FromLI n (\sf -> unifyOCub (f1 sf) (f2 sf)))
+unifyClCub e1 e2 =
+  let preU = preUnifyClCub e1 e2
+      clss = getAllAddrClasses preU
+  in undefined
   
-  -- ClCub <$> sequence (FromLI n (\sf -> unifyOCub (a sf) (b sf)))
+  -- ClCub <$> sequence (FromLI n (\sf -> preUnifyOCub (a sf) (b sf)))
 
   
--- unifyCylCub :: CylCub () -> CylCub () -> Either () (CylCub ())
--- unifyCylCub (CylCub (FromLI aN _)) (CylCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
--- unifyCylCub (CylCub (FromLI n a)) (CylCub (FromLI _ b)) =
+-- preUnifyCylCub :: CylCub () -> CylCub () -> Either () (CylCub ())
+-- preUnifyCylCub (CylCub (FromLI aN _)) (CylCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+-- preUnifyCylCub (CylCub (FromLI n a)) (CylCub (FromLI _ b)) =
 --   CylCub <$> sequence (FromLI n
 --     (\sf -> case (a sf , b sf) of
---               (Just aO , Just bO) -> Just <$> unifyOCub aO bO 
+--               (Just aO , Just bO) -> Just <$> preUnifyOCub aO bO 
 --               (Nothing , Nothing) -> Right Nothing
 --               _ -> Left ()
 --                                      ))
 
--- unifyOCub :: OCub () -> OCub () -> Either () (OCub ())
--- unifyOCub a b | isHole a = Right b
--- unifyOCub a b | isHole b = Right a
--- unifyOCub a@(Cub _ _ (Just x)) (Cub _ _ (Just y)) | x == y = Right a
--- unifyOCub (Hcomp _ nameA sidesA btmA) (Hcomp _ nameB sidesB btmB) = do
---   btmU <- unifyClCub btmA btmB
---   sidesU <- unifyCylCub sidesA sidesB
+-- preUnifyOCub :: OCub () -> OCub () -> Either () (OCub ())
+-- preUnifyOCub a b | isHole a = Right b
+-- preUnifyOCub a b | isHole b = Right a
+-- preUnifyOCub a@(Cub _ _ (Just x)) (Cub _ _ (Just y)) | x == y = Right a
+-- preUnifyOCub (Hcomp _ nameA sidesA btmA) (Hcomp _ nameB sidesB btmB) = do
+--   btmU <- preUnifyClCub btmA btmB
+--   sidesU <- preUnifyCylCub sidesA sidesB
 --   let nameU = maybe nameA Just nameB 
 --   return $ Hcomp () nameU sidesU btmU
 
--- unifyOCub _ _ = Left () 
+-- preUnifyOCub _ _ = Left () 
   
--- unifyClCub :: ClCub () -> ClCub () -> Either () (ClCub ())
--- unifyClCub (ClCub (FromLI aN _)) (ClCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
--- unifyClCub (ClCub (FromLI n a)) (ClCub (FromLI _ b)) =
---   ClCub <$> sequence (FromLI n (\sf -> unifyOCub (a sf) (b sf)))
+-- preUnifyClCub :: ClCub () -> ClCub () -> Either () (ClCub ())
+-- preUnifyClCub (ClCub (FromLI aN _)) (ClCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+-- preUnifyClCub (ClCub (FromLI n a)) (ClCub (FromLI _ b)) =
+--   ClCub <$> sequence (FromLI n (\sf -> preUnifyOCub (a sf) (b sf)))
 
 
 
@@ -1664,41 +1671,41 @@ unifyClCub (ClCub (FromLI n f1)) (ClCub (FromLI _ f2)) =
 
 
 
-data UnifySchema a b =
-  UnifySchema
-  { usUnify :: OCub a -> OCub a -> Either () (CylCub b) 
+data PreUnifySchema a b =
+  PreUnifySchema
+  { usPreUnify :: OCub a -> OCub a -> Either () (CylCub b) 
   }
 
 
-unifyCylCubSchema :: UnifySchema a b -> CylCub a -> CylCub a -> Either () (CylCub b)
-unifyCylCubSchema = undefined
--- unifyCylCub (CylCub (FromLI aN _)) (CylCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
--- unifyCylCub (CylCub (FromLI n a)) (CylCub (FromLI _ b)) =
+preUnifyCylCubSchema :: PreUnifySchema a b -> CylCub a -> CylCub a -> Either () (CylCub b)
+preUnifyCylCubSchema = undefined
+-- preUnifyCylCub (CylCub (FromLI aN _)) (CylCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+-- preUnifyCylCub (CylCub (FromLI n a)) (CylCub (FromLI _ b)) =
 --   CylCub <$> sequence (FromLI n
 --     (\sf -> case (a sf , b sf) of
---               (Just aO , Just bO) -> Just <$> unifyOCub aO bO 
+--               (Just aO , Just bO) -> Just <$> preUnifyOCub aO bO 
 --               (Nothing , Nothing) -> Right Nothing
 --               _ -> Left ()
 --                                      ))
 
-unifyOCubSchema :: UnifySchema a b -> OCub a -> OCub a -> Either () (OCub b)
-unifyOCubSchema = undefined
--- unifyOCub a b | isHole a = Right b
--- unifyOCub a b | isHole b = Right a
--- unifyOCub a@(Cub _ _ (Just x)) (Cub _ _ (Just y)) | x == y = Right a
--- unifyOCub (Hcomp _ nameA sidesA btmA) (Hcomp _ nameB sidesB btmB) = do
---   btmU <- unifyClCub btmA btmB
---   sidesU <- unifyCylCub sidesA sidesB
+preUnifyOCubSchema :: PreUnifySchema a b -> OCub a -> OCub a -> Either () (OCub b)
+preUnifyOCubSchema = undefined
+-- preUnifyOCub a b | isHole a = Right b
+-- preUnifyOCub a b | isHole b = Right a
+-- preUnifyOCub a@(Cub _ _ (Just x)) (Cub _ _ (Just y)) | x == y = Right a
+-- preUnifyOCub (Hcomp _ nameA sidesA btmA) (Hcomp _ nameB sidesB btmB) = do
+--   btmU <- preUnifyClCub btmA btmB
+--   sidesU <- preUnifyCylCub sidesA sidesB
 --   let nameU = maybe nameA Just nameB 
 --   return $ Hcomp () nameU sidesU btmU
 
--- unifyOCub _ _ = Left () 
+-- preUnifyOCub _ _ = Left () 
   
-unifyClCubSchema :: UnifySchema a b -> ClCub a -> ClCub a -> Either () (ClCub b)
-unifyClCubSchema = undefined
--- unifyClCub (ClCub (FromLI aN _)) (ClCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
--- unifyClCub (ClCub (FromLI n a)) (ClCub (FromLI _ b)) =
---   ClCub <$> sequence (FromLI n (\sf -> unifyOCub (a sf) (b sf)))
+preUnifyClCubSchema :: PreUnifySchema a b -> ClCub a -> ClCub a -> Either () (ClCub b)
+preUnifyClCubSchema = undefined
+-- preUnifyClCub (ClCub (FromLI aN _)) (ClCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+-- preUnifyClCub (ClCub (FromLI n a)) (ClCub (FromLI _ b)) =
+--   ClCub <$> sequence (FromLI n (\sf -> preUnifyOCub (a sf) (b sf)))
 
 
 
