@@ -1499,6 +1499,11 @@ data UnificationResult a1 a2  =
    | Conflict (OCub a1) (OCub a2) 
  deriving (Show)
 
+
+fromVal1 :: UnificationResult a1 a2 -> a1
+fromVal1 (Val1 a1 _) = a1
+fromVal1 _ = undefined
+
 instance Bifunctor (UnificationResult) where
   bimap f g x =
     case x of
@@ -1667,6 +1672,9 @@ unifyClCub e1 e2 =
 
 
 
+unifyOCub :: OCub a1 -> OCub a2 -> OCub (UnificationResult a1 a2)
+unifyOCub x cub =
+  preUnifyOCub x cub
 
 
 

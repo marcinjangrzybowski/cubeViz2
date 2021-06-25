@@ -4,6 +4,7 @@
 
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
 module ExprTransform where
 
@@ -34,6 +35,7 @@ import Debug.Trace
 
 import Control.Monad.State.Strict
 
+import Control.Monad.Writer
 
 data ClearCellRegime =
     OnlyInterior
@@ -66,6 +68,14 @@ data CubTransformation =
 
 -- TODO :: transofrmations for filling - automaticly recognises holes in faces of compositions  which can be removed
 
+ct2CAddress :: CubTransformation -> CAddress
+ct2CAddress = \case
+     ClearCell x _ -> x
+     SplitCell x -> x
+     SubstAt x _ -> x
+     RemoveSide x _ -> x
+     AddSide x _ -> x  
+  
 
 data SubstAtUnificationResult a1 a2  =
        SAUROutside a1
@@ -100,7 +110,7 @@ instance Bifunctor (SubstAtUnificationResult) where
       SAURInside a2 -> SAURInside (g a2)
       SAURBoundary ur -> SAURBoundary (bimap f g ur)
 
-type SubstAtConflict a1 a2 = ClCub (SubstAtUnificationResult a1 a2)
+type SubstAtConflict a1 a2 = (CAddress , ClCub (SubstAtUnificationResult a1 a2))
 
 data SubstAtConflictResolutionStrategy =
     ClearOutwards
@@ -123,10 +133,10 @@ instance Show CubTransformationError where
 
 
 
-substAtTry :: ClCub (SubstAtUnificationResult a1 a2)
+substAtTry :: CAddress -> ClCub (SubstAtUnificationResult a1 a2)
                   -> Either (SubstAtConflict () ()) (ClCub Bool) 
-substAtTry x | any isConflictSAUR x = Left (fmap (bimap (\_ -> ()) (\_ -> ())) x)
-              | otherwise = Right (fmap isEditedSAUR x)
+substAtTry a x | any isConflictSAUR x = Left (a , fmap (bimap (\_ -> ()) (\_ -> ())) x)
+               | otherwise = Right (fmap isEditedSAUR x)
 
 substAt :: forall a1 a2. ClCub a1 -> CAddress -> ClCub a2 -> ClCub (SubstAtUnificationResult a1 a2)
 substAt x caddr cub =
@@ -149,6 +159,8 @@ substAt x caddr cub =
               )
             else Nothing
       in runIdentity (cubMapMayReplace f y)
+
+
       
 -- substAt :: ClCub () -> CAddress -> ClCub () -> Either SubstAtConflict (ClCub Bool)
 -- substAt x caddr cub =
@@ -223,7 +235,7 @@ applyTransform (ClearCell caddr WithFreeSubFaces) clcub' =
           (Just k , _) -> Right $ Just $ (Cub n (Just k , ()) Nothing) 
   in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
 
-applyTransform (SubstAt caddr cub) x = first CubTransformationConflict $ substAtTry $ substAt x caddr cub
+applyTransform (SubstAt caddr cub) x = first CubTransformationConflict $ substAtTry caddr $ substAt x caddr cub
 
 applyTransform (SplitCell caddr) clcub =
   let tracked = traceConstraintsSingle clcub caddr
@@ -274,28 +286,105 @@ splitOCub sf x@(ClCub xx) = -- clInterior x
                  Just $ oDegenerate (subFaceDimEmb sf') $ appLI sf' xx
 
 
-resolveConflict :: SubstAtConflict a1 a2 -> SubstAtConflictResolutionStrategy -> ClCub ()
-resolveConflict = undefined
--- resolveConflict fhc ClearOutwards =
---   let caddr = fhcHoleCAddress fhc
---       caddrList = Set.toList $ Set.map ((addressClass $ fhcOuter fhc) . fst) $ fhcConflictingAddresses fhc
---       cleared = foldl
---                   (\cu caddr' -> either (error "fatal") void
---                       $ applyTransform (ClearCell caddr' OnlyInterior) cu)
---                   (fhcOuter fhc) caddrList 
---   in either (error "fatal - unification failed after resolving") void $ substAt cleared caddr (fhcCandidate fhc)
+fhcConflictingAddresses :: SubstAtConflict a1 a2 -> Set.Set (Address , Address)
+fhcConflictingAddresses (_ , cub) = execWriter  $
+  (cubMapTrav f g cub :: Writer (Set.Set (Address , Address)) (ClCub ()))
 
--- resolveConflict fhc ClearInwards = 
---   let caddr = fhcHoleCAddress fhc
---       caddrList = Set.toList $ Set.map ((addressClass $ fhcCandidate fhc) . snd) $ fhcConflictingAddresses fhc
---       cleared = foldl
---                   (\cu caddr' -> either (error "fatal") void
---                       $ applyTransform (ClearCell caddr' OnlyInterior) cu)
---                   (fhcCandidate fhc) caddrList 
---   in either (error "fatal - unification failed after resolving") void $ substAt (fhcOuter fhc) caddr cleared
+  where
+
+    f _ a b z zz zzz =
+       do h a b
+          return $ ()
+    g k a b z =
+       do h a b
+          return $ ()
+
+    h :: Address -> (SubstAtUnificationResult a1 a2) -> Writer (Set.Set (Address , Address)) ()
+    h addr = \case
+         SAUROutside _ -> return ()
+             
+         SAURInside a2 -> return ()
+         SAURBoundary ur -> 
+           case ur of
+             Agreement a1 a2 -> return ()
+             Val1 a1 mba2 -> undefined 
+             Val2 mba1 a2 -> undefined
+
+             Mixed a1 a2 -> undefined 
+             Conflict _ _ -> undefined
+      
+
+fhcOuter :: SubstAtConflict a1 a2 -> ClCub ()
+fhcOuter (_ , cub) = void $
+  runIdentity $ cubMapMayReplace f cub
+
+  where
+
+    f :: Int -> Address -> OCub (SubstAtUnificationResult a1 a2) -> Identity (Maybe (OCub (SubstAtUnificationResult a1 a2)))
+    f k _ z =
+      case (oCubPickTopLevelData z) of
+         SAUROutside _ ->
+             Identity $ Nothing
+         SAURInside a2 -> undefined
+         SAURBoundary ur -> 
+           case ur of
+             Agreement a1 a2 -> Identity $ Nothing
+             Val1 a1 mba2 -> Identity $ Nothing
+             Val2 mba1 a2 ->
+               Identity $ Just $ Cub k (oCubPickTopLevelData z) Nothing 
+             Mixed a1 a2 -> Identity $ Nothing 
+             Conflict cub' _ -> 
+               Identity $ Just $ fmap undefined cub'
+                 
+           
+fhcCandidate :: SubstAtConflict a1 a2 -> ClCub ()
+fhcCandidate  (cAddr , cub') = void $
+  runIdentity $ cubMapMayReplace f cub
+
+  where
+
+    cub = fromJust $ clCubPick (toAddress cAddr) cub'
+    
+    f :: Int -> Address -> OCub (SubstAtUnificationResult a1 a2) -> Identity (Maybe (OCub (SubstAtUnificationResult a1 a2)))
+    f k _ z =
+      case (oCubPickTopLevelData z) of
+         SAUROutside _ -> undefined
+             
+         SAURInside a2 -> Identity $ Nothing
+         SAURBoundary ur -> 
+           case ur of
+             Agreement a1 a2 -> Identity $ Nothing
+             Val1 a1 mba2 -> Identity $ Just $ Cub k (oCubPickTopLevelData z) Nothing 
+             Val2 mba1 a2 -> Identity $ Nothing
+
+             Mixed a1 a2 -> Identity $ Nothing 
+             Conflict _ cub' -> 
+               Identity $ Just $ fmap undefined cub'
+
+
+resolveConflict :: SubstAtConflict a1 a2 -> SubstAtConflictResolutionStrategy -> ClCub ()
+-- resolveConflict = undefined
+resolveConflict fhc@(caddr , y) ClearOutwards =
+  let caddrList = Set.toList $ Set.map ((addressClass $ fhcOuter fhc) . fst) $ fhcConflictingAddresses fhc
+      cleared = foldl
+                  (\cu caddr' -> either (error "fatal") void
+                      $ applyTransform (ClearCell caddr' OnlyInterior) cu)
+                  (fhcOuter fhc) caddrList 
+  in either (error "fatal - unification failed after resolving") void
+           $ substAtTry caddr
+           $ substAt cleared caddr (fhcCandidate fhc)
+
+resolveConflict fhc@(caddr , y) ClearInwards = 
+  let caddrList = Set.toList $ Set.map ((addressClass $ fhcCandidate fhc) . snd) $ fhcConflictingAddresses fhc
+      cleared = foldl
+                  (\cu caddr' -> either (error "fatal") void
+                      $ applyTransform (ClearCell caddr' OnlyInterior) cu)
+                  (fhcCandidate fhc) caddrList 
+  in either (error "fatal - unification failed after resolving") void
+            $ substAtTry caddr
+            $ substAt (fhcOuter fhc) caddr cleared
 
      
--- resolveConflict fhc _ = error "todo"
 
 
 

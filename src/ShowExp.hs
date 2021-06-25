@@ -146,7 +146,7 @@ data UserMode =
   -- | UMEditTail { umEditedCell :: Address , umTailPosition :: Int }
   | UMSelectGrid { umEditedCell :: Address , umHighlightedCell :: Maybe Address , umGSD :: GridSelectionDesc }
   | UMHoleConflict { umEditedCell :: Address , -- <-- not necesarly same as CAddress in umFillHoleConflict
-                     umFillHoleConflict :: FillHoleConflict , umMbResolution :: Maybe HoleConflictResolutionStrategy }
+                     umFillHoleConflict :: (SubstAtConflict () ()) , umMbResolution :: Maybe SubstAtConflictResolutionStrategy }
     
 umNavigation :: Address -> UserMode
 umNavigation addr = UMNavigation { umCoursorAddress = addr , umModalNav = Nothing }
@@ -512,7 +512,8 @@ transformExpr trns =
    do
       appS <- UI.getAppState
       case applyTransform trns (asCub appS) of
-        (Left (CubTransformationConflict fhc)) -> initHoleConflict (toAddress $ fhcHoleCAddress fhc) fhc
+        (Left (CubTransformationConflict fhc)) ->
+             initHoleConflict (toAddress $ ct2CAddress trns) fhc
           
         (Left err) ->
             consolePrint $ "transform error: " ++ show err
@@ -828,7 +829,7 @@ modesEvents pem um@(UMHoleConflict {} ) ev = do
                 case (umMbResolution um) of
                   Nothing -> setUserMode $ umNavigation (umEditedCell um)
                   Just res -> do setFromCubNoFlush $ void $ resolveConflict (umFillHoleConflict um) res 
-                                 setUserMode $ umNavigation (toAddress $ fhcHoleCAddress $ umFillHoleConflict um)
+                                 setUserMode $ umNavigation (umEditedCell um)
 
               when (k == GLFW.Key'Q) $ inf "Abort" $ do
                 setUserMode $ umNavigation (umEditedCell um)
@@ -839,7 +840,7 @@ modesEvents pem um@(UMHoleConflict {} ) ev = do
 
                  setUserMode $ um {
                    umMbResolution = rotateFromDir dir (umMbResolution um)
-                   ((Nothing : (fmap Just [minBound ..])) :: [Maybe HoleConflictResolutionStrategy])
+                   ((Nothing : (fmap Just [minBound ..])) :: [Maybe SubstAtConflictResolutionStrategy])
                    }
 
         _ -> return ()
@@ -961,7 +962,7 @@ modalConsoleView um@(UMHoleConflict {}) = do
   let cho = intercalate "," $ map (\x -> let t = maybe "abort" show x
                                          in if x == umMbResolution um then SCP.bgColor SCP.Yellow t else t
                                            )
-                 $ ((Nothing : (fmap Just [minBound ..])) :: [Maybe HoleConflictResolutionStrategy])
+                 $ ((Nothing : (fmap Just [minBound ..])) :: [Maybe SubstAtConflictResolutionStrategy])
             
   liftIO $ putStrLn "unify conflict resolution :"
   liftIO $ putStrLn cho
@@ -1097,15 +1098,15 @@ dragFaceOntoFace (caddrPar , ((fc1@(Face _ (k1 , b1)) , fc2@(Face _ (k2 , b2))))
 
        let n = cAddresedDim caddrPar
        if k1 == k2
-       then let cubToDeg = either (const cub0) id (unifyClCub cub0 cub1)
+       then let cubToDeg = cub0 --either (const cub0) id (unifyClCub cub0 cub1)
                 cubD = clDegenerateTest k1 cubToDeg
-            in transformExpr (FillHole caddrPar cubD)
+            in transformExpr (SubstAt caddrPar cubD)
        else do let cub1' = if (b1 == b2)
                            then cub1
                            else negateDim (fromJust (punchOut k2 k1)) cub1  
-                   cubToDeg = either (const cub0) id (unifyClCub cub0 cub1')
+                   cubToDeg = cub0 --either (const cub0) id (unifyClCub cub0 cub1')
                    cubD = substDimsClCub n (fmap Right (cornerTail fc1 fc2)) cubToDeg
-               transformExpr (FillHole caddrPar cubD)
+               transformExpr (SubstAt caddrPar cubD)
 
 
 
@@ -1125,7 +1126,7 @@ initGiveCell caddr = do
     let 
 
         
-        finalGive x = transformExpr (FillHole caddr (toClCubAt env ctx0 (asCub appS) caddr x ))
+        finalGive x = transformExpr (SubstAt caddr (toClCubAt env ctx0 (asCub appS) caddr x ))
 
 
       
@@ -1210,7 +1211,7 @@ getHoveredAddress = do
 
 -- (Nothing : (fmap Just [minBound ..]))
 
-initHoleConflict :: Address -> FillHoleConflict -> UIApp ()
+initHoleConflict :: Address -> (SubstAtConflict () ()) -> UIApp ()
 initHoleConflict addr fhc = do
   setUserMode $ UMHoleConflict
      { umEditedCell = addr
