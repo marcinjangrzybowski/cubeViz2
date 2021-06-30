@@ -37,6 +37,49 @@ import Control.Monad.State.Strict
 
 import Control.Monad.Writer
 
+import ConsolePrint
+
+-- use only for subfaces without parents in particular cylinder
+-- TODO : good place to intoduce NotFullSubFace type
+clCubRemoveSideMaximal :: SubFace -> ClCub () -> ClCub ()
+clCubRemoveSideMaximal sf clcub@(ClCub (FromLI n g))
+  | isFullSF sf = error "subface of codim > 0 is required here"
+  | otherwise = 
+  case (clInterior clcub) of
+    Cub {} -> error "fatal, clCubRemoveSideMaximal accept only adequate ClCubs, suplied arg is not Hcomp" 
+    Hcomp _ mbn si@(CylCub (FromLI n f)) a ->
+      if (isNothing (appLI sf (cylCub si)))
+      then error "fatal, clCubRemoveSideMaximal accept only adequate ClCubs, suplied arg do not have particular subface"
+      else let f' sfCyl | getDim sfCyl /= getDim sf = error "fatal"
+                        | sfCyl == sf = Nothing
+                        | otherwise = f sfCyl
+               g' sfBd | getDim sfBd /= getDim sf = error "fatal"
+                       | isFullSF sfBd = Hcomp () mbn (CylCub (FromLI n f')) a
+                       | sf == sfBd =
+                           let a' = clCubSubFace sf a
+                               f'' sfCyl' | isFullSF sfCyl' = Nothing
+                                          | otherwise = f $ injSubFace sfCyl' sf                                
+                           in --Cub (subFaceDimEmb sf) () Nothing
+                              -- if subFaceDimEmb sf == 0
+                              -- then clInterior a'
+                              -- else
+                                Hcomp () mbn (CylCub (FromLI (subFaceDimEmb sf) f'')) a'
+                       | sf `isSubFaceOf` sfBd = 
+                           let sf' = jniSubFace sf sfBd
+                               preSideTake = (clCubSubFace sfBd clcub)
+                               postSideTake = clCubRemoveSideMaximal sf' preSideTake
+                               postSideTakeInterior = clInterior $ postSideTake
+                           in postSideTakeInterior
+                                
+                                 
+                       | otherwise = g sfBd
+               res = ClCub (FromLI n g')
+           in res
+
+
+
+
+
 data ClearCellRegime =
     OnlyInterior
   | WithFreeSubFaces
@@ -286,9 +329,9 @@ splitOCub sf x@(ClCub xx) = -- clInterior x
                  Just $ oDegenerate (subFaceDimEmb sf') $ appLI sf' xx
 
 
-fhcConflictingAddresses :: SubstAtConflict a1 a2 -> Set.Set (Address , Address)
+fhcConflictingAddresses :: SubstAtConflict a1 a2 -> (Set.Set Address , Set.Set Address)
 fhcConflictingAddresses (_ , cub) = execWriter  $
-  (cubMapTrav f g cub :: Writer (Set.Set (Address , Address)) (ClCub ()))
+  (cubMapTrav f g cub :: Writer (Set.Set Address , Set.Set Address) (ClCub ()))
 
   where
 
@@ -299,7 +342,7 @@ fhcConflictingAddresses (_ , cub) = execWriter  $
        do h a b
           return $ ()
 
-    h :: Address -> (SubstAtUnificationResult a1 a2) -> Writer (Set.Set (Address , Address)) ()
+    h :: Address -> (SubstAtUnificationResult a1 a2) -> Writer (Set.Set Address , Set.Set Address) ()
     h addr = \case
          SAUROutside _ -> return ()
              
@@ -307,11 +350,11 @@ fhcConflictingAddresses (_ , cub) = execWriter  $
          SAURBoundary ur -> 
            case ur of
              Agreement a1 a2 -> return ()
-             Val1 a1 mba2 -> undefined 
-             Val2 mba1 a2 -> undefined
+             Val1 a1 mba2 -> tell (Set.singleton addr , undefined) 
+             Val2 mba1 a2 -> tell (Set.empty , undefined)
 
-             Mixed a1 a2 -> undefined 
-             Conflict _ _ -> undefined
+             Mixed a1 a2 -> return () 
+             Conflict _ _ -> tell (Set.singleton addr , undefined)
       
 
 fhcOuter :: SubstAtConflict a1 a2 -> ClCub ()
@@ -325,7 +368,7 @@ fhcOuter (_ , cub) = void $
       case (oCubPickTopLevelData z) of
          SAUROutside _ ->
              Identity $ Nothing
-         SAURInside a2 -> undefined
+         SAURInside a2 -> Identity $ Just $ Cub k undefined Nothing
          SAURBoundary ur -> 
            case ur of
              Agreement a1 a2 -> Identity $ Nothing
@@ -365,7 +408,7 @@ fhcCandidate  (cAddr , cub') = void $
 resolveConflict :: SubstAtConflict a1 a2 -> SubstAtConflictResolutionStrategy -> ClCub ()
 -- resolveConflict = undefined
 resolveConflict fhc@(caddr , y) ClearOutwards =
-  let caddrList = Set.toList $ Set.map ((addressClass $ fhcOuter fhc) . fst) $ fhcConflictingAddresses fhc
+  let caddrList = Set.toList $ Set.map ((addressClass $ fhcOuter fhc)) $ fst $ fhcConflictingAddresses fhc
       cleared = foldl
                   (\cu caddr' -> either (error "fatal") void
                       $ applyTransform (ClearCell caddr' OnlyInterior) cu)
@@ -374,15 +417,15 @@ resolveConflict fhc@(caddr , y) ClearOutwards =
            $ substAtTry caddr
            $ substAt cleared caddr (fhcCandidate fhc)
 
-resolveConflict fhc@(caddr , y) ClearInwards = 
-  let caddrList = Set.toList $ Set.map ((addressClass $ fhcCandidate fhc) . snd) $ fhcConflictingAddresses fhc
-      cleared = foldl
-                  (\cu caddr' -> either (error "fatal") void
-                      $ applyTransform (ClearCell caddr' OnlyInterior) cu)
-                  (fhcCandidate fhc) caddrList 
-  in either (error "fatal - unification failed after resolving") void
-            $ substAtTry caddr
-            $ substAt (fhcOuter fhc) caddr cleared
+resolveConflict fhc@(caddr , y) ClearInwards = undefined
+  -- let caddrList = Set.toList $ Set.map ((addressClass $ fhcCandidate fhc) . snd) $ fhcConflictingAddresses fhc
+  --     cleared = foldl
+  --                 (\cu caddr' -> either (error "fatal") void
+  --                     $ applyTransform (ClearCell caddr' OnlyInterior) cu)
+  --                 (fhcCandidate fhc) caddrList 
+  -- in either (error "fatal - unification failed after resolving") void
+  --           $ substAtTry caddr
+  --           $ substAt (fhcOuter fhc) caddr cleared
 
      
 

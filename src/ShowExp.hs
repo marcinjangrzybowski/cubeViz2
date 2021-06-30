@@ -12,6 +12,7 @@ import Control.Monad
 -- import Control.Monad.Trans
 import System.Exit ( exitWith, ExitCode(..) )
 import System.IO
+
 import System.Environment
 import Data.Time.Clock
 
@@ -172,6 +173,7 @@ rotateModalNav :: ClCub () -> Bool -> UserMode -> UserMode
 rotateModalNav cub b (um@UMNavigation {}) =
     let Just z = umModalNav um in
     um { umCoursorAddress = rotateFromDir b (umCoursorAddress um) (mnOptions cub z) }
+
 
 
 -- TODO: refactor to operate on Set
@@ -466,10 +468,27 @@ printExpr =
      cub <- UI.getsAppState asCub
      (ee , expr) <- UI.getsAppState asExpression
      addrs <- UI.getsAppState asCursorAddress
+     let xxx = do a <- addrs
+                  cub' <- clCubPick a cub
+                  Just (a , cub')
+     case xxx of
+       Just (a , cub') ->
+          let ee' = (fst ee , contextAt (snd ee) a cub) 
+          in liftIO $ (putStrLn $
+                 (printCub ee'
+                     (CubPrintData
+                        { cpdCursorAddress = Nothing
+                        , cpdTailAddress = Nothing
+                        }) cub'))
+       Nothing ->
+          liftIO
+               $ (putStrLn $
+            (printCub ee (CubPrintData {cpdCursorAddress = Nothing , cpdTailAddress = asTailAddress appS}) cub))
 
-     liftIO
-          $ (putStrLn $
-       (printCub ee (CubPrintData {cpdCursorAddress = addrs , cpdTailAddress = asTailAddress appS}) cub))
+
+     -- liftIO
+     --      $ (putStrLn $
+     --   (printCub ee (CubPrintData {cpdCursorAddress = addrs , cpdTailAddress = asTailAddress appS}) cub))
 
 
 
@@ -829,7 +848,7 @@ modesEvents pem um@(UMHoleConflict {} ) ev = do
                 case (umMbResolution um) of
                   Nothing -> setUserMode $ umNavigation (umEditedCell um)
                   Just res -> do setFromCubNoFlush $ void $ resolveConflict (umFillHoleConflict um) res 
-                                 setUserMode $ umNavigation (umEditedCell um)
+                                 setUserMode $ Idle --umNavigation (umEditedCell um)
 
               when (k == GLFW.Key'Q) $ inf "Abort" $ do
                 setUserMode $ umNavigation (umEditedCell um)

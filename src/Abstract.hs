@@ -1,9 +1,11 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
 module Abstract where
 
@@ -194,7 +196,7 @@ mbSubAddress (Address sf addr) (Address sf' addr')
                       (Address (jniSubFace sf' sf) addr')
 
   | not (null addr) && isFullSF sf = bdHelp (reverse addr) sf' (reverse addr')
-
+  | otherwise = error "imposiblem"
 
    where
      sameSFHelp :: [AddressPart] -> [AddressPart] -> Maybe Address
@@ -235,7 +237,7 @@ mbSubAddress (Address sf addr) (Address sf' addr')
                in z
 
      bdHelp (AOnBottom sf : addr) _ _ = Nothing
-
+     
 
 
 
@@ -260,6 +262,7 @@ toFillParentOPart (Hcomp _ _ cyl bd) (AOnCylinder sf) =
 toFillParentOPart (Hcomp _ _ cyl bd) (AOnBottom sf) =
   Set.map (\sf' -> (sf' , AOnBottom (jniSubFace sf sf'))) 
   $ superFacesOutside (occupiedCylCells cyl) sf
+toFillParentOPart (Cub _ _ _) _ = error "imposible !" -- todo: why ??
   
 toFillParentO' :: OCub b -> [AddressPart] -> Set.Set Address
 toFillParentO' ocub [] = Set.empty
@@ -1046,13 +1049,13 @@ instance Foldable CylCub where
 
 
 
-clCubFace :: forall b. Face -> ClCub b -> ClCub b
-clCubFace fc = ClCub . ccf . clCub
+-- clCubFace :: forall b. Face -> ClCub b -> ClCub b
+-- clCubFace fc = ClCub . ccf . clCub
 
-  where
-    ccf (FromLI 0 _) = error "attempt to take face of 0-dimensional cub"
-    ccf (FromLI n mp) =
-      FromLI (n - 1) (mp . flip injSubFace (toSubFace fc))
+--   where
+--     ccf (FromLI 0 _) = error "attempt to take face of 0-dimensional cub"
+--     ccf (FromLI n mp) =
+--       FromLI (n - 1) (mp . flip injSubFace (toSubFace fc))
 
 clCubSubFace :: forall b. SubFace -> ClCub b -> ClCub b
 clCubSubFace sf = ClCub . ccf . clCub
@@ -1298,7 +1301,7 @@ contextAtIns ctx addr (Hcomp _ nam si a) =
              Nothing -> Nothing
         AOnBottom sf : xs -> contextAtSafe ctx (Address sf (reverse xs)) a 
         _ -> error "imposible, this case should be handled in ther firt clause"
-
+contextAtIns _ (_:_) (Cub _ _ _) = error "imposible" -- todo: why?
 
 contextAtSafe :: Context -> Address -> ClCub b -> Maybe Context
 contextAtSafe ctx (Address sf xs) y =
@@ -1563,6 +1566,21 @@ data UnificationResultCyl a1 a2  =
      | CylUMixed (CylCub (UnificationResult a1 a2))
      | CylUConflict
 
+instance Bifunctor (UnificationResultCyl) where
+  bimap f g = \case
+       CylUAgreement x -> CylUAgreement (fmap (bimap f g) x)
+       CylUMixed x -> CylUMixed (fmap (bimap f g) x) 
+       CylUConflict -> CylUConflict
+
+     
+
+instance Show (UnificationResultCyl a1 a2) where
+  show = \case
+       CylUAgreement x -> "CylUAgreement" 
+       CylUMixed x -> "CylUMixed"
+       CylUConflict -> "CylUConflict"
+
+
 
 preUnifyCylCub :: CylCub a1 -> CylCub a2 -> UnificationResultCyl a1 a2
 preUnifyCylCub (CylCub (FromLI aN _)) (CylCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
@@ -1595,6 +1613,10 @@ preUnifyOCub a b | isHole a || isHole b =
         g (Val2 Nothing) (Val2 (Just x)) b
     (_ , Cub _ x Nothing) ->
         g (flip Val1 Nothing) (flip Val1 (Just x)) a
+    (Cub _ _ (Just _), Cub _ _ (Just _)) -> error "imposible" -- TODO: why?
+    (Cub _ _ (Just _), Hcomp _ _ _ _) -> error "imposible" -- TODO: why?
+    (Hcomp _ _ _ _, Cub _ _ (Just _)) -> error "imposible" -- TODO: why?
+    (Hcomp _ _ _ _, Hcomp _ _ _ _)  -> error "imposible" -- TODO: why?
   where
 
     g _ f' (Cub n x2 (Just cE)) = (Cub n (f' x2) (Just cE))
@@ -1603,10 +1625,10 @@ preUnifyOCub a b | isHole a || isHole b =
         (fmap f (sidesA))
         (fmap f (btmA))
        )
-      
+    g _ _ (Cub _ _ Nothing) = error "imposible" -- TODO: why?  
 
-preUnifyOCub a@(Cub n a1 (Just x)) (Cub _ a2 (Just y)) | x == y =
-       (Cub n (Agreement a1 a2) (Just x))                                               
+preUnifyOCub a@(Cub n a1 x) (Cub _ a2 y) | x == y =
+       (Cub n (Agreement a1 a2) x)                                               
 preUnifyOCub e1@(Hcomp x1 nameA sidesA btmA) e2@(Hcomp x2 nameB sidesB btmB) =
   let btmU = preUnifyClCub btmA btmB
       sidesU = preUnifyCylCub sidesA sidesB
@@ -1624,7 +1646,8 @@ preUnifyOCub e1@(Hcomp x1 nameA sidesA btmA) e2@(Hcomp x2 nameB sidesB btmB) =
                   nameU
                   x
                   btmU
-    
+        (CylUAgreement _, False) -> error "imposible" -- TODO: why?  
+     
 preUnifyOCub e1 e2 =
    Cub (getDim e1) (Conflict e1 e2 ) Nothing
   
@@ -1800,31 +1823,3 @@ cornerTail (Face n (k0 , b0)) (Face n' (k1 , b1))
 negateDim :: Int -> ClCub () -> ClCub ()
 negateDim k x = substDimsClCub (getDim x) [ Right $ if i == k then neg (dim i) else dim i | i <- range (getDim x) ] x 
 
--- use only for subfaces without parents in particular cylinder
--- TODO : good place to intoduce NotFullSubFace type
-clCubRemoveSideMaximal :: SubFace -> ClCub () -> ClCub ()
-clCubRemoveSideMaximal sf clcub@(ClCub (FromLI n g))
-  | isFullSF sf = error "subface of codim > 0 is required here"
-  | otherwise = 
-  case (clInterior clcub) of
-    Cub {} -> error "fatal, clCubRemoveSideMaximal accept only adequate ClCubs, suplied arg is not Hcomp" 
-    Hcomp _ mbn si@(CylCub (FromLI n f)) a ->
-      if (isNothing (appLI sf (cylCub si)))
-      then error "fatal, clCubRemoveSideMaximal accept only adequate ClCubs, suplied arg do not have particular subface"
-      else let f' sfCyl | getDim sfCyl /= getDim sf = error "fatal"
-                        | sfCyl == sf = Nothing
-                        | otherwise = f sfCyl
-               g' sfBd | getDim sfBd /= getDim sf = error "fatal"
-                       | isFullSF sfBd = Hcomp () mbn (CylCub (FromLI n f')) a
-                       | sf == sfBd =
-                           let a' = clCubSubFace sf a
-                               f'' sfCyl' | isFullSF sfCyl' = Nothing
-                                          | otherwise = f $ injSubFace sfCyl' sf                                
-                           in --Cub (subFaceDimEmb sf) () Nothing
-                              Hcomp () mbn (CylCub (FromLI (subFaceDimEmb sf) f'')) a'
-                       | sf `isSubFaceOf` sfBd = 
-                           let sf' = jniSubFace sf sfBd
-                           in clInterior $ clCubRemoveSideMaximal sf' (clCubSubFace sfBd clcub)
-                       | otherwise = g sfBd
-           
-           in ClCub (FromLI n g')
