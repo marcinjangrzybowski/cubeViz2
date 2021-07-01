@@ -13,6 +13,10 @@ import Control.Monad
 import System.Exit ( exitWith, ExitCode(..) )
 import System.IO
 
+import GHC.IO.Handle
+
+import qualified GHC.IO.FD as Fd
+
 import System.Environment
 import Data.Time.Clock
 
@@ -91,6 +95,8 @@ data AppState = AppState
    , asDisplayPreferences :: DisplayPreferences
    , asTime               :: DiffTime
    , asLastMousePos      :: (Double , Double)
+   , asPeristentConsolePrint :: String -> IO ()
+   , asPeristentHandle :: Handle
    }
 
 asCursorAddress :: AppState -> Maybe Address
@@ -348,6 +354,9 @@ initialize =
          
      currTime <- fmap utctDayTime $ liftIO getCurrentTime
 
+     (peristentPrintF , _) <- liftIO $ Fd.openFile "/dev/pts/1"  WriteMode True
+     peristentPrintH <- liftIO $ mkFileHandle peristentPrintF "/dev/pts/1" WriteMode (Just utf8) noNewlineTranslation 
+
      case mbInitialSessionState of
        Right initialSessionState -> do
          let (ee , expr) = ssEnvExpr initialSessionState
@@ -367,12 +376,27 @@ initialize =
                     , asMarkedCAddresses = []
                     , asDragStartAddress = Nothing
                     , asLastMousePos = (0,0)
+                    , asPeristentConsolePrint = \x -> hPutStr peristentPrintH x >> hPutChar peristentPrintH '\n'
+                    , asPeristentHandle = peristentPrintH
                     }
        Left errorMsg -> do
           liftIO $ putStrLn errorMsg
           return Nothing
 
 
+-- withePersistentH :: 
+
+persistentPrint :: String -> UIApp ()
+persistentPrint s = do
+  a <- (UI.getsAppState asPeristentConsolePrint)
+  liftIO $ a s
+
+wPersistentH :: (Handle -> IO a) -> UIApp a
+wPersistentH op = do
+  h <- (UI.getsAppState asPeristentHandle )
+  liftIO $ op h
+
+  
 updateView :: UIApp ()
 updateView = return ()
 
@@ -474,16 +498,15 @@ printExpr =
      case xxx of
        Just (a , cub') ->
           let ee' = (fst ee , contextAt (snd ee) a cub) 
-          in liftIO $ (putStrLn $
+          in persistentPrint $
                  (printCub ee'
                      (CubPrintData
                         { cpdCursorAddress = Nothing
                         , cpdTailAddress = Nothing
-                        }) cub'))
+                        }) cub')
        Nothing ->
-          liftIO
-               $ (putStrLn $
-            (printCub ee (CubPrintData {cpdCursorAddress = Nothing , cpdTailAddress = asTailAddress appS}) cub))
+            persistentPrint $
+            (printCub ee (CubPrintData {cpdCursorAddress = Nothing , cpdTailAddress = asTailAddress appS}) cub)
 
 
      -- liftIO
@@ -542,9 +565,9 @@ transformExpr trns =
 printExprCode :: UIApp ()
 printExprCode =
   do (ee , expr) <- UI.getsAppState asExpression
-     liftIO $ do SCA.clearScreen
-                 putStrLn
-                    $ fromRight "error while printing expr" (toCode ee expr)
+     wPersistentH SCA.hClearScreen
+     persistentPrint
+       $ fromRight "error while printing expr" (toCode ee expr)
 
 -- setAddSubFaceMode :: Address -> UIApp ()
 -- setAddSubFaceMode addr = do
@@ -975,7 +998,7 @@ modalConsoleView :: UserMode -> UIApp ()
 modalConsoleView um@(UMSelectGrid addr addr2 gsd ) = do
   let cho = gridMapWithIndex (\ij -> if ij == gsdPosition gsd then SCP.bgColor SCP.Yellow else id ) (gsdChoices gsd)
       choStr = concatMap ((++) "\n" . concat . fmap ((++) " ") ) cho
-  liftIO $ putStrLn choStr
+  persistentPrint choStr
 
 modalConsoleView um@(UMHoleConflict {}) = do
   let cho = intercalate "," $ map (\x -> let t = maybe "abort" show x
@@ -983,8 +1006,8 @@ modalConsoleView um@(UMHoleConflict {}) = do
                                            )
                  $ ((Nothing : (fmap Just [minBound ..])) :: [Maybe SubstAtConflictResolutionStrategy])
             
-  liftIO $ putStrLn "unify conflict resolution :"
-  liftIO $ putStrLn cho
+  persistentPrint "unify conflict resolution :"
+  persistentPrint cho
   
 modalConsoleView _ = return ()
 
@@ -1016,18 +1039,18 @@ updateGL =
    where
      printConsoleView :: UIApp ()
      printConsoleView = do
-        liftIO SCA.clearScreen
+        wPersistentH SCA.hClearScreen
         printExpr
         ei <- eventsInfo
-        liftIO $ putStrLn ei
-        liftIO $ putStrLn ""
+        persistentPrint ei
+        persistentPrint ""
 
         -- liftIO $ putStrLn ""
         -- pKS <- fmap (\pK -> show (Set.toList pK)) UI.pressedKeys
         -- liftIO $ putStrLn pKS  
         uMsg <- UI.getsAppState asMessage
         UI.getsAppState asUserMode >>= modalConsoleView
-        liftIO $ putStrLn uMsg
+        persistentPrint uMsg
 
 
 

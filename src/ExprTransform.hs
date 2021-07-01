@@ -39,6 +39,8 @@ import Control.Monad.Writer
 
 import ConsolePrint
 
+ntrace _ x = x
+
 -- use only for subfaces without parents in particular cylinder
 -- TODO : good place to intoduce NotFullSubFace type
 clCubRemoveSideMaximal :: SubFace -> ClCub () -> ClCub ()
@@ -67,8 +69,12 @@ clCubRemoveSideMaximal sf clcub@(ClCub (FromLI n g))
                        | sf `isSubFaceOf` sfBd = 
                            let sf' = jniSubFace sf sfBd
                                preSideTake = (clCubSubFace sfBd clcub)
-                               postSideTake = clCubRemoveSideMaximal sf' preSideTake
-                               postSideTakeInterior = clInterior $ postSideTake
+                               postSideTake =
+                                   trace ("\n----\n" ++ printClOutOfCtx preSideTake)
+                                          clCubRemoveSideMaximal sf'
+                                            preSideTake
+                               
+                               postSideTakeInterior = trace ("\n" ++ printOOutOfCtx (clInterior postSideTake)) clInterior $ postSideTake
                            in postSideTakeInterior
                                 
                                  
@@ -198,7 +204,9 @@ substAt x caddr cub =
             then Just $
               (if (isFullSF sf)
                then (fmap SAURInside cubO)
-               else (fmap SAURBoundary (unifyOCub (fmap fromOutside x) cubO))
+               else Cub (subFaceDimEmb sf) (SAURBoundary $ Conflict (fmap fromOutside x) cubO) Nothing
+                  -- fmap (SAURBoundary . (Val2 Nothing) ) cubO 
+                  --(fmap SAURBoundary (unifyOCub (fmap fromOutside x) cubO))
               )
             else Nothing
       in runIdentity (cubMapMayReplace f y)

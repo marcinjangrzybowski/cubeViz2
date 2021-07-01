@@ -96,3 +96,22 @@ printCubO (ee , c) cpd addr (Hcomp _ nm pa a) =
   in if Just addr == cpdCursorAddress cpd
      then bgColor Green s
      else s
+
+
+makeFakeCtx :: OfDim a => a -> (Env , Context)
+makeFakeCtx x =
+  let n = getDim x
+      dims = [ (Just y , Nothing) | y <- take n ["i","j","k","l","m"]]
+      vars = [ ("x" ++ show k , undefined) | k <- [0..8]]
+  in (undefined , Context vars dims)
+
+printOOutOfCtx :: OCub a -> String
+printOOutOfCtx oCub =
+  let ee = makeFakeCtx oCub
+  in printCubO ee (CubPrintData Nothing Nothing) undefined oCub
+
+
+printClOutOfCtx :: ClCub a -> String
+printClOutOfCtx clCub =
+  let ee = makeFakeCtx clCub
+  in printCub ee (CubPrintData Nothing Nothing) clCub
