@@ -1847,6 +1847,33 @@ substAtHole x caddr cub =
               (if (isFullSF sf)
                then (fmap (( Nothing ,) . Just) cubO)
                else ( fmap (( (fst $ oCubPickTopLevelData x) ,) . Just) cubO) 
-              ) else (error "caddr points at not proper hole!" ) )
+              ) else (error "caddr points does not point at a proper hole!" ) )
             else Nothing
+      in runIdentity (cubMapMayReplace f y)
+
+
+-- cAddress must point to "hole" - hole of which all subfaces are holes
+-- otherwsie function will encounter error
+-- this function can be used ONLY when <cub> fits EXACTLY inside address
+-- it will only subsitute indicated addres, it will NOT subsitute its subfaces (it assumes that they are already subsituted)
+
+-- this function is Unsafe, becpuse it will not even throw error if <cub> do not fits, it will simply output ill produced term
+
+substInsideHoleUnsafe :: forall a1 a2. ClCub a1 -> CAddress -> OCub a2 -> ClCub (Maybe a1 , Maybe a2)
+substInsideHoleUnsafe x caddr oCub = 
+  ff (fmap (( , Nothing ) . Just ) x)
+
+  where
+    holeDim = addresedDim $ head $ Set.toList (cAddress caddr)
+
+    ff :: ClCub (Maybe a1 , Maybe a2) -> ClCub (Maybe a1 , Maybe a2)    
+    ff y =
+      let f n addr x = Identity $
+            if Set.member addr (cAddress caddr)
+            then 
+              (if isHole x then
+              (Just $  fmap (( Nothing ,) . Just) oCub)
+               else (error "caddr points does not point at a hole!" ) )
+            else Nothing
+          
       in runIdentity (cubMapMayReplace f y)
