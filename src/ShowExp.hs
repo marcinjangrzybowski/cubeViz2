@@ -354,8 +354,8 @@ initialize =
          
      currTime <- fmap utctDayTime $ liftIO getCurrentTime
 
-     (peristentPrintF , _) <- liftIO $ Fd.openFile "/dev/pts/1"  WriteMode True
-     peristentPrintH <- liftIO $ mkFileHandle peristentPrintF "/dev/pts/1" WriteMode (Just utf8) noNewlineTranslation 
+     (peristentPrintF , _) <- liftIO $ Fd.openFile "/dev/pts/9"  WriteMode True
+     peristentPrintH <- liftIO $ mkFileHandle peristentPrintF "/dev/pts/9" WriteMode (Just utf8) noNewlineTranslation 
 
      case mbInitialSessionState of
        Right initialSessionState -> do

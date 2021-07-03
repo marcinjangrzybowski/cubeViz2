@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 
@@ -1494,7 +1495,7 @@ occupiedCylCells cc = keysSetMapFLI $ cylCub cc
 -- TODO : investigate performance , be sure to recognise that unification fails AEAP
 -- TODO : add tracing of unification, merging where left,right,both and no term is defined (to use with Bool in ExprTransform)
 
-data UnificationResult a1 a2  =
+data PreUnificationResult a1 a2  =
      Agreement a1 a2
    | Val1 a1 (Maybe a2)
    | Val2 (Maybe a1) a2
@@ -1503,11 +1504,11 @@ data UnificationResult a1 a2  =
  deriving (Show)
 
 
-fromVal1 :: UnificationResult a1 a2 -> a1
+fromVal1 :: PreUnificationResult a1 a2 -> a1
 fromVal1 (Val1 a1 _) = a1
 fromVal1 _ = undefined
 
-instance Bifunctor (UnificationResult) where
+instance Bifunctor (PreUnificationResult) where
   bimap f g x =
     case x of
      Agreement a1 a2 -> Agreement (f a1) (g a2) 
@@ -1517,56 +1518,56 @@ instance Bifunctor (UnificationResult) where
      Conflict oca1 oca2 -> Conflict (fmap f oca1) (fmap g oca2) 
 
   
-isAgreementQ :: UnificationResult a1 a2 -> Bool
+isAgreementQ :: PreUnificationResult a1 a2 -> Bool
 isAgreementQ (Agreement _ _) = True
 isAgreementQ _ = False
 
-isConflictQ :: UnificationResult a1 a2 -> Bool
+isConflictQ :: PreUnificationResult a1 a2 -> Bool
 isConflictQ (Conflict _ _) = True
 isConflictQ _ = False
 
 
-isAgreementOCub :: OCub (UnificationResult a1 a2) -> Bool
+isAgreementOCub :: OCub (PreUnificationResult a1 a2) -> Bool
 isAgreementOCub = isAgreementQ . oCubPickTopLevelData
 
-hasConflict :: (Foldable t) => t (UnificationResult a1 a2) -> Bool
+hasConflict :: (Foldable t) => t (PreUnificationResult a1 a2) -> Bool
 hasConflict = any isConflictQ
 
-isAgreementClCub :: ClCub (UnificationResult a1 a2) -> Bool
+isAgreementClCub :: ClCub (PreUnificationResult a1 a2) -> Bool
 isAgreementClCub = all isAgreementOCub . clCub
 
 
 
-data StrictUnificationResult a1 a2  =
-     SURAgreement a1 a2
-   | SURVal1 a1 (Maybe a2)
-   | SURVal2 (Maybe a1) a2
-   | SURMixed a1 a2
+-- data StrictUnificationResult a1 a2  =
+--      SURAgreement a1 a2
+--    | SURVal1 a1 (Maybe a2)
+--    | SURVal2 (Maybe a1) a2
+--    | SURMixed a1 a2
 
- deriving (Eq, Show)
+--  deriving (Eq, Show)
 
-tryExtractUnifyStrict :: (Functor t , Foldable t) =>
-                           t (UnificationResult a1 a2)
-                            -> Maybe (t (StrictUnificationResult a1 a2))
-tryExtractUnifyStrict x
-  | hasConflict x = Nothing
-  | otherwise = Just (fmap f x)
-     where
-      f (Agreement a1 a2) = SURAgreement a1 a2
-      f (Val1 a1 mba2) = SURVal1 a1 mba2 
-      f (Val2 mba1 a2) = SURVal2 mba1 a2
-      f (Mixed a1 a2) = SURMixed a1 a2 
-      f (Conflict _ _) = error "imposible"
+-- tryExtractUnifyStrict :: (Functor t , Foldable t) =>
+--                            t (PreUnificationResult a1 a2)
+--                             -> Maybe (t (StrictUnificationResult a1 a2))
+-- tryExtractUnifyStrict x
+--   | hasConflict x = Nothing
+--   | otherwise = Just (fmap f x)
+--      where
+--       f (Agreement a1 a2) = SURAgreement a1 a2
+--       f (Val1 a1 mba2) = SURVal1 a1 mba2 
+--       f (Val2 mba1 a2) = SURVal2 mba1 a2
+--       f (Mixed a1 a2) = SURMixed a1 a2 
+--       f (Conflict _ _) = error "imposible"
 
 
   
 
-data UnificationResultCyl a1 a2  =
+data PreUnificationResultCyl a1 a2  =
        CylUAgreement (CylCub (a1 , a2))
-     | CylUMixed (CylCub (UnificationResult a1 a2))
+     | CylUMixed (CylCub (PreUnificationResult a1 a2))
      | CylUConflict
 
-instance Bifunctor (UnificationResultCyl) where
+instance Bifunctor (PreUnificationResultCyl) where
   bimap f g = \case
        CylUAgreement x -> CylUAgreement (fmap (bimap f g) x)
        CylUMixed x -> CylUMixed (fmap (bimap f g) x) 
@@ -1574,7 +1575,7 @@ instance Bifunctor (UnificationResultCyl) where
 
      
 
-instance Show (UnificationResultCyl a1 a2) where
+instance Show (PreUnificationResultCyl a1 a2) where
   show = \case
        CylUAgreement x -> "CylUAgreement" 
        CylUMixed x -> "CylUMixed"
@@ -1582,16 +1583,16 @@ instance Show (UnificationResultCyl a1 a2) where
 
 
 
-preUnifyCylCub :: CylCub a1 -> CylCub a2 -> UnificationResultCyl a1 a2
+preUnifyCylCub :: CylCub a1 -> CylCub a2 -> PreUnificationResultCyl a1 a2
 preUnifyCylCub (CylCub (FromLI aN _)) (CylCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
 preUnifyCylCub (CylCub f1@(FromLI n _)) (CylCub f2@(FromLI _ _)) = 
- let m1 = toMapFLI f1 
-     m2 = toMapFLI f2
+ let m1 = Map.filter isJust $ toMapFLI f1 
+     m2 = Map.filter isJust $ toMapFLI f2
      
  in if (Map.keysSet m1 /= Map.keysSet m2)
     then CylUConflict
-    else let (l1 , l2) = ((map (second fromJust)) $ filter (isJust . snd) (Map.toAscList m1)
-                         ,(map (second fromJust)) $ filter (isJust . snd) (Map.toAscList m2))
+    else let (l1 , l2) = ((map (second fromJust)) $ (Map.toAscList m1)
+                         ,(map (second fromJust)) $ (Map.toAscList m2))
              f (sf,v1) (_,v2) =
                  (sf , preUnifyOCub v1 v2)
              zipped = fromMapFLI n (Map.fromList (zipWith f l1 l2))
@@ -1603,7 +1604,7 @@ preUnifyCylCub (CylCub f1@(FromLI n _)) (CylCub f2@(FromLI _ _)) =
             else (CylUMixed (CylCub zipped))
             
     
-preUnifyOCub :: OCub a1 -> OCub a2 -> (OCub (UnificationResult a1 a2))
+preUnifyOCub :: OCub a1 -> OCub a2 -> (OCub (PreUnificationResult a1 a2))
 
 preUnifyOCub a b | isHole a || isHole b =
  case (a , b) of
@@ -1613,10 +1614,8 @@ preUnifyOCub a b | isHole a || isHole b =
         g (Val2 Nothing) (Val2 (Just x)) b
     (_ , Cub _ x Nothing) ->
         g (flip Val1 Nothing) (flip Val1 (Just x)) a
-    (Cub _ _ (Just _), Cub _ _ (Just _)) -> error "imposible" -- TODO: why?
-    (Cub _ _ (Just _), Hcomp _ _ _ _) -> error "imposible" -- TODO: why?
-    (Hcomp _ _ _ _, Cub _ _ (Just _)) -> error "imposible" -- TODO: why?
-    (Hcomp _ _ _ _, Hcomp _ _ _ _)  -> error "imposible" -- TODO: why?
+    (_) -> error "imposible" -- gurard checks if one of args is hole
+
   where
 
     g _ f' (Cub n x2 (Just cE)) = (Cub n (f' x2) (Just cE))
@@ -1625,7 +1624,7 @@ preUnifyOCub a b | isHole a || isHole b =
         (fmap f (sidesA))
         (fmap f (btmA))
        )
-    g _ _ (Cub _ _ Nothing) = error "imposible" -- TODO: why?  
+    g _ _ (Cub _ _ Nothing) = error "imposible" -- this would trigger first case above
 
 preUnifyOCub a@(Cub n a1 x) (Cub _ a2 y) | x == y =
        (Cub n (Agreement a1 a2) x)                                               
@@ -1651,17 +1650,19 @@ preUnifyOCub e1@(Hcomp x1 nameA sidesA btmA) e2@(Hcomp x2 nameB sidesB btmB) =
 preUnifyOCub e1 e2 =
    Cub (getDim e1) (Conflict e1 e2 ) Nothing
   
-preUnifyClCub :: ClCub a1 -> ClCub a2 -> ClCub (UnificationResult a1 a2)
+preUnifyClCub :: ClCub a1 -> ClCub a2 -> ClCub (PreUnificationResult a1 a2)
 preUnifyClCub (ClCub (FromLI aN _)) (ClCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
 preUnifyClCub (ClCub (FromLI n f1)) (ClCub (FromLI _ f2)) =
   ClCub (FromLI n (\sf -> preUnifyOCub (f1 sf) (f2 sf)))
 
 
-unifyClCub :: ClCub a1 -> ClCub a2 -> ClCub (UnificationResult a1 a2)
-unifyClCub e1 e2 =
-  let preU = preUnifyClCub e1 e2
-      clss = getAllAddrClasses preU
-  in undefined
+-- unifyClCub :: ClCub a1 -> ClCub a2 -> ClCub (PreUnificationResult a1 a2)
+-- unifyClCub e1 e2 =
+--   let preU = preUnifyClCub e1 e2
+--       clss = getAllAddrClasses preU
+--   in undefined
+
+
   
   -- ClCub <$> sequence (FromLI n (\sf -> preUnifyOCub (a sf) (b sf)))
 
@@ -1695,9 +1696,9 @@ unifyClCub e1 e2 =
 
 
 
-unifyOCub :: OCub a1 -> OCub a2 -> OCub (UnificationResult a1 a2)
-unifyOCub x cub =
-  preUnifyOCub x cub
+-- unifyOCub :: OCub a1 -> OCub a2 -> OCub (PreUnificationResult a1 a2)
+-- unifyOCub x cub =
+--   preUnifyOCub x cub
 
 
 
@@ -1823,3 +1824,29 @@ cornerTail (Face n (k0 , b0)) (Face n' (k1 , b1))
 negateDim :: Int -> ClCub () -> ClCub ()
 negateDim k x = substDimsClCub (getDim x) [ Right $ if i == k then neg (dim i) else dim i | i <- range (getDim x) ] x 
 
+
+-- cAddress must point to "proper hole" - hole of which all subfaces are holes
+-- otherwsie function will encounter error
+
+substAtHole :: forall a1 a2. ClCub a1 -> CAddress -> ClCub a2 -> ClCub (Maybe a1 , Maybe a2)
+substAtHole x caddr cub = 
+  foldl ff (fmap (( , Nothing ) . Just ) x) (allSubFaces holeDim)
+
+  where
+    holeDim = addresedDim $ head $ Set.toList (cAddress caddr)
+
+    ff :: (ClCub (Maybe a1 , Maybe a2))
+             -> SubFace -> (ClCub (Maybe a1 , Maybe a2))    
+    ff y sf =
+      let caddr' = cAddressSubFace x caddr sf
+          cubO = appLI sf (clCub cub)
+          f n addr x = Identity $
+            if Set.member addr (cAddress caddr')
+            then Just $
+              (if isHole x then
+              (if (isFullSF sf)
+               then (fmap (( Nothing ,) . Just) cubO)
+               else ( fmap (( (fst $ oCubPickTopLevelData x) ,) . Just) cubO) 
+              ) else (error "caddr points at not proper hole!" ) )
+            else Nothing
+      in runIdentity (cubMapMayReplace f y)

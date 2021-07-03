@@ -129,7 +129,7 @@ ct2CAddress = \case
 data SubstAtUnificationResult a1 a2  =
        SAUROutside a1
      | SAURInside a2
-     | SAURBoundary (UnificationResult a1 a2)
+     | SAURBoundary (PreUnificationResult a1 a2)
   deriving (Show)
 
 fromOutside :: SubstAtUnificationResult a1 a2 -> a1
@@ -182,13 +182,13 @@ instance Show CubTransformationError where
 
 
 
-substAtTry :: CAddress -> ClCub (SubstAtUnificationResult a1 a2)
-                  -> Either (SubstAtConflict () ()) (ClCub Bool) 
-substAtTry a x | any isConflictSAUR x = Left (a , fmap (bimap (\_ -> ()) (\_ -> ())) x)
-               | otherwise = Right (fmap isEditedSAUR x)
+-- substAtTry :: CAddress -> ClCub (SubstAtUnificationResult a1 a2)
+--                   -> Either (SubstAtConflict () ()) (ClCub Bool) 
+-- substAtTry a x | any isConflictSAUR x = Left (a , fmap (bimap (\_ -> ()) (\_ -> ())) x)
+--                | otherwise = Right (fmap isEditedSAUR x)
 
-substAt :: forall a1 a2. ClCub a1 -> CAddress -> ClCub a2 -> ClCub (SubstAtUnificationResult a1 a2)
-substAt x caddr cub =
+preSubstAt :: forall a1 a2. ClCub a1 -> CAddress -> ClCub a2 -> ClCub (SubstAtUnificationResult a1 a2)
+preSubstAt x caddr cub =
   foldl ff (fmap SAUROutside x) (allSubFaces holeDim)
 
   where
@@ -204,9 +204,9 @@ substAt x caddr cub =
             then Just $
               (if (isFullSF sf)
                then (fmap SAURInside cubO)
-               else Cub (subFaceDimEmb sf) (SAURBoundary $ Conflict (fmap fromOutside x) cubO) Nothing
-                  -- fmap (SAURBoundary . (Val2 Nothing) ) cubO 
-                  --(fmap SAURBoundary (unifyOCub (fmap fromOutside x) cubO))
+               else --Cub (subFaceDimEmb sf) (SAURBoundary $ Conflict (fmap fromOutside x) cubO) Nothing
+              --     fmap (SAURBoundary . (Val2 Nothing) ) cubO 
+                    (fmap SAURBoundary (preUnifyOCub (fmap fromOutside x) cubO))
               )
             else Nothing
       in runIdentity (cubMapMayReplace f y)
@@ -286,7 +286,8 @@ applyTransform (ClearCell caddr WithFreeSubFaces) clcub' =
           (Just k , _) -> Right $ Just $ (Cub n (Just k , ()) Nothing) 
   in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
 
-applyTransform (SubstAt caddr cub) x = first CubTransformationConflict $ substAtTry caddr $ substAt x caddr cub
+applyTransform (SubstAt caddr cub) x = undefined
+   -- first CubTransformationConflict $ substAtTry caddr $ substAt x caddr cub
 
 applyTransform (SplitCell caddr) clcub =
   let tracked = traceConstraintsSingle clcub caddr
@@ -421,9 +422,10 @@ resolveConflict fhc@(caddr , y) ClearOutwards =
                   (\cu caddr' -> either (error "fatal") void
                       $ applyTransform (ClearCell caddr' OnlyInterior) cu)
                   (fhcOuter fhc) caddrList 
-  in either (error "fatal - unification failed after resolving") void
-           $ substAtTry caddr
-           $ substAt cleared caddr (fhcCandidate fhc)
+  in undefined
+      -- either (error "fatal - unification failed after resolving") void
+      --      $ substAtTry caddr
+      --      $ substAt cleared caddr (fhcCandidate fhc)
 
 resolveConflict fhc@(caddr , y) ClearInwards = undefined
   -- let caddrList = Set.toList $ Set.map ((addressClass $ fhcCandidate fhc) . snd) $ fhcConflictingAddresses fhc
