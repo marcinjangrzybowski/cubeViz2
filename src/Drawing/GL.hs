@@ -223,6 +223,15 @@ onDisplay win w h vp ds = do
 onDisplayAll :: Window -> Int -> Int -> Viewport -> [Descriptor] -> IO ()
 onDisplayAll win w h vp = void . sequence . map (onDisplay win w h vp) 
 
+mouseToModel1d :: Int -> Int -> (Double , Double) -> (Float)
+mouseToModel1d w h (x , y) =
+  let p = 
+            if w > h
+            then (((x - (fromIntegral (w - h) * 0.5)) / fromIntegral h))
+            else ((x / fromIntegral w))
+  in realToFrac p
+
+
 mouseToModel2d :: Int -> Int -> (Double , Double) -> (Float , Float)
 mouseToModel2d w h (x , y) =
   let p = 

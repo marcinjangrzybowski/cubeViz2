@@ -42,6 +42,7 @@ dependencies:
 - type-iso
 - lattices
 - singletons
+- nonempty-containers
 
 library:
   source-dirs: src

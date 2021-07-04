@@ -97,6 +97,7 @@ data AppState = AppState
    , asLastMousePos      :: (Double , Double)
    , asPeristentConsolePrint :: String -> IO ()
    , asPeristentHandle :: Handle
+   , asParentAppState :: Maybe AppState 
    }
 
 asCursorAddress :: AppState -> Maybe Address
@@ -136,6 +137,7 @@ asExpression = ssEnvExpr . asSession
 asViewportProc :: AppState -> Viewport
 asViewportProc appS =
   case getDim $ asCub appS of
+    1 -> Viewport 0 0 0
     2 -> Viewport 0 0 0
     _ -> asViewport appS
 
@@ -354,8 +356,8 @@ initialize =
          
      currTime <- fmap utctDayTime $ liftIO getCurrentTime
 
-     (peristentPrintF , _) <- liftIO $ Fd.openFile "/dev/pts/9"  WriteMode True
-     peristentPrintH <- liftIO $ mkFileHandle peristentPrintF "/dev/pts/9" WriteMode (Just utf8) noNewlineTranslation 
+     (peristentPrintF , _) <- liftIO $ Fd.openFile "/dev/pts/2"  WriteMode True
+     peristentPrintH <- liftIO $ mkFileHandle peristentPrintF "/dev/pts/2" WriteMode (Just utf8) noNewlineTranslation 
 
      case mbInitialSessionState of
        Right initialSessionState -> do
@@ -378,6 +380,7 @@ initialize =
                     , asLastMousePos = (0,0)
                     , asPeristentConsolePrint = \x -> hPutStr peristentPrintH x >> hPutChar peristentPrintH '\n'
                     , asPeristentHandle = peristentPrintH
+                    , asParentAppState = Nothing
                     }
        Left errorMsg -> do
           liftIO $ putStrLn errorMsg
@@ -385,6 +388,41 @@ initialize =
 
 
 -- withePersistentH :: 
+
+
+diveIn :: UIApp ()
+diveIn = do
+  s <- UI.getAppState
+
+  let um = (asUserMode s)
+  case um of
+    UMNavigation {} -> do
+      let ca = umCoursorAddress um
+          cub' = (fromJust $ clCubPick ca $ asCub s)
+
+      UI.setAppState $
+        s {  asUserMode = umNavigation (rootAddress (getDim $ cub'))
+          ,  asParentAppState = Just s }
+
+      setFromCub cub'
+    _ -> return ()
+
+giveCellFromParentAS :: UIApp ()
+giveCellFromParentAS = do
+  s <- UI.getAppState
+  let orgS = fromJust $ asParentAppState s
+  UI.setAppState $ orgS
+
+  let um = (asUserMode orgS)
+  case um of
+    UMNavigation {} -> do
+      let ca = umCoursorAddress um        
+      transformExpr (SubstAt (addressClass (asCub orgS) ca) (asCub s))
+
+  return ()
+
+  
+
 
 persistentPrint :: String -> UIApp ()
 persistentPrint s = do
@@ -705,8 +743,8 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                 -- when (k == GLFW.Key'H) $ inf "EditHead" $ do
                 --   initEditHead addr
 
-                when (k == GLFW.Key'G) $ inf "GiveCell" $ do
-                  initGiveCell addrClass
+                when (k == GLFW.Key'G && isJust (asParentAppState appS)) $ inf "GiveCell" $ do
+                  giveCellFromParentAS
 
                
                 when (k == GLFW.Key'M) $ do
@@ -721,6 +759,9 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
 
                 when (k == GLFW.Key'V) $ inf "CycleDrawMode" $ do
                   UI.modifyAppState (\s -> s { asDrawMode = rotateFrom (asDrawMode s) drawExprModes } )
+
+                when (k == GLFW.Key'Z) $ inf "DiveIn" $ do
+                  diveIn
 
                 when (k == GLFW.Key'A) $ do
                   case (isHcompSideAddrToAdd cub addr) of
@@ -869,9 +910,14 @@ modesEvents pem um@(UMHoleConflict {} ) ev = do
             when (ks == GLFW.KeyState'Pressed) $ do
               when (k == GLFW.Key'Enter) $ inf "Confirm" $ do
                 case (umMbResolution um) of
-                  Nothing -> setUserMode $ umNavigation (umEditedCell um)
-                  Just res -> do setFromCubNoFlush $ void $ resolveConflict (umFillHoleConflict um) res 
-                                 setUserMode $ Idle --umNavigation (umEditedCell um)
+                  Nothing -> do setUserMode $ umNavigation (umEditedCell um)
+                                consolePrint $ ""
+                  Just res -> do let mbRC = resolveConflict (umFillHoleConflict um) res 
+                                 case mbRC of
+                                   Just rc -> do setFromCubNoFlush $ void $ rc 
+                                                 setUserMode $ Idle --umNavigation (umEditedCell um)
+                                                 consolePrint $ ""
+                                   Nothing -> consolePrint $ "confilct resolution via " ++ show res ++ "failed" 
 
               when (k == GLFW.Key'Q) $ inf "Abort" $ do
                 setUserMode $ umNavigation (umEditedCell um)
@@ -1015,6 +1061,7 @@ drawingInterpreter :: DrawingInterpreter ColorType
 drawingInterpreter =
   DrawingInterpreter []
    (\case
+      1 -> Just (toRenderablesIgnore . embed 2 (const 0) . embed 1 (const 0.5))
       2 -> Just (toRenderablesIgnore . embed 2 (const 0))
       3 -> Just toRenderablesIgnore
 
@@ -1235,19 +1282,26 @@ getHoveredAddress = do
       cub = asCub appS
   w <- gets UI.stateWindowWidth
   h <- gets UI.stateWindowHeight
-  case getDim $ asCub appS of
-    2 -> do let (mX , mY) = mouseToModel2d w h (x , y)
-                cutoffDist = 100.0 / fromIntegral h
-                clickPoints =   mkDrawCub ClickPoints (ee , ctx) cub                 
-                              & fmap (first head)
-                              & filter (\([x' , y'] , _ ) -> (abs (x' - mX) < cutoffDist) && (abs (y' - mY) < cutoffDist) )
-                mDist ([x' , y'] , _ ) = (x' - mX) ^ 2 + (y' - mY) ^ 2
+  let dd = (getDim $ asCub appS) 
+  case (dd) < 3 of
+    True -> do let (mX , mY) = case dd of
+                                 1 -> (mouseToModel1d w h (x , y) , 0.5)
+                                 2 -> mouseToModel2d w h (x , y)
+                   cutoffDist = 100.0 / fromIntegral h
+                   cpFilter =
+                      \case
+                         ([x' , y'] , _ ) -> (abs (x' - mX) < cutoffDist) && (abs (y' - mY) < cutoffDist)
+                         ([x'] , _ ) -> (abs (x' - mX) < cutoffDist)
+                   clickPoints =   mkDrawCub ClickPoints (ee , ctx) cub                 
+                                  & fmap (first head)
+                                  & filter cpFilter
+                   mDist ([x' , y'] , _ ) = (x' - mX) ^ 2 + (y' - mY) ^ 2
             -- consolePrint $ show (length clickPoints)
-            return $
-              case clickPoints of
-                  [] -> Nothing
-                  _ -> Just $ fst $ fst $ snd $ minimumBy (compare `on` mDist)
-                               clickPoints
+               return $
+                   case clickPoints of
+                       [] -> Nothing
+                       _ -> Just $ fst $ fst $ snd $ minimumBy (compare `on` mDist)
+                                    clickPoints
             
     _ -> return Nothing
 

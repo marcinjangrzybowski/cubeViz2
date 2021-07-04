@@ -45,14 +45,13 @@ import GHC.Stack.Types ( HasCallStack )
 
 
 data ClCub b = ClCub {clCub :: FromLI SubFace (OCub b)}
-  deriving (Show ,  Functor)
+  deriving (Show ,  Functor , Eq)
 
 data CylCub b = CylCub {cylCub :: FromLI SubFace (Maybe (OCub b))}
-  deriving (Functor)
+  deriving (Functor , Eq)
 
---everywhere but on fullSF, this would be place to introduce Boundary LI
-data BdCub b = BdCub {bdCub :: FromLI SubFace (OCub b)}
-  deriving (Functor)
+data BdCub b = BdCub {bdCub :: FromLI BdSubFace (OCub b)}
+  deriving (Show,Functor , Eq)
 
 instance (Show b) => Show (CylCub b) where
   show x = showMbFLI (cylCub x)
@@ -60,7 +59,7 @@ instance (Show b) => Show (CylCub b) where
 data OCub b =
     Cub Int b (Maybe CellExpr)
   | Hcomp b (Maybe Name) (CylCub b) (ClCub b)
-  deriving (Show ,  Functor)
+  deriving (Show ,  Functor, Eq)
 
 
 
@@ -450,11 +449,10 @@ cAddrWithSubFaces cub x =
 
 
 
-bdCubPickSF :: SubFace -> BdCub a -> ClCub a
-bdCubPickSF sfc _ | isFullSF sfc = error "you cannot pick full SF from Bd"
-bdCubPickSF sfc (BdCub (FromLI n mp)) = ClCub $
-   FromLI (n - subFaceCodim sfc)
-          (mp . flip injSubFace sfc)
+bdCubPickSF :: BdSubFace -> BdCub a -> ClCub a
+bdCubPickSF bdsfc (BdCub (FromLI n mp)) = ClCub $
+   FromLI (n - bdSubFaceCodim bdsfc)
+          (mp . sf2BdSubFace . (flip injSubFace (bd2SubFace bdsfc)))
 
 clCubPickSF :: SubFace -> ClCub a -> ClCub a
 clCubPickSF sfc (ClCub (FromLI n mp)) = ClCub $
@@ -468,9 +466,7 @@ clInterior (ClCub (FromLI n mp)) = mp (fullSF n)
 
 clBoundary :: ClCub a -> BdCub a
 clBoundary x =
-    let g sf c | isFullSF sf = error "you cannot ask for interoir of border! - todo special LI for borders..."
-        g sf c  = c
-    in BdCub (fromLIppK g (clCub x))
+   BdCub $ proMap bd2SubFace (clCub x)
 
 uncurryCl :: (BdCub b -> OCub b -> a) -> (ClCub b -> a)
 uncurryCl f x = f (clBoundary x) (clInterior x)
@@ -843,9 +839,9 @@ cubMapTravWithB g f xxx@(ClCub xx) = ClCub <$>
      cm addr@(Address sf0 tla) bd ocub@(Hcomp b mbNm cyl btm) =
           do b2 <- g (getDim ocub) addr bd b mbNm cyl btm
              let cylBd :: SubFace -> BdCub b
-                 cylBd sf = BdCub $ elimSubFaceSideLI
+                 cylBd sf = clBoundary $ ClCub $ elimSubFaceSideLI
                           (clCub (clCubPickSF sf btm))
-                          (clCub (bdCubPickSF sf bd))
+                          (clCub (bdCubPickSF (sf2BdSubFace sf) bd))
                           (FromLI (subFaceDimEmb sf) ( \sf' -> fromJust $ appLI (injSubFace sf' sf) (cylCub cyl) ))
 
              cyl2 <- CylCub <$> traverseMapLI
@@ -985,6 +981,10 @@ instance Foldable OCub where
 
 instance Foldable ClCub where
   foldMap f (ClCub w) = foldMap (foldMap f) w
+
+instance Foldable BdCub where
+  foldMap f (BdCub w) = foldMap (foldMap f) w
+
 
 instance Foldable CylCub where
   foldMap f (CylCub w) = mconcat $ fmap (foldMap f ) $ catMaybes $ toListFLI w
@@ -1508,6 +1508,12 @@ fromVal1 :: PreUnificationResult a1 a2 -> a1
 fromVal1 (Val1 a1 _) = a1
 fromVal1 _ = undefined
 
+fromAgreement :: PreUnificationResult a1 a2 -> (a1 , a2)
+fromAgreement (Agreement a1 a2) = (a1 , a2)
+fromAgreement _ = undefined
+
+
+
 instance Bifunctor (PreUnificationResult) where
   bimap f g x =
     case x of
@@ -1654,6 +1660,11 @@ preUnifyClCub :: ClCub a1 -> ClCub a2 -> ClCub (PreUnificationResult a1 a2)
 preUnifyClCub (ClCub (FromLI aN _)) (ClCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
 preUnifyClCub (ClCub (FromLI n f1)) (ClCub (FromLI _ f2)) =
   ClCub (FromLI n (\sf -> preUnifyOCub (f1 sf) (f2 sf)))
+
+preUnifyBdCub :: BdCub a1 -> BdCub a2 -> BdCub (PreUnificationResult a1 a2)
+preUnifyBdCub (BdCub (FromLI aN _)) (BdCub (FromLI bN _)) | aN /= bN = error "not maching dim of cubs"
+preUnifyBdCub (BdCub (FromLI n f1)) (BdCub (FromLI _ f2)) =
+  BdCub (FromLI n (\sf -> preUnifyOCub (f1 sf) (f2 sf)))
 
 
 -- unifyClCub :: ClCub a1 -> ClCub a2 -> ClCub (PreUnificationResult a1 a2)
@@ -1859,21 +1870,63 @@ substAtHole x caddr cub =
 
 -- this function is Unsafe, becpuse it will not even throw error if <cub> do not fits, it will simply output ill produced term
 
-substInsideHoleUnsafe :: forall a1 a2. ClCub a1 -> CAddress -> OCub a2 -> ClCub (Maybe a1 , Maybe a2)
-substInsideHoleUnsafe x caddr oCub = 
+clearCell :: CAddress -> ClCub a -> ClCub (Bool , a)
+clearCell caddr clcub =
+  let tracked = traceConstraints clcub (Set.singleton caddr)
+      f n addr x =
+        case (oCubPickTopLevelData x) of
+          (Nothing , _) -> Identity Nothing 
+          y@(Just k , a) -> Identity $ Just $ (Cub n y Nothing) 
+  in (fmap (first isJust)) $ runIdentity $ cubMapMayReplace f tracked
+
+clearCellWithFreeSF :: CAddress -> ClCub a -> ClCub (Bool , a)
+clearCellWithFreeSF caddr clcub' =
+  let clcub =  clearCell caddr clcub'
+      tracked = traceConstraints clcub (Set.filter (isFreeAddressClass clcub ) $ cAddrWithSubFaces clcub caddr)
+      f n addr x =
+        case (oCubPickTopLevelData x) of
+          (Nothing , _) -> Identity Nothing 
+          y@(Just k , _) -> Identity $ Just $ (Cub n y Nothing) 
+  in (fmap (\(b , (b' , a)) -> ((isJust b) || b' , a))) $ runIdentity $ cubMapMayReplace f tracked
+
+
+substInside :: forall a1 a2. OCub a2 -> CAddress -> ClCub a1 -> (ClCub (Maybe a1 , Maybe a2))
+substInside oCub caddr x = 
   ff (fmap (( , Nothing ) . Just ) x)
 
   where
     holeDim = addresedDim $ head $ Set.toList (cAddress caddr)
 
-    ff :: ClCub (Maybe a1 , Maybe a2) -> ClCub (Maybe a1 , Maybe a2)    
+    ff :: ClCub (Maybe a1 , Maybe a2) -> (ClCub (Maybe a1 , Maybe a2))    
     ff y =
-      let f n addr x = Identity $
+      let f n addr x = Identity $ 
             if Set.member addr (cAddress caddr)
-            then 
-              (if isHole x then
-              (Just $  fmap (( Nothing ,) . Just) oCub)
-               else (error "caddr points does not point at a hole!" ) )
+            then (Just $  fmap (( Nothing ,) . Just) oCub)               
             else Nothing
           
       in runIdentity (cubMapMayReplace f y)
+
+
+substInsideHole :: forall a1 a2. ClCub a1 -> CAddress -> OCub a2 -> Maybe (ClCub (Maybe a1 , Maybe a2))
+substInsideHole x caddr oCub = 
+  ff (fmap (( , Nothing ) . Just ) x)
+
+  where
+    holeDim = addresedDim $ head $ Set.toList (cAddress caddr)
+
+    ff :: ClCub (Maybe a1 , Maybe a2) -> Maybe (ClCub (Maybe a1 , Maybe a2))    
+    ff y =
+      let f n addr x = 
+            if Set.member addr (cAddress caddr)
+            then 
+              (if isHole x then
+              (Just (Just $  fmap (( Nothing ,) . Just) oCub))
+               else (Nothing) )
+            else Just Nothing
+          
+      in (cubMapMayReplace f y)
+
+
+substInsideHoleUnsafe :: forall a1 a2. ClCub a1 -> CAddress -> OCub a2 -> ClCub (Maybe a1 , Maybe a2)
+substInsideHoleUnsafe x caddr oCub = 
+  fromJust $ substInsideHole x caddr oCub

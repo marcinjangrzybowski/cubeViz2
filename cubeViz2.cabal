@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3ec7099e5e24e47aeedf6011a63e049429b6643f9964372595e974e118b7f71b
+-- hash: 80e7a45cd0d3d77086d2aaecd9c7a29c16d93cb2bf44de6a3dabdb3ec726b1d3
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -71,6 +71,7 @@ library
     , finite-typelits
     , lattices
     , mtl
+    , nonempty-containers
     , parsec
     , pretty
     , pretty-terminal
@@ -104,6 +105,7 @@ executable cubeViz2-exe
     , finite-typelits
     , lattices
     , mtl
+    , nonempty-containers
     , parsec
     , pretty
     , pretty-terminal
@@ -138,6 +140,7 @@ test-suite cubeViz2-test
     , finite-typelits
     , lattices
     , mtl
+    , nonempty-containers
     , parsec
     , pretty
     , pretty-terminal

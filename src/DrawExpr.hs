@@ -150,7 +150,7 @@ fillCub fillStyle x = foldFL (fmap fillCubAt  [1..(getDim x)]) x
 
                 filledSF sf =
                   let d0 = collectAndOrientOnlyInterior
-                         $ bdCubPickSF sf dBd
+                         $ bdCubPickSF (sf2BdSubFace sf) dBd
                       pmf = piramFn defaultCompPar
                       d1 = extrude (subFaceDimEmb sf + 1)
                             (pmf , const 1.0)

@@ -39,6 +39,7 @@ import Algebra.Lattice
 
 import GHC.Stack.Types ( HasCallStack )
 
+import qualified Data.Map.NonEmpty as NEM
 
 factorial :: Int -> Int
 factorial n =
@@ -163,6 +164,9 @@ class Ord a => ListInterpretable a b | a -> b where
   rotateLI k a = enumerate (sizeLI a) $ mod (unemerate a + k) (cardLi a)
 
 instance OfDim SubFace where
+  getDim = sizeLI
+
+instance OfDim BdSubFace where
   getDim = sizeLI
 
 instance OfDim Face where
@@ -337,6 +341,13 @@ instance ListInterpretable Face (Maybe Bool) where
 
 
 data FromLI a c = FromLI Int (a -> c)
+
+instance (ListInterpretable a b , Eq c) => Eq (FromLI a c) where
+  x == y = (toListFLI  x) == (toListFLI  y)
+
+proMap :: (a -> b) -> (FromLI b c) -> (FromLI a c)
+proMap g (FromLI n f) = (FromLI n (f . g))
+
 
 instance OfDim (FromLI a c) where
   getDim (FromLI n _) = n
@@ -700,3 +711,57 @@ superFacesOutside sfs sf =
 --   else if (all (flip Set.member sfs ) superSF)
 --        then Inside
 --        else OnBd $ Set.difference (Set.fromList superSF) sfs
+
+
+
+
+data BdSubFace = BdSubFace Int (NEM.NEMap Int Bool)
+  deriving (Eq , Ord, Show)
+
+
+instance ListInterpretable BdSubFace (Maybe Bool) where
+  cardLI _ n = (3 ^ n - 1)
+
+  enumerate n = fromListLI . f n . (+ 1)
+    where
+      f :: Int -> Int -> [Maybe Bool]
+      f 0 _ = []
+      f n k =
+        (case mod k 3 of
+           0 -> Nothing
+           i -> Just (i == 2)
+        ) : f (n - 1) (k `div` 3)
+
+  unemerate = (flip (-) 1) .  f . toListLI
+    where
+      f :: [Maybe Bool] -> Int
+      f [] = 0
+      f (Nothing : l) = 3 * f l
+      f ((Just False) : l) = 1 + 3 * f l
+      f ((Just True) : l) = 2 + 3 * f l
+
+
+  toListLI (BdSubFace n s) = map (`NEM.lookup` s) (range n)
+
+  fromListLI l =
+     BdSubFace (length l)
+      $ NEM.unsafeFromMap
+      $ Map.fromList
+      $ mapMaybe (\(i , x) -> fmap (i,) x) (zip [0..] l)
+
+bd2SubFace :: BdSubFace -> SubFace
+bd2SubFace (BdSubFace n x) = (SubFace n (NEM.toMap x))
+
+sf2BdSubFace :: SubFace -> BdSubFace
+sf2BdSubFace (SubFace n x) = (BdSubFace n (NEM.unsafeFromMap x))
+
+
+
+bdSubFaceCodim :: BdSubFace -> Int
+bdSubFaceCodim = subFaceCodim . bd2SubFace
+
+bdSubFaceDimEmb :: BdSubFace -> Int
+bdSubFaceDimEmb = subFaceDimEmb . bd2SubFace
+
+allBdSubFaces :: Int -> [BdSubFace]
+allBdSubFaces n = sortBy (\a b -> compare (subFaceDimEmb $ bd2SubFace a) (subFaceDimEmb $ bd2SubFace b) ) (genAllLI n)
