@@ -165,6 +165,10 @@ instance OfDim (OCub b) where
 instance OfDim Address where
   getDim (Address sf _) = getDim sf
 
+instance OfDim CAddress where
+  getDim = getDim . toAddress
+
+
 instance OfDim AddressPart where
   getDim (AOnCylinder sf) = getDim sf
   getDim (AOnBottom sf) = getDim sf
@@ -1131,20 +1135,20 @@ toClCub :: (Env , Context) -> Expr -> ClCub ()
 
 toClCub  (env , ct@(Context _ dims)) expr =
   -- trace ("\n\n" ++  show dims ++ "\n" ++ toString (env , ct) expr ++ "\n")
-
+          
          ClCub $ fromLIppK
                   (\sfc ->
                         -- trace ( (show (getDim (env , addSFConstraintToContext sfc ct)))  ++ "\n---\n" ++ show ee ++ "\n---\n"
                         --                  ++  show (toOCub ((env , addSFConstraintToContext sfc ct) , e))
                         --                  ++ "\n---\n")
-                        toOCub (env , addSFConstraintToContext sfc ct)
+                         (toOCub (env , addSFConstraintToContext sfc ct))
                         -- if (isFullSF sfc)
                         -- then toOCub ((env , addSFConstraintToContext sfc ct) , e)
                         -- else (Cub 0 () Nothing)
                           -- if (subFaceCodim sfc == 1)
                         --      then (toOCub ((env , addSFConstraintToContext sfc ct) , e))
                         --      else (Cub 0 () Nothing)
-                        )
+                  )
                      (exprSubFaces ct expr)
 --    ClCub (FromLI (getDim ct) (\sf -> Cub (subFaceDimEmb sf) () Nothing))
 
@@ -1651,7 +1655,7 @@ preUnifyOCub e1@(Hcomp x1 nameA sidesA btmA) e2@(Hcomp x2 nameB sidesB btmB) =
                   nameU
                   x
                   btmU
-        (CylUAgreement _, False) -> error "imposible" -- TODO: why?  
+        (_, False) -> Cub (getDim e1) (Conflict e1 e2 ) Nothing  
      
 preUnifyOCub e1 e2 =
    Cub (getDim e1) (Conflict e1 e2 ) Nothing
@@ -1890,6 +1894,7 @@ clearCellWithFreeSF caddr clcub' =
   in (fmap (\(b , (b' , a)) -> ((isJust b) || b' , a))) $ runIdentity $ cubMapMayReplace f tracked
 
 
+-- this is UNSAFE!!! -- may produce ill terms!
 substInside :: forall a1 a2. OCub a2 -> CAddress -> ClCub a1 -> (ClCub (Maybe a1 , Maybe a2))
 substInside oCub caddr x = 
   ff (fmap (( , Nothing ) . Just ) x)

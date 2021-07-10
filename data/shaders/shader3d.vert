@@ -15,9 +15,12 @@ out vec3 screenPos;
 
 out float vMode;
 
-layout(location = 0) uniform vec3 euler;
+layout(location = 0) uniform vec4 euler;
 layout(location = 1) uniform vec2 screen;
-layout(location = 4) uniform float scale;
+layout(location = 4) uniform float scaleG;
+
+layout(location = 5) uniform vec2 screenDelta;
+
 
 mat4 anglesToAxes(in vec3 angles)
 {
@@ -72,6 +75,8 @@ main()
 
    vCol = Color;
 
+   float scale = scaleG * euler.w;
+
    vNor = Normal;
    vMode = Mode;
 
@@ -109,9 +114,12 @@ main()
                   (
 		   (
 		     vec4(sx , sy , 0.1 , 1.0)  *
-		    ( anglesToAxes(euler) *
+		    ( anglesToAxes(euler.xyz) *
 		   (vec4(2.0 , 2.0 , 2.0 , 1.0) * ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
-		      - vec4(0.5 , 0.5 , 0.5 , 0.0)))))));
+		      - vec4(0.5 , 0.5 , 0.5 , 0.0)))))))
+		       + vec4(screenDelta.x,screenDelta.y,0.0,0.0) ;
+
+
 
    worldPos = vPosition.xyz;
    screenPos = (gl_Position.xyz)/gl_Position.w;

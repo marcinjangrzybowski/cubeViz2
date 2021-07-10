@@ -541,7 +541,7 @@ exprFaces :: Context -> Expr -> FromLI Face Expr
 exprFaces ctx e =
    let n = getDim ctx
    in FromLI n
-        (\fc ->
+        (\fc -> 
            substProj ctx (fcToSubFace2 ctx fc) e
         ) 
 

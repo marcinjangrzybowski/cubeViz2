@@ -352,6 +352,10 @@ proMap g (FromLI n f) = (FromLI n (f . g))
 instance OfDim (FromLI a c) where
   getDim (FromLI n _) = n
 
+
+eqDim :: (OfDim a , OfDim b) => a -> b -> Bool
+eqDim a b = getDim a == getDim b
+
 instance (ListInterpretable a b , Semigroup c) => Semigroup (FromLI a c) where
  (<>) (FromLI i f) (FromLI j g) =
     if i == j
@@ -400,8 +404,8 @@ mkFaceLI l = FromLI (length l) (\(Face _ (k , b)) -> pickFromPair b (l !! k))
 instance Functor (FromLI a) where
   fmap f (FromLI n g) = FromLI n (f . g)
 
-instance (Show c ,  ListInterpretable a b) => (Show (FromLI a c)) where
-  show x = unwords . map show $ toList x
+instance (Show a , Show c ,  ListInterpretable a b) => (Show (FromLI a c)) where
+  show x = intercalate "\n" . map show $ Map.toList $ toMapFLI x
 
 showMbFLI :: (Show c ,  Show a , ListInterpretable a b) =>
                FromLI a (Maybe c) -> String

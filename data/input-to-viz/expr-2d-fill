@@ -1,8 +1,7 @@
 Goal: A
-Elaborates to: hcomp {ℓ} {A} {(~ j ∧ l) ∨ (j ∧ i ∧ l)}
-	   (λ k →
-	      primPOr {ℓ} (~ j ∧ l) (j ∧ i ∧ l ) {λ _ → A} (λ _ → p (i ∨ k) ) (λ _ → q (k ∧ ~ k) ) )
-	   (p (l ∧ i ))
+Elaborates to: hcomp {ℓ} {A} {( j ∧ i)}
+	   (λ k → λ _ → x)
+	   (x)
 ———— Boundary ——————————————————————————————————————————————
 i = i0 ⊢ hcomp {ℓ} {A} {~ j ∨ j}
          (λ j₁ →
@@ -27,7 +26,6 @@ i = i1 ⊢ hcomp {ℓ} {A} {~ j ∨ j}
 j = i0 ⊢ x
 j = i1 ⊢ v
 ————————————————————————————————————————————————————————————
-l : I
 j : I
 i : I
 s : _≡_ {ℓ} {A} w v

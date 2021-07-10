@@ -126,18 +126,42 @@ collectAndOrientOnlyInterior x =
     f sf y | isFullSF sf = y
            | otherwise = Cub (subFaceDimEmb sf) [] Nothing
 
-fillCub ::  forall b. Extrudable b => (Drawing b -> Drawing b) -> ClCub (Drawing b) -> ClCub (Drawing b)
-fillCub fillStyle x = foldFL (fmap fillCubAt  [1..(getDim x)]) x
+fillCub ::  forall b. Extrudable b => (Drawing b -> Drawing b) -> (Drawing b -> Drawing b)
+                     -> ClCub (Drawing b) -> ClCub (Drawing b)
+fillCub fillStyle bleedStyle x = foldFL (fmap fillCubAt  [1..(getDim x)]) x
 
   where
     fillCubAt :: Extrudable b => Int -> ClCub (Drawing b) -> ClCub (Drawing b)
     fillCubAt k = cubMapWithB funAtComp funAtCell
       where
 
+
+        
         funAtCell :: Extrudable b =>  Int -> Address -> BdCub (Drawing b) -> Drawing b
                       -> Maybe CellExpr
                       -> Drawing b
-        funAtCell _ _ _ x _ = x
+        funAtCell n _ bd x y = if n > 2 then x else
+          case y of
+            Just _ -> x
+            Nothing ->
+               let l = map (first bd2SubFace) $ filter (not . isHole . snd) $ Map.toList (toMapFLI $ bdCub bd)
+                   sfToBleed = filter (not . (isCoveredIn (Set.fromList $ (fst <$> l))) . fst ) $ l
+                   hBleed (sf , d) =
+                     let crnr = map (second fromJust) $ filter (isJust . snd) $ zip [0..] $ toListLI sf
+                         d0 = collectAndOrientOnlyInterior
+                              $ bdCubPickSF (sf2BdSubFace sf) bd
+                     in foldl'
+                           (flip $ \(k , b) ->
+                              let bleedPar = 0.03
+                                  (s , e) =
+                                     if b
+                                     then (const 1.0 , const $ 1.0 - bleedPar)
+                                     else (const 0.0 , const bleedPar)
+                              in extrude k (s,e)
+                           ) d0 crnr 
+                   hsBleed = concatMap hBleed sfToBleed
+               in bleedStyle hsBleed ++ x 
+               
 
         funAtComp :: Extrudable b => Int -> Address -> BdCub (Drawing b) -> Drawing b
                        -> Maybe Name
@@ -237,12 +261,15 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
         finalProcess d
       $ collectAndOrient
       $ cubMap (\n addr b _ _ _ -> nodeStyleProcess d dctx n addr b) (\_ _ x _ -> x)
-      $ fillCub (fillStyleProcess d)
+      $ fillCub (fillStyleProcess d) (holeBleedStyleProcess d)
       $ drawAllCells d envCtx clcub
 
 
   fillStyleProcess :: d -> Drawing b -> Drawing b
   fillStyleProcess d = id
+
+  holeBleedStyleProcess :: d -> Drawing b -> Drawing b
+  holeBleedStyleProcess d _ = []
 
 
   finalProcess :: d -> Drawing b -> Drawing b
@@ -276,6 +303,9 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
     if dptShowFill d
     then mapStyle (addTag "filling") drw
     else []
+
+  holeBleedStyleProcess d drw =
+    mapStyle (addTag "holeBleed") drw
 
   nodeStyleProcess spt ee n addr drw =
     case dptCursorAddress spt of

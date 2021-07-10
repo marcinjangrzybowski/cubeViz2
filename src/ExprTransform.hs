@@ -129,7 +129,7 @@ ct2CAddress = \case
 
 
 type SubstAtConflict a1 a2 = ((CAddress , (ClCub a1 ,ClCub a2)),
-                  BdCub (PreUnificationResult (a1 , Address) (a2 , Address)))
+                  ClCub (PreUnificationResult (a1 , Address) (a2 , Address)))
 
 data SubstAtConflictResolutionStrategy =
     ClearOutwards
@@ -169,17 +169,17 @@ instance Show CubTransformationError where
 
 
 preSubstAt :: forall a1 a2. ClCub a1 -> CAddress -> ClCub a2 ->
-                  BdCub (PreUnificationResult (a1 , Address) (a2 , Address))
-preSubstAt x caddr cub = preUnifyBdCub x' cub' 
+                  ClCub (PreUnificationResult (a1 , Address) (a2 , Address))
+preSubstAt x caddr cub = preUnifyClCub x' cub' 
      
 
   where
 
-    x' :: BdCub (a1 , Address)
-    x' = clBoundary $ fromJust $ clCubPick (toAddress caddr) $ cubMapWAddr (flip (,)) x
+    x' :: ClCub (a1 , Address)
+    x' = fromJust $ clCubPick (toAddress caddr) $ cubMapWAddr (flip (,)) x
 
-    cub' :: BdCub (a2 , Address)
-    cub' = clBoundary $ cubMapWAddr (flip (,)) cub
+    cub' :: ClCub (a2 , Address)
+    cub' = cubMapWAddr (flip (,)) cub
 
 -- preSubstAtCases :: forall a1 a2. 
 --                      ClCub (PreUnificationResult (a1 , Address) (a2 , Address))
@@ -201,7 +201,7 @@ applyTransform (ClearCell caddr WithFreeSubFaces) clcub = Right $ fmap fst $ cle
 
 applyTransform (SubstAt caddr cub) x =
   let p = preSubstAt x caddr cub
-  in if (all isAgreementQ p)
+  in if ((eqDim cub x) && (all isAgreementQ $ clBoundary p))
      then Right $ fmap (isJust . snd) $ substInside (clInterior cub) caddr x 
      else Left $ CubTransformationConflict $ ((caddr  , (x , cub )) , p ) 
 
@@ -369,10 +369,9 @@ resolveConflict :: forall a1 a2 . SubstAtConflict a1 a2 -> SubstAtConflictResolu
 resolveConflict fhc@((caddr , (outer , inner)) , p) ClearOutwards =
   do toV <- Map.toList <$> toVisit
         
-     let toV' = (toV ++ [(caddr,clInterior inner)])
-         outer'' = foldr (\ca -> (fmap snd) . (clearCell ca)) outer' (fst <$> toV') 
+     let outer'' = foldr (\ca -> (fmap snd) . (clearCell ca)) outer' (fst <$> toV) 
 
-     Just $ void $ foldr (\(ca , y) -> (fmap h) . substInside y ca) outer'' toV'  
+     Just $ void $ foldr (\(ca , y) -> (fmap h) . substInside y ca) outer'' toV 
 
   where
 
@@ -427,7 +426,60 @@ resolveConflict fhc@((caddr , (outer , inner)) , p) ClearOutwards =
   --     --      $ substAtTry caddr
   --     --      $ substAt cleared caddr (fhcCandidate fhc)
 
-resolveConflict fhc@((caddr , (outer , inner)) , p) ClearInwards = undefined
+resolveConflict fhc@((caddr , (outer , inner)) , p) ClearInwards =
+  if (not $ eqDim outer inner)
+  then error " ClearInwards resolution may be use only when dimension of inner term and outer term are equall" -- TODO prevent this to happen by hiding this option in such case
+  else do 
+        
+     toV <- Map.toList <$> toVisit
+        
+     let inner'' = foldr (\ca -> (fmap snd) . (clearCell ca)) inner' (fst <$> toV) 
+
+         newInner = clInterior $ void $ foldr (\(ca , y) -> (fmap h) . substInside y ca) inner'' toV
+
+     Just $ void $ substInside newInner caddr outer 
+
+  where
+
+    h :: (Maybe (Maybe a0, Maybe a2), Maybe a0) -> (Maybe a0, Maybe a2)
+    h (x , y) = (y , join $ fmap snd x) 
+
+                                                    
+    inner' = fmap ((Nothing ,) . Just) inner 
+
+    -- todo move outside together with similar one from ClearOutwards
+    fromInnerSubst :: (PreUnificationResult (a1 , Address) (a2 , Address))
+                       -> Maybe (CAddress , OCub a1)
+    fromInnerSubst = 
+        (fmap $ (\x -> (addressClass inner (snd (snd x))
+                                         , clInterior $ fromJust $ clCubPick (snd (fst x)) outer ) )) .
+      \case
+          Val1 a1 (Just a2) -> Just (a1 , a2)
+          Val2 (Just a1) a2 -> Just (a1 , a2)      
+          Conflict (cub1) (cub2) ->
+            Just (oCubPickTopLevelData cub1 , oCubPickTopLevelData cub2)
+
+          Mixed a1 a2 -> Nothing
+          Agreement _ _ -> Nothing
+          Val1 _ Nothing -> Nothing
+          Val2 Nothing _ -> Nothing
+    
+    p' :: BdCub (Maybe (CAddress , OCub a1))
+    p' = clBoundary $ fmap fromInnerSubst p  
+
+    toVisit :: Maybe (Map.Map CAddress (OCub a1)) 
+    toVisit = 
+      foldrM (\(ca , y) z ->
+                case Map.lookup ca z of
+                  Nothing -> Just (Map.insert ca y z)
+                  Just y' -> if (void y') == (void y)
+                             then Just z
+                             else Nothing
+                        
+                    )         
+                 
+        Map.empty (catMaybes $ toList (p'))
+
   -- let caddrList = Set.toList $ Set.map ((addressClass $ fhcCandidate fhc) . snd) $ fhcConflictingAddresses fhc
   --     cleared = foldl
   --                 (\cu caddr' -> either (error "fatal") void

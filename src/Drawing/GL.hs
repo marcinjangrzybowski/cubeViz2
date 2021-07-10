@@ -180,6 +180,8 @@ data Viewport = Viewport
    { vpAlpha :: Float
    , vpBeta :: Float
    , vpGamma :: Float
+   , vpScale :: Float
+   , vpScreenDelta :: (Float , Float)
    }
   deriving Show
 
@@ -198,10 +200,10 @@ onDisplay win w h vp ds = do
   polygonSmooth $= Disabled
 
   
-  let vMat = Vector3 (vpAlpha vp * 360) (vpBeta vp * 360) (vpGamma vp * 360)  --75.0 0.0 $ 1.0 * (-35.0 + 1.0 * 50.0 * sin (0.7 * (realToFrac $ fromJust now)))
+  let vMat = Vector4 (vpAlpha vp * 360) (vpBeta vp * 360) (vpGamma vp * 360) (vpScale vp)  --75.0 0.0 $ 1.0 * (-35.0 + 1.0 * 50.0 * sin (0.7 * (realToFrac $ fromJust now)))
 
   
-  uniform (UniformLocation 0 ) $= (vMat :: Vector3 GLfloat)
+  uniform (UniformLocation 0 ) $= (vMat :: Vector4 GLfloat)
   uniform (UniformLocation 1 ) $= (Vector2 (fromIntegral w) (fromIntegral h) :: Vector2 GLfloat)
   case now of
     Just nowD -> uniform (UniformLocation 2 ) $= nowD
@@ -215,6 +217,7 @@ onDisplay win w h vp ds = do
     _ -> uniform (UniformLocation 3 ) $= (1 :: GLfloat)
 
   uniform (UniformLocation 4 ) $= (1.0 :: GLfloat)
+  uniform (UniformLocation 5 ) $= ((uncurry Vector2 (vpScreenDelta vp))  :: Vector2 GLfloat)
       
   bindVertexArrayObject $= Just verts
   drawArrays pm firstIndex numVertices

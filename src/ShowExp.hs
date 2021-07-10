@@ -137,8 +137,8 @@ asExpression = ssEnvExpr . asSession
 asViewportProc :: AppState -> Viewport
 asViewportProc appS =
   case getDim $ asCub appS of
-    1 -> Viewport 0 0 0
-    2 -> Viewport 0 0 0
+    1 -> Viewport 0 0 0 1.0 (0.0,0.0)
+    2 -> Viewport 0 0 0 1.0 (0.0,0.0)
     _ -> asViewport appS
 
 
@@ -365,7 +365,14 @@ initialize =
          return $ Just $
                    AppState
                     { fileName          = mbFName
-                    , asViewport        = Viewport { vpAlpha = 1/5 , vpBeta = 0 , vpGamma = -0.1 }
+                    , asViewport        =
+                        Viewport
+                          { vpAlpha = 1/5
+                          , vpBeta = 0
+                          , vpGamma = -0.1
+                          , vpScale = 0.5
+                          , vpScreenDelta = (0.0,0.0)
+                          }
                     , asDrawMode        = Scaffold -- Stripes --   --head drawExprModes
                     , asDragStartVP     = Nothing
                     , asSession         = initialSessionState
@@ -711,7 +718,21 @@ eventsGlobal pem ev =
 
 modesEvents :: PEMode -> UserMode -> UI.Event -> UIAppDesc ()
 
-modesEvents _ Idle ev = return ()
+modesEvents pem Idle ev = do
+     appS <- UI.getAppState
+     let cub = asCub appS
+         inf = helperPEM pem
+         addr = rootAddress (getDim cub)
+         addrClass = addressClass cub addr
+     handleCellManipulationEvents pem ev addr
+     case ev of
+
+         (UI.EventKey win k scancode ks mk) -> do
+
+                 when (k == GLFW.Key'Z && GLFW.modifierKeysControl mk
+                          && isJust (asParentAppState appS)) $ inf "GiveFromDive" $ do
+                   giveCellFromParentAS
+         _ -> return ()
 
 modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
      appS <- UI.getAppState
@@ -743,8 +764,9 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                 -- when (k == GLFW.Key'H) $ inf "EditHead" $ do
                 --   initEditHead addr
 
-                when (k == GLFW.Key'G && isJust (asParentAppState appS)) $ inf "GiveCell" $ do
-                  giveCellFromParentAS
+                when (k == GLFW.Key'G) $ inf "GiveCell" $ do
+                  initGiveCell addrClass
+
 
                
                 when (k == GLFW.Key'M) $ do
@@ -762,6 +784,11 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
 
                 when (k == GLFW.Key'Z) $ inf "DiveIn" $ do
                   diveIn
+
+                when (k == GLFW.Key'Z && GLFW.modifierKeysControl mk
+                         && isJust (asParentAppState appS)) $ inf "GiveFromDive" $ do
+                  giveCellFromParentAS
+
 
                 when (k == GLFW.Key'A) $ do
                   case (isHcompSideAddrToAdd cub addr) of
@@ -1296,7 +1323,9 @@ getHoveredAddress = do
                                   & fmap (first head)
                                   & filter cpFilter
                    mDist ([x' , y'] , _ ) = (x' - mX) ^ 2 + (y' - mY) ^ 2
-            -- consolePrint $ show (length clickPoints)
+                   mDist ([x'] , _ ) = (x' - mX) ^ 2 + (0.5 - mY) ^ 2
+               -- liftIO $ putStrLn $ show (mY)
+               
                return $
                    case clickPoints of
                        [] -> Nothing
