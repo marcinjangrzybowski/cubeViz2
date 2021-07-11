@@ -70,17 +70,20 @@ renderables2CVD =
     
     mkVs x (D.Triangle pts , shade) =
       let pos = fmap trpl2arr $ trpl2arr pts          
-      in x { triangleVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade) ++ [ fromIntegral (shadeMode shade) ]))
+      in x { triangleVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
+                                                     ++ [ fromIntegral (shadeMode shade) , fromIntegral ( shadeModeVFG shade) ]))
                 ++ triangleVs x }
 
     mkVs x (D.Line pts , shade) =
       let pos = fmap trpl2arr $ tpl2arr pts          
-      in x { lineVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade) ++ [ fromIntegral (shadeMode shade) ]))
+      in x { lineVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
+                                                     ++ [ fromIntegral (shadeMode shade) , fromIntegral ( shadeModeVFG shade)  ]))
                  ++ lineVs x }
 
     mkVs x (D.Point pt , shade) =
       let pos = fmap trpl2arr [pt]          
-      in x { pointVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade) ++ [ fromIntegral (shadeMode shade) ]))
+      in x { pointVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
+                                                     ++ [ fromIntegral ( shadeModeVFG shade)  , fromIntegral (shadeModeVFG shade) ]))
                  ++ pointVs x}  
       
     
@@ -125,7 +128,7 @@ initTrianglesResources pm vertices =
          vPosition = AttribLocation 0
 
 
-     let ofst = (2 * 3 * 4 + 1 * 4 * 4 + 1 * 1 * 4)
+     let ofst = (2 * 3 * 4 + 1 * 4 * 4 + 2 * 1 * 4)
      
      vertexAttribPointer vPosition $=
        (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset firstIndex))
@@ -169,6 +172,21 @@ initTrianglesResources pm vertices =
        (ToFloat, VertexArrayDescriptor 1 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2 + 4 * 4 * 1)))
      vertexAttribArray modePosition $= Enabled
 
+
+
+     visFlagBuffer <- genObjectName
+     bindBuffer ArrayBuffer $= Just visFlagBuffer
+     withArray vertices $ \ptr -> do
+       let size = fromIntegral (numVertices * sizeOf (head vertices))
+       bufferData ArrayBuffer $= (size, ptr, StaticDraw)
+
+     let visFlagPosition = AttribLocation 4
+ 
+     vertexAttribPointer visFlagPosition $=
+       (ToFloat, VertexArrayDescriptor 1 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2 + 4 * 4 * 1 +  1 * 4 * 1)))
+     vertexAttribArray visFlagPosition $= Enabled
+
+
      return $ Descriptor pm triangles firstIndex (fromIntegral (div (length vertices) elemsPerVert) ) defaultLineWidth
 
 
@@ -185,8 +203,8 @@ data Viewport = Viewport
    }
   deriving Show
 
-onDisplay :: Window -> Int -> Int -> Viewport -> Descriptor -> IO ()
-onDisplay win w h vp ds = do
+onDisplay :: Window -> Int -> Int -> VizGroupFlag -> Viewport -> Descriptor -> IO ()
+onDisplay win w h vgf vp ds = do
 
   -- GL.clear [GL.DepthBuffer]
   blend $= Disabled
@@ -218,13 +236,14 @@ onDisplay win w h vp ds = do
 
   uniform (UniformLocation 4 ) $= (1.0 :: GLfloat)
   uniform (UniformLocation 5 ) $= ((uncurry Vector2 (vpScreenDelta vp))  :: Vector2 GLfloat)
-      
+  uniform (UniformLocation 6 ) $= ((fromIntegral vgf) :: GLfloat)
+    
   bindVertexArrayObject $= Just verts
   drawArrays pm firstIndex numVertices
 
 
-onDisplayAll :: Window -> Int -> Int -> Viewport -> [Descriptor] -> IO ()
-onDisplayAll win w h vp = void . sequence . map (onDisplay win w h vp) 
+onDisplayAll :: Window -> Int -> Int -> VizGroupFlag -> Viewport -> [Descriptor] -> IO ()
+onDisplayAll win w h vfg vp = void . sequence . map (onDisplay win w h vfg vp) 
 
 mouseToModel1d :: Int -> Int -> (Double , Double) -> (Float)
 mouseToModel1d w h (x , y) =

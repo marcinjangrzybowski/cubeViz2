@@ -4,6 +4,7 @@ layout(location = 0) in vec4 vPosition;
 layout(location = 1) in vec3 Normal;
 layout(location = 2) in vec4 Color;
 layout(location = 3) in float Mode;
+layout(location = 4) in float VisFlagF;
 
 
 out vec4 vCol;
@@ -21,11 +22,14 @@ layout(location = 4) uniform float scaleG;
 
 layout(location = 5) uniform vec2 screenDelta;
 
+layout(location = 6) uniform float VisF;
+
 
 mat4 anglesToAxes(in vec3 angles)
 {
     const float DEG2RAD = acos(-1) / 180.0;  // PI/180
     float sx, sy, sz, cx, cy, cz, theta;
+
 
     vec3 left, up, forward ;
 
@@ -110,15 +114,25 @@ main()
       sy = scale * aspect;
    }
 
-   gl_Position =
-                  (
-		   (
-		     vec4(sx , sy , 0.1 , 1.0)  *
-		    ( anglesToAxes(euler.xyz) *
-		   (vec4(2.0 , 2.0 , 2.0 , 1.0) * ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
-		      - vec4(0.5 , 0.5 , 0.5 , 0.0)))))))
-		       + vec4(screenDelta.x,screenDelta.y,0.0,0.0) ;
+   highp int VisFlag = int(VisFlagF);
+   highp int Vis = int(VisF);
 
+   int VisRes = Vis & VisFlag;
+
+   if(VisRes!=0){
+      gl_Position =
+		     (
+		      (
+			vec4(sx , sy , 0.1 , 1.0)  *
+		       ( anglesToAxes(euler.xyz) *
+		      (vec4(2.0 , 2.0 , 2.0 , 1.0) * ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
+			 - vec4(0.5 , 0.5 , 0.5 , 0.0)))))))
+			  + vec4(screenDelta.x,screenDelta.y,0.0,0.0) ;
+   }
+   else
+   {
+      gl_Position = vec4(0.0,0.0,0.0,0.0);
+   }
 
 
    worldPos = vPosition.xyz;

@@ -14,6 +14,8 @@ import qualified Data.Foldable
 
 import Control.Applicative
 
+import Data.Bits
+
 tpl2arr (x , y) = [x , y]
 trpl2arr (x , y , z) = [x , y , z]
 
@@ -216,3 +218,10 @@ pushUniq x xs | elem x xs = xs
 safeZip :: [a] -> [b] -> [(a , b)]
 safeZip [] [] = []
 safeZip (x : xs) (y : ys) = (x , y) : safeZip xs ys
+
+
+mkFlag :: [Int] -> Int
+mkFlag = foldl setBit 0
+
+mkFlag1 :: [Int] -> Int
+mkFlag1 = foldl setBit 1

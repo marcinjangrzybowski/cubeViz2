@@ -65,6 +65,10 @@ import Debug.Trace
 
 import ExprParser (parseExpr)
 
+import Layout
+
+import Data.Bits
+
 data Msg =
     LoadFile String
   | LoadGrid
@@ -326,6 +330,34 @@ main =
        , UI.uiUpdateGLDescriptor         = updateGL
        }
 
+usualVFG = 1
+
+
+maxOptionBoxSize = 0.25
+
+additionalsToRender :: [Descriptor] -> AppState -> [(Viewport , (VizGroupFlag,[Descriptor]))]
+additionalsToRender descriptors appS = opts
+
+  where
+    vp0 = asViewportProc appS
+    
+    optsVp l = (zip (optionsViewports maxOptionBoxSize (length l) vp0) l)
+
+    um = asUserMode appS
+    
+    opts :: [(Viewport , (VizGroupFlag,[Descriptor]))]
+    opts =
+        if getDim (asCub appS) /= 3 then []
+        else
+          
+          case um of
+            UMNavigation {} ->
+              let addr = umCoursorAddress um                  
+              in optsVp $ [ ( setBit 2 (2 + unemerate f) , descriptors)
+                          | f <- genAllLI (addresedDim addr) :: [Face]] 
+            _ -> []
+
+
 render
   :: GLFW.Window
      -> Int
@@ -335,9 +367,18 @@ render
 render win w h descriptors =
    do
       viewport <- UI.getsAppState asViewportProc
-      liftIO $ onDisplayAll win w h viewport descriptors
+      liftIO $ onDisplayAll win w h usualVFG viewport descriptors      
       currTime <- fmap utctDayTime $ liftIO getCurrentTime
       UI.modifyAppState (\s -> s { asTime = currTime })
+      (UI.getsAppState (additionalsToRender descriptors)) >>=
+         (\l -> 
+            liftIO (traverse
+                      (\(vp , (vgf , desc)) ->
+                           (onDisplayAll win w h vgf vp desc)
+                       )
+                      l
+                     )
+         )  
       -- UI.flushDisplay
       return ()
 
@@ -356,8 +397,8 @@ initialize =
          
      currTime <- fmap utctDayTime $ liftIO getCurrentTime
 
-     (peristentPrintF , _) <- liftIO $ Fd.openFile "/dev/pts/2"  WriteMode True
-     peristentPrintH <- liftIO $ mkFileHandle peristentPrintF "/dev/pts/2" WriteMode (Just utf8) noNewlineTranslation 
+     (peristentPrintF , _) <- liftIO $ Fd.openFile "/dev/pts/0"  WriteMode True
+     peristentPrintH <- liftIO $ mkFileHandle peristentPrintF "/dev/pts/0" WriteMode (Just utf8) noNewlineTranslation 
 
      case mbInitialSessionState of
        Right initialSessionState -> do
@@ -393,6 +434,9 @@ initialize =
           liftIO $ putStrLn errorMsg
           return Nothing
 
+
+navToRoot :: UIApp ()
+navToRoot = join (UI.getsAppState (setUserMode . umNavigation . rootAddress . getDim . asCub))
 
 -- withePersistentH :: 
 
@@ -731,7 +775,10 @@ modesEvents pem Idle ev = do
 
                  when (k == GLFW.Key'Z && GLFW.modifierKeysControl mk
                           && isJust (asParentAppState appS)) $ inf "GiveFromDive" $ do
-                   giveCellFromParentAS
+                       giveCellFromParentAS
+                       
+                 when (isArrowKey k) $ inf "" navToRoot
+                 
          _ -> return ()
 
 modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do

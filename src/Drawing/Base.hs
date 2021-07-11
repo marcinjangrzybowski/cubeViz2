@@ -83,6 +83,7 @@ type Pt3D = (Float , Float , Float)
 
 data Renderable = Point Pt3D | Line (Pt3D , Pt3D) | Triangle (Pt3D , Pt3D , Pt3D)
 
+
 type Renderables = [(Renderable,Shade)]
 
 

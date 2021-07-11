@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 {-# LANGUAGE FlexibleInstances #-}
@@ -19,7 +20,7 @@ import Data.Maybe
 import Data.Either
 
 import Control.Applicative
-
+import Control.Monad
 import qualified Data.Bifunctor as Bf
 
 import qualified Data.Map as Map
@@ -48,6 +49,8 @@ import DataExtra
 import GenericCell
 
 import Debug.Trace
+
+import Data.Bits
 
 defaultCompPar = 0.3
 
@@ -383,9 +386,24 @@ instance Shadelike ColorType where
                               (_ , _ , True , _) -> 3
                               (_ , _ , _ , True) -> 4
                               _ -> 0
+              vfg = foldl setBit 1 $ catMaybes
+                     $ map (\case
+                               'v':'f':'g':'T' :i -> Just $ read i
+                               _ -> Nothing
+                           )
+                       tags
+
+              vfg' = foldl clearBit vfg $ catMaybes
+                     $ map (\case
+                               'v':'f':'g':'F':i -> Just $ read i
+                               _ -> Nothing
+                           )
+                       tags
           in
           Shade { shadeColor = c
                 , shadeMode = shadeMode
+                , shadeModeVFG = vfg'
+                     
                 }
 
 data ScaffoldPT = ScaffoldPT
@@ -488,6 +506,10 @@ cursorDrw node1Fix cpt k addr =
            if node1Fix then (Just addr == cptSecCursorAddress cpt) else
               maybe False (not . isInternalAddress)
             $ flip mbSubAddress addr =<< cptSecCursorAddress cpt
+
+         faceSelScaffS =
+             (( ["faceSelectorScaff" , "vfgF0","vfgT1"] , ExtrudeLines) , gray 1.2)
+           
               
          scaffS =
             case (partOfSelectedCellBndr , partOfSecSelectedCellBndr) of
@@ -495,12 +517,23 @@ cursorDrw node1Fix cpt k addr =
                (_ , True) -> (( ["cellBorder" , "cursorSec"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
                (_ , _) -> (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
          scaff = if k <= 1 
-             then Bf.second (const scaffS) <$> unitHyCube k
+             then ((Bf.second (const scaffS) <$> unitHyCube k)
+                    ++ (Bf.second (const faceSelScaffS) <$> unitHyCube k))
              else []
 
      in if partOfSelectedCellBndr || partOfSecSelectedCellBndr 
         then scaff
         else []
+
+
+faceSelectorDrw :: Int -> Maybe CAddress -> Address -> Drawing ColorType
+faceSelectorDrw k = \case
+  Nothing -> \_ -> []
+  Just cAddr -> \addr ->
+    let z = nub $ catMaybes $ (join . (fmap toFace) . (flip mbSubFaceAddr addr)) <$> (Set.toList (cAddress cAddr))
+    in Bf.second (const (( ["faceSelector","vfgF0"]
+                             ++ [ "vfgT" ++ (show $ ((unemerate f) + 2) ) | f <- z]
+                         , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)) <$> unitHyCube k
 
 instance DrawingCtx (Env , Context) ColorType Int CursorPT where
   fromCtx _ = id
@@ -509,13 +542,15 @@ instance DrawingCtx (Env , Context) ColorType Int CursorPT where
 
   drawD _ _ k = FromLI k (const [])
 
-  nodePainterCommon cpt _ k addr _ _ _ = 
-    if (k==1) then
-    cursorDrw True cpt k addr
-    else []
+  nodePainterCommon cpt _ k addr _ _ _ =
+    faceSelectorDrw k (snd <$> cptCursorAddress cpt) addr ++
+    (if (k==1) then
+     cursorDrw True cpt k addr
+     else []) 
     
-  drawCellCommon cpt k addr _ _ = cursorDrw False cpt k addr
-
+  drawCellCommon cpt k addr _ _ =
+    faceSelectorDrw k (snd <$> cptCursorAddress cpt) addr
+    ++ cursorDrw False cpt k addr 
   fillStyleProcess _ _ = []
 
   -- finalProcess _ d = d
@@ -673,4 +708,3 @@ instance DrawingCtx (Env , Context) (ColorType2 Address) Int FaceHandles where
 
 
 -- -- -- drawExpr = mkDrawExpr (forget Stripes1)
-

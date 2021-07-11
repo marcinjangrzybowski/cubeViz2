@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 80e7a45cd0d3d77086d2aaecd9c7a29c16d93cb2bf44de6a3dabdb3ec726b1d3
+-- hash: 1c2f745a4239d16a79017b364b3a2585a92b71fb8c22e08acd2fe89a750b065f
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -46,6 +46,7 @@ library
       GenericCell
       InteractiveParse
       InteractiveParseTests
+      Layout
       Lib
       LoadShaders
       PiecesEval

@@ -77,9 +77,13 @@ nthColor :: Int -> Color
 nthColor i = hsv (phiNumber * fromIntegral i * 360.0) 1.0 0.5
 
 
+type VizGroupFlag = Int
+
+
 data Shade =
    Shade { shadeColor :: Color
          , shadeMode :: Int
+         , shadeModeVFG :: VizGroupFlag
          }
 
 class Shadelike a where
@@ -87,12 +91,14 @@ class Shadelike a where
   toShade _ =
          Shade { shadeColor = (Rgba 0.5 0.5 0.5 1.0)
               , shadeMode = 0
+              , shadeModeVFG = 0
             }
          
 instance Shadelike Color where
   toShade c =
      Shade { shadeColor = c 
            , shadeMode = 0
+           , shadeModeVFG = 0
             }  
 
 
