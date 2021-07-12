@@ -378,3 +378,22 @@ unitHyCubeSkel n k =
         extrudeSeg (unitHyCubeSkel (n - 1) (k - 1))
 
 
+
+fattenSmplx :: Float -> Smplx -> [Smplx]
+fattenSmplx a [x] =
+  let dim = (length x)
+  in fst <$> (translate x $ scale a $ translate (replicate dim (-0.5) ) $ unitHyCubeSkel dim  (min dim 2))
+  
+fattenSmplx _ x = [x]
+
+
+fattenOn :: (a -> Bool) -> Float -> a -> Drawing a -> Drawing a
+fattenOn test x s =
+  concatMap (\d -> 
+              if (not $ test $ snd d)
+              then [d]
+              else (, s) <$> fattenSmplx x (fst d)
+
+            )
+  
+

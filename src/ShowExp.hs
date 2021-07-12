@@ -335,7 +335,9 @@ usualVFG = 1
 
 maxOptionBoxSize = 0.25
 
-additionalsToRender :: [Descriptor] -> AppState -> [(Viewport , (VizGroupFlag,[Descriptor]))]
+additionalsToRender :: [Descriptor]
+                        -> AppState
+                        -> [(Viewport , (VizGroupFlag,[Descriptor]))]
 additionalsToRender descriptors appS = opts
 
   where
@@ -345,7 +347,7 @@ additionalsToRender descriptors appS = opts
 
     um = asUserMode appS
     
-    opts :: [(Viewport , (VizGroupFlag,[Descriptor]))]
+
     opts =
         if getDim (asCub appS) /= 3 then []
         else
@@ -397,8 +399,8 @@ initialize =
          
      currTime <- fmap utctDayTime $ liftIO getCurrentTime
 
-     (peristentPrintF , _) <- liftIO $ Fd.openFile "/dev/pts/0"  WriteMode True
-     peristentPrintH <- liftIO $ mkFileHandle peristentPrintF "/dev/pts/0" WriteMode (Just utf8) noNewlineTranslation 
+     (peristentPrintF , _) <- liftIO $ Fd.openFile "/dev/pts/2"  WriteMode True
+     peristentPrintH <- liftIO $ mkFileHandle peristentPrintF "/dev/pts/2" WriteMode (Just utf8) noNewlineTranslation 
 
      case mbInitialSessionState of
        Right initialSessionState -> do
@@ -637,6 +639,20 @@ setFromCubNoFlush newCub = do
                                 })
 
 
+navAndfixCursorAddress :: Maybe Address -> UIApp ()
+navAndfixCursorAddress mba = do
+  appS <- UI.getAppState
+  let cub = asCub appS
+      y a =
+        if getDim a /= getDim cub
+        then navToRoot
+        else setUserMode $ umNavigation (fixAddress cub a)     
+
+  case (asCursorAddress appS , mba) of
+    (_ , Just a) -> y a
+    (Just a , _) -> y a
+    _ -> return ()
+ 
 
 transformExpr :: CubTransformation -> UIApp ()
 transformExpr trns =
@@ -649,7 +665,7 @@ transformExpr trns =
         (Left err) ->
             consolePrint $ "transform error: " ++ show err
         (Right newCub) -> do setFromCubNoFlush $ void newCub
-                             setUserMode (Idle)    
+                             navAndfixCursorAddress Nothing
                              
 printExprCode :: UIApp ()
 printExprCode =
@@ -744,21 +760,37 @@ eventsGlobal pem ev =
                    { asDragStartVP = Nothing }
                 
         (UI.EventKey win k scancode ks mk) ->
-              when (ks == GLFW.KeyState'Pressed) $ do
-                          -- Q, Esc: exit
-            when (k == GLFW.Key'Escape) $ inf "Quit" $
-              liftIO $ GLFW.setWindowShouldClose win True
-            when (k == GLFW.Key'P) $ inf "Print Expression" $
-              printExprCode
-            when (k == GLFW.Key'F) $ inf "Toggle Fillings" $
-              modifyDrawingPreferences
-                (\dp ->
-                   dp { dpShowFilling = not $ dpShowFilling dp })
+            when (ks == GLFW.KeyState'Pressed) $ do
+                             -- Q, Esc: exit
+               when (k == GLFW.Key'Escape) $ inf "Quit" $
+                 liftIO $ GLFW.setWindowShouldClose win True
+               when (k == GLFW.Key'P) $ inf "Print Expression" $
+                 printExprCode
+               when (k == GLFW.Key'F) $ inf "Toggle Fillings" $
+                 modifyDrawingPreferences
+                   (\dp ->
+                      dp { dpShowFilling = not $ dpShowFilling dp })
+               when (isDigitKey k && GLFW.modifierKeysAlt mk) $ inf "" $ 
+                 optionAction (fromJust (toDigitKey k))
         _ -> return ()
 
 
-
-
+optionAction :: Int -> UIApp ()
+optionAction j = do
+  pd <- (Set.toList . (Set.delete j)) <$> pressedDigits 
+  appS <- UI.getAppState
+  let um = asUserMode appS
+      cub = asCub appS
+  case um of
+    UMNavigation {} -> 
+         when (getDim (asCub appS) == 3 && length pd == 1) $ do
+          let addr = umCoursorAddress um
+              i = head pd
+              [iF , jF] = enumerate (addresedDim addr) . (flip (-) 1) <$> [i , j]
+          dragFaceOntoFace ((addressClass cub addr) , (iF , jF) )
+    _ -> return ()
+  
+  
 
 modesEvents :: PEMode -> UserMode -> UI.Event -> UIAppDesc ()
 
@@ -988,8 +1020,9 @@ modesEvents pem um@(UMHoleConflict {} ) ev = do
                                 consolePrint $ ""
                   Just res -> do let mbRC = resolveConflict (umFillHoleConflict um) res 
                                  case mbRC of
-                                   Just rc -> do setFromCubNoFlush $ void $ rc 
-                                                 setUserMode $ Idle --umNavigation (umEditedCell um)
+                                   Just rc -> do setFromCubNoFlush $ void $ rc
+                                                 navAndfixCursorAddress (Just (umEditedCell um))
+                                                 --setUserMode $ Idle --umNavigation (umEditedCell um)
                                                  consolePrint $ ""
                                    Nothing -> consolePrint $ "confilct resolution via " ++ show res ++ "failed" 
 

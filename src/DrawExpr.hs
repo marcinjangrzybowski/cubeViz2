@@ -553,7 +553,12 @@ instance DrawingCtx (Env , Context) ColorType Int CursorPT where
     ++ cursorDrw False cpt k addr 
   fillStyleProcess _ _ = []
 
-  -- finalProcess _ d = d
+  finalProcess _ =
+     fattenOn
+      ( elem "cursor" . fst . fst )
+      0.1
+      (( ["cellBorder" , "cursor"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
+      
 
 
 data ClickPoints = ClickPoints
