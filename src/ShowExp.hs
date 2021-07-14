@@ -399,8 +399,8 @@ initialize =
          
      currTime <- fmap utctDayTime $ liftIO getCurrentTime
 
-     (peristentPrintF , _) <- liftIO $ Fd.openFile "/dev/pts/2"  WriteMode True
-     peristentPrintH <- liftIO $ mkFileHandle peristentPrintF "/dev/pts/2" WriteMode (Just utf8) noNewlineTranslation 
+     (peristentPrintF , _) <- liftIO $ Fd.openFile "/dev/pts/1"  WriteMode True
+     peristentPrintH <- liftIO $ mkFileHandle peristentPrintF "/dev/pts/1" WriteMode (Just utf8) noNewlineTranslation 
 
      case mbInitialSessionState of
        Right initialSessionState -> do
@@ -654,6 +654,27 @@ navAndfixCursorAddress mba = do
     _ -> return ()
  
 
+addToContextAndFill :: Address -> UIApp ()
+addToContextAndFill addr = do
+  appS <- UI.getAppState
+  
+  let SessionState ee@(e , c) ss' ss'' ss''' = asSession appS
+      mbCTy =
+         fromBdCubTyMb
+            (e , contextAt c addr (asCub appS))
+            ((clBoundary $ fromJust (clCubPick addr (asCub appS))))  
+  case mbCTy of
+     Nothing -> liftIO $ putStrLn "todo: handle case when there is hole somewhere in bpundary"
+     Just cTy -> do
+       let (newC , i) = addVarToContext' c cTy "xxx"
+           caddr = addressClass (asCub appS) addr
+           n = addresedDim addr
+       UI.setAppState $
+             appS {
+                asSession = SessionState (e , newC ) ss' ss'' ss''' }  -- addVarToContext undefined
+       let newE = CellExpr (VarIndex i) $ (dim <$> [0..(n-1)])
+       transformExpr (SubstAt caddr (toClCubAt e newC (asCub appS) caddr newE ))      
+
 transformExpr :: CubTransformation -> UIApp ()
 transformExpr trns =
    do
@@ -873,6 +894,12 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                   case (isHcompSideAddrToAdd cub addr) of
                     Just (addr , sf) -> inf "Add side cell" $  transformExpr (AddSide (addressClass cub addr) sf )
                     Nothing -> return ()
+
+                when (k == GLFW.Key'C) $ do
+                  inf "Add to context and fill" $ addToContextAndFill addr
+                  
+
+
 
 
                 -- when (k == GLFW.Key'C) $ do

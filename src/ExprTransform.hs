@@ -201,7 +201,8 @@ applyTransform (ClearCell caddr WithFreeSubFaces) clcub = Right $ fmap fst $ cle
 
 applyTransform (SubstAt caddr cub) x =
   let p = preSubstAt x caddr cub
-  in if ((eqDim cub x) && (all isAgreementQ $ clBoundary p))
+      isHoleAtSubstSite = isHole $ clInterior (fromJust $ clCubPick (toAddress caddr) x)
+  in if ((all isAgreementQ $ clBoundary p) && (eqDim cub x || isHoleAtSubstSite))
      then Right $ fmap (isJust . snd) $ substInside (clInterior cub) caddr x 
      else Left $ CubTransformationConflict $ ((caddr  , (x , cub )) , p ) 
 

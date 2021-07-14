@@ -634,9 +634,13 @@ substProj ctx sf =
 -- TODO : how exacly those to function are related? descirbe their inputs and results in details
 
 deContextualizeFace :: Context -> Expr -> LExpr
-deContextualizeFace ctx e = ( unConstrainedDimsOnlyMb ctx , e) 
-
-    
+deContextualizeFace ctx e =
+   ( unConstrainedDimsOnlyMb ctx , e') 
+  where
+    e' = 
+      remapIExpInExpr
+               (fromJust . punchOutMany (Set.fromList $ constrainedDimsOnlyIds ctx) ) e
+               
 -- TODO :: arity checking!!
 contextualizeFace :: Context -> [IExpr] -> LExpr -> Expr
 contextualizeFace ctx@(Context _ dims) tl =
@@ -793,6 +797,10 @@ addBTyToEnv (Env ls bts) name (bTyId) = Env ls ((name , bTyId) : bts)
 addVarToContext :: Context -> CType -> String -> Context
 addVarToContext (Context t d) tm name = Context ((name , tm) : t) d
 
+addVarToContext' :: Context -> CType -> String -> (Context , Int)
+addVarToContext' x@(Context t d) tm name =
+   (addVarToContext x tm name , length t)
+
 addDimToContext :: Context -> Maybe String -> Context
 addDimToContext (Context t d) name = Context t ((name , Nothing) : d)
 
@@ -837,6 +845,10 @@ unConstrainedDimsOnlyMb (Context _ l) = map (fst) $ filter (isNothing . snd) $ l
 
 unConstrainedDimsOnlyIds :: Context -> [Int]
 unConstrainedDimsOnlyIds (Context _ l) = map snd $ filter (isNothing . snd . fst) $ zip (reverse l) [0..] 
+
+constrainedDimsOnlyIds :: Context -> [Int]
+constrainedDimsOnlyIds (Context _ l) = map snd $ filter (isJust . snd . fst) $ zip (reverse l) [0..] 
+
 
 (!!<) :: [a] -> Int -> Maybe a 
 l !!< i = look (length l - 1 - i) l

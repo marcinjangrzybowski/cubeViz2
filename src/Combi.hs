@@ -767,5 +767,9 @@ bdSubFaceCodim = subFaceCodim . bd2SubFace
 bdSubFaceDimEmb :: BdSubFace -> Int
 bdSubFaceDimEmb = subFaceDimEmb . bd2SubFace
 
+toBdSubFace :: Face -> BdSubFace
+toBdSubFace (Face n (i , b)) = BdSubFace n $ NEM.singleton i b
+
+
 allBdSubFaces :: Int -> [BdSubFace]
 allBdSubFaces n = sortBy (\a b -> compare (subFaceDimEmb $ bd2SubFace a) (subFaceDimEmb $ bd2SubFace b) ) (genAllLI n)

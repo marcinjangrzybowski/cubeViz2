@@ -24,6 +24,8 @@ import Data.List
 import Control.Applicative
 import Control.Monad
 
+import Control.Monad.State.Lazy
+
 
 import qualified Data.Foldable as Foldable
 
@@ -72,6 +74,16 @@ isHole _ = False
 
 --   second = fmap
 
+
+-- TODO : optimize by skipping checking of boundaries
+isHoleFreeO :: OCub b -> Bool
+isHoleFreeO (Cub _ _ (Nothing)) = False
+isHoleFreeO (Cub _ _ (Just _)) = True
+isHoleFreeO (Hcomp _ _ c b) =
+  isHoleFreeO (clInterior b) && all (maybe True isHoleFreeO) (cylCub c) 
+
+isHoleFreeBd :: BdCub b -> Bool
+isHoleFreeBd = all isHoleFreeO . bdCub
 
 
 data AddressPart = AOnCylinder SubFace | AOnBottom SubFace
@@ -157,6 +169,10 @@ rootAddress n = Address (fullSF n) []
 
 instance OfDim (ClCub b) where
   getDim (ClCub fli) = getDim fli
+
+instance OfDim (BdCub b) where
+  getDim (BdCub fli) = getDim fli
+
 
 instance OfDim (OCub b) where
   getDim (Cub n _ _) = n
@@ -993,8 +1009,9 @@ instance Foldable BdCub where
 instance Foldable CylCub where
   foldMap f (CylCub w) = mconcat $ fmap (foldMap f ) $ catMaybes $ toListFLI w
 
-
-
+-- untested !!!!
+isHoleFree :: ClCub a -> Bool
+isHoleFree x = execState (cubMapTrav (\_ _ _ _ _ _  -> return ()) (\_ _ _ z -> modify (&& (isJust z) )) x) True
 
 -- foldSubFaces :: (b -> a -> (Map.Map SubFace a) -> a) -> Cub b a -> a
 -- foldSubFaces f (Cub _ a) = a
@@ -1222,23 +1239,42 @@ fromClCub :: (Env , Context) -> ClCub () -> Expr
 fromClCub ee = fromOCub ee . getCenter  . clCub
 
 
+fromBdCubTyMb :: (Env , Context) -> BdCub () -> Maybe CType
+fromBdCubTyMb (e , c) x | isHoleFreeBd x = 
+        
+    Just $ CType (BType 0) $ [ 
+                              mapBoth
+                              (\b ->
+                                 let sf = (toBdSubFace (Face (getDim x) (i , b)))
+                                     c' = traceShowId $ addSFConstraintToContext (bd2SubFace sf) c                                     
+                                     y = fromOCub (e , c') $ appLI sf  (bdCub x)
+                                 in deContextualizeFace c' y
+                              )  
+                              (False , True)
+                           | i <- [0..((getDim x)-1)] ] 
+                       
 
-clCellType :: (Env , Context) -> BType -> Address -> ClCub () -> CType
-clCellType eee@(ee , ctx) btype addr clcub =
-  CType btype fcs
+ 
 
-    where
-      n = getDim clcub
+                       | otherwise = Nothing
 
-      f fc =
-        let sf = toSubFace fc
-            addr' = addressSubFace addr sf
-            cubFc = void $ fromMaybe (error "clCellType-error") $ clCubPick addr' clcub
-            ctx' = contextAt ctx addr clcub
-        in deContextualizeFace ctx' (fromClCub (ee , ctx') cubFc)
+
+-- clCellType :: (Env , Context) -> BType -> Address -> ClCub () -> CType
+-- clCellType eee@(ee , ctx) btype addr clcub =
+--   CType btype fcs
+
+--     where
+--       n = getDim clcub
+
+--       f fc =
+--         let sf = toSubFace fc
+--             addr' = addressSubFace addr sf
+--             cubFc = void $ fromMaybe (error "clCellType-error") $ clCubPick addr' clcub
+--             ctx' = contextAt ctx addr clcub
+--         in deContextualizeFace ctx' (fromClCub (ee , ctx') cubFc)
           
-      fcs = [ (f $ Face n (k , False)  , f $ Face n (k , True))
-             | k <- range n ] 
+--       fcs = [ (f $ Face n (k , False)  , f $ Face n (k , True))
+--              | k <- range n ] 
 
 
 -- deContextualizeAt :: (Env , Context) -> ClCub () -> CAddress -> LExpr

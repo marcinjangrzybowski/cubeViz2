@@ -49,11 +49,16 @@ rawSections x =
 
 data SessionState = SessionState (Env , Context) [(Expr , Expr)] BType Expr
 
+
+
+
 ssEnvExpr (SessionState ee _ _ e) = (ee , e)
 
 ssSetExpression :: SessionState -> Expr -> SessionState
 ssSetExpression (SessionState ee si bt _) e = (SessionState ee si bt e)
 
+ssAddToContext :: SessionState -> CType -> (SessionState , Int)
+ssAddToContext = undefined
 
 freshSessionState :: Int -> SessionState 
 freshSessionState dim =

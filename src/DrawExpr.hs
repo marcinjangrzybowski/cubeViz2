@@ -556,7 +556,7 @@ instance DrawingCtx (Env , Context) ColorType Int CursorPT where
   finalProcess _ =
      fattenOn
       ( elem "cursor" . fst . fst )
-      0.1
+      0.02
       (( ["cellBorder" , "cursor"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
       
 
