@@ -253,7 +253,6 @@ mouseToModel1d w h (x , y) =
             else ((x / fromIntegral w))
   in realToFrac p
 
-
 mouseToModel2d :: Int -> Int -> (Double , Double) -> (Float , Float)
 mouseToModel2d w h (x , y) =
   let p = 
@@ -261,6 +260,17 @@ mouseToModel2d w h (x , y) =
             then (((x - (fromIntegral (w - h) * 0.5)) / fromIntegral h)  , (y / fromIntegral h)  )
             else ((x / fromIntegral w) , (y - (fromIntegral (h - w) * 0.5)) / fromIntegral w)
   in second (\y -> 1.0 - y) $ (bimap realToFrac realToFrac) $ p
+
+model2Screen :: Int -> Int -> (Float , Float , Float) -> (Double , Double) 
+model2Screen w h (x , y , z) = 
+    let p = 
+            if w > h
+            then (((x - (fromIntegral (w - h) * 0.5)) / fromIntegral h)  , (y / fromIntegral h)  )
+            else ((x / fromIntegral w) , (y - (fromIntegral (h - w) * 0.5)) / fromIntegral w)
+  in undefined -- second (\y -> 1.0 - y) $ (bimap realToFrac realToFrac) $ p
+
+
+
 
   -- let (Descriptor pm1 verts1 firstIndex1 numVertices1) = ds1  
   -- bindVertexArrayObject $= Just verts1

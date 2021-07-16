@@ -882,12 +882,13 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                 when (k == GLFW.Key'V) $ inf "CycleDrawMode" $ do
                   UI.modifyAppState (\s -> s { asDrawMode = rotateFrom (asDrawMode s) drawExprModes } )
 
-                when (k == GLFW.Key'Z) $ inf "DiveIn" $ do
-                  diveIn
 
-                when (k == GLFW.Key'Z && GLFW.modifierKeysControl mk
-                         && isJust (asParentAppState appS)) $ inf "GiveFromDive" $ do
-                  giveCellFromParentAS
+                when (k == GLFW.Key'Z) $
+                  if (GLFW.modifierKeysControl mk)
+                  then (when (isJust (asParentAppState appS)) $
+                               inf "GiveFromDive" $ do giveCellFromParentAS)
+                  else (inf "DiveIn" $ do diveIn)
+                  
 
 
                 when (k == GLFW.Key'A) $ do
@@ -926,8 +927,8 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
 
                 when (k == GLFW.Key'S) $ do
                   if (GLFW.modifierKeysControl mk)
-                  then inf "todo" $ transformExpr (ClearCell addrClass WithFreeSubFaces )
-                  else inf "Insert Hcomp" $ transformExpr (SplitCell addrClass)  
+                  then inf "todo" $ transformExpr (SplitCell SubstWithSplited addrClass)
+                  else inf "Insert Hcomp" $ transformExpr (SplitCell AlsoSplitParents addrClass)  
 
 
                 when (isArrowKey k) $ do

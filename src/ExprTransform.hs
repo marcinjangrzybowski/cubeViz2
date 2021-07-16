@@ -6,6 +6,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
+
 
 module ExprTransform where
 
@@ -39,6 +41,7 @@ import Control.Monad.State.Strict
 import Control.Monad.Writer
 
 import ConsolePrint
+
 
 ntrace _ x = x
 
@@ -102,10 +105,13 @@ data ClearCellRegime =
 -- data ConstraintsOverrideRegime = NoConstraintsOverride | ConstraintsOverride ConstraintsOverrideStrategy
 
 data RemoveSideRegime = RSRRemoveLeavesAlso | RSRKeepLeaves
-   
+
+data SplitCellMode = AlsoSplitParents | SubstWithSplited
+
+                      
 data CubTransformation =
      ClearCell CAddress ClearCellRegime
-   | SplitCell CAddress
+   | SplitCell SplitCellMode CAddress
    | SubstAt CAddress (ClCub ())
    | RemoveSide CAddress (SubFace , RemoveSideRegime)
    | AddSide CAddress SubFace
@@ -121,7 +127,7 @@ data CubTransformation =
 ct2CAddress :: CubTransformation -> CAddress
 ct2CAddress = \case
      ClearCell x _ -> x
-     SplitCell x -> x
+     SplitCell _ x -> x
      SubstAt x _ -> x
      RemoveSide x _ -> x
      AddSide x _ -> x  
@@ -207,7 +213,10 @@ applyTransform (SubstAt caddr cub) x =
      else Left $ CubTransformationConflict $ ((caddr  , (x , cub )) , p ) 
 
 
-applyTransform (SplitCell caddr) clcub =
+applyTransform (SplitCell SubstWithSplited caddr) clcub =
+  error "todo"
+
+applyTransform (SplitCell AlsoSplitParents caddr) clcub =
   let tracked = traceConstraintsSingle clcub caddr
       f n addr x =
         case (oCubPickTopLevelData x) of
@@ -216,6 +225,8 @@ applyTransform (SplitCell caddr) clcub =
             (splitOCub sf (fromMaybe (error "bad address") (clCubPick addr clcub))) 
   in fmap (fmap (isJust . fst)) $ cubMapMayReplace f tracked
 
+
+applyTransform (RemoveSide caddr (sf , RSRRemoveLeavesAlso)) clcub = error "todo"
 
 applyTransform (RemoveSide caddr (sf , RSRKeepLeaves)) clcub = do
   let cub = fromJust $ clCubPick (toAddress caddr) clcub  
@@ -480,6 +491,10 @@ resolveConflict fhc@((caddr , (outer , inner)) , p) ClearInwards =
                     )         
                  
         Map.empty (catMaybes $ toList (p'))
+
+resolveConflict fhc@((caddr , (outer , inner)) , p) InflateInwards = error "todo"
+
+resolveConflict fhc@((caddr , (outer , inner)) , p) InflateOutwards = error "todo"
 
   -- let caddrList = Set.toList $ Set.map ((addressClass $ fhcCandidate fhc) . snd) $ fhcConflictingAddresses fhc
   --     cleared = foldl
