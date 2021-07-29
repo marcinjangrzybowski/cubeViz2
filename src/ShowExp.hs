@@ -1430,16 +1430,22 @@ getHoveredAddress = do
     True ->
       let m2s = model2Screen w h (asViewportProc appS)
 
-          clickPoints :: [((Double , Double) , Address)]
+          clickPoints :: [((Double , Double , Double) , Address)]
           clickPoints = mkDrawCub ClickPoints (ee , ctx) cub
                                   & embedDrawingIn3
                                   & fmap (Bf.bimap (m2s . head) (fst . fst))
                                   
-          mDist ((x , y) , _) = (x - mX) ^ 2 + (y - mY) ^ 2
+          mDist ((x , y , z) , _) = (x - mX) ^ 2 + (y - mY) ^ 2
 
-      in case clickPoints of
+          discardRadius = 12
+
+          getZ ((_ , _ , z) , _) = z
+
+          onlyNear = filter ((< (discardRadius ^ 2)) . mDist ) clickPoints
+
+      in case onlyNear of
            [] -> return Nothing
-           _ -> let (_ , nearestAddr) = minimumBy (compare `on` mDist) clickPoints          
+           _ -> let (_ , nearestAddr) = minimumBy (compare `on` getZ) onlyNear          
                 in return (Just nearestAddr)
       
       

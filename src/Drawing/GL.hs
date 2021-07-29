@@ -351,16 +351,16 @@ vec4TimesMat4 (xr , yr , zr , wr) (x , y , z , w) =
 
 
 
-model2Screen :: Int -> Int -> Viewport -> [Float] -> (Double , Double) 
+model2Screen :: Int -> Int -> Viewport -> [Float] -> (Double , Double ,Double)  
 model2Screen w h vp [pX , pY , pZ] = 
-  let p :: (Double , Double) -> (Double , Double)
-      p (x' , y') =
+  let p :: (Double , Double , Double) -> (Double , Double , Double)
+      p (x' , y' , z') =
             let y = 1.0 - ( (y' / 2.0) + 0.5 )
                 x = ( (x' / 2.0) + 0.5 )
                 (xx,yy) = if w > h
                           then ((((x * fromIntegral h) + (fromIntegral (w - h) * 0.5)))  , (y * fromIntegral h)  )
                           else ((x * fromIntegral w) , ((y * fromIntegral w) + (fromIntegral (h - w) * 0.5))  )
-            in (xx , yy)
+            in (xx , yy , z')
 
 
       vpCal :: (Double , Double , Double , Double) -> (Double , Double , Double , Double)
@@ -369,7 +369,10 @@ model2Screen w h vp [pX , pY , pZ] =
             (anglesToAxes ((realToFrac $ (vpAlpha vp) * 360) , (realToFrac $ (vpBeta vp) * 360)  , (realToFrac $ (vpGamma vp) * 360)))
 
   in   p
-     $ (\(x,y,_,w) -> ((realToFrac $ vpScale vp) * x/w , (realToFrac $ vpScale vp) * y/w))
+     $ (\(x,y,z,w) -> ( (realToFrac $ vpScale vp) * x/w
+                      , (realToFrac $ vpScale vp) * y/w
+                      , (realToFrac $ vpScale vp) * z/w
+                      ))
      $ vpCal
      $ (2.0 * (realToFrac pX - 0.5), 2.0 * (realToFrac pY - 0.5) , 2.0 * (realToFrac pZ - 0.5), 1.0)
 
