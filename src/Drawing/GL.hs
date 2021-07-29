@@ -261,14 +261,120 @@ mouseToModel2d w h (x , y) =
             else ((x / fromIntegral w) , (y - (fromIntegral (h - w) * 0.5)) / fromIntegral w)
   in second (\y -> 1.0 - y) $ (bimap realToFrac realToFrac) $ p
 
-model2Screen :: Int -> Int -> (Float , Float , Float) -> (Double , Double) 
-model2Screen w h (x , y , z) = 
-    let p = 
-            if w > h
-            then (((x - (fromIntegral (w - h) * 0.5)) / fromIntegral h)  , (y / fromIntegral h)  )
-            else ((x / fromIntegral w) , (y - (fromIntegral (h - w) * 0.5)) / fromIntegral w)
-  in undefined -- second (\y -> 1.0 - y) $ (bimap realToFrac realToFrac) $ p
 
+anglesToAxes :: (Double , Double , Double) ->
+                     ((Double , Double , Double , Double)
+                     ,(Double , Double , Double , Double)
+                     ,(Double , Double , Double , Double)
+                     ,(Double , Double , Double , Double)
+                     )
+anglesToAxes (anglesx , anglesy , anglesz) =
+   let dEG2RAD = acos (-1) / 180.0;  -- PI/180
+
+    -- rotation angle about X-axis (pitch)
+       thetaX = anglesx * dEG2RAD;
+       sx = sin(thetaX);
+       cx = cos(thetaX);
+
+    -- rotation angle about Y-axis (yaw)
+       thetaY = anglesy * dEG2RAD;
+       sy = sin(thetaY);
+       cy = cos(thetaY);
+
+    -- rotation angle about Z-axis (roll)
+       thetaZ = anglesz * dEG2RAD;
+       sz = sin(thetaZ);
+       cz = cos(thetaZ);
+
+    -- determine left axis
+       left = ( cy*cz
+              , sx*sy*cz + cx*sz 
+              , -cx*sy*cz + sx*sz , 0.0 )
+
+    -- determine up axis
+       up = ( -cy*sz
+            , -sx*sy*sz + cx*cz
+            , cx*sy*sz + sx*cz , 0.0 )
+
+    -- determine forward axis
+       forward   = ( sy
+                   , -sx*cy
+                   , cx*cy , 0.0 )
+
+   in -- (left , up , forward , (0.0,0.0,0.0,1.0))
+      ((cy*cz             , -cy*sz            , sy     , 0.0)
+      ,(sx*sy*cz + cx*sz  , -sx*sy*sz + cx*cz , -sx*cy , 0.0)
+      ,(-cx*sy*cz + sx*sz , cx*sy*sz + sx*cz  , cx*cy  , 0.0)
+      ,(0.0               , 0.0               , 0.0    , 1.0)
+      )
+
+frustum :: ((Double , Double , Double , Double)
+                     ,(Double , Double , Double , Double)
+                     ,(Double , Double , Double , Double)
+                     ,(Double , Double , Double , Double)
+                     )
+frustum =
+   let r = 1.0;
+       t = 1.0;
+       n = 0.1;
+       f = 3;
+       
+   in (( n/r , 0.0 , 0.0 , 0.0)
+      ,(0.0 , n/t , 0.0 , 0.0)
+      ,(0.0 , 0.0 , (-1.0 * (f + n)) /( f - n) , (-2.0 * f * n) /( f - n))
+      ,(0.0 , 0.0 , -1.0 , 0.0)
+      )
+
+
+vec4TimesMat4 :: 
+                 ((Double , Double , Double , Double)
+                     ,(Double , Double , Double , Double)
+                     ,(Double , Double , Double , Double)
+                     ,(Double , Double , Double , Double)
+                     ) -> (Double , Double , Double , Double) -> (Double , Double , Double , Double)
+vec4TimesMat4 (xr , yr , zr , wr) (x , y , z , w) =
+   (f xr , f yr , f zr , f wr)
+
+   where
+     f (xc , yc , zc , wc) = xc * x +  yc * y + zc * z + wc * w
+  
+
+-- (
+-- 		      (
+-- 			vec4(sx , sy , 0.1 , 1.0)  *
+-- 		       ( anglesToAxes(euler.xyz) *
+-- 		      (vec4(2.0 , 2.0 , 2.0 , 1.0) * ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
+-- 			 - vec4(0.5 , 0.5 , 0.5 , 0.0)))))))
+
+
+
+
+
+
+model2Screen :: Int -> Int -> Viewport -> [Float] -> (Double , Double) 
+model2Screen w h vp [pX , pY , pZ] = 
+  let p :: (Double , Double) -> (Double , Double)
+      p (x' , y') =
+            let y = 1.0 - ( (y' / 2.0) + 0.5 )
+                x = ( (x' / 2.0) + 0.5 )
+                (xx,yy) = if w > h
+                          then ((((x * fromIntegral h) + (fromIntegral (w - h) * 0.5)))  , (y * fromIntegral h)  )
+                          else ((x * fromIntegral w) , ((y * fromIntegral w) + (fromIntegral (h - w) * 0.5))  )
+            in (xx , yy)
+
+
+      vpCal :: (Double , Double , Double , Double) -> (Double , Double , Double , Double)
+      vpCal =
+            vec4TimesMat4
+            (anglesToAxes ((realToFrac $ (vpAlpha vp) * 360) , (realToFrac $ (vpBeta vp) * 360)  , (realToFrac $ (vpGamma vp) * 360)))
+
+  in   p
+     $ (\(x,y,_,w) -> ((realToFrac $ vpScale vp) * x/w , (realToFrac $ vpScale vp) * y/w))
+     $ vpCal
+     $ (2.0 * (realToFrac pX - 0.5), 2.0 * (realToFrac pY - 0.5) , 2.0 * (realToFrac pZ - 0.5), 1.0)
+
+  
+model2Screen _ _ _ x = error (show $ length x) 
 
 
 

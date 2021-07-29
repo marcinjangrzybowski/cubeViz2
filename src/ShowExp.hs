@@ -1192,7 +1192,15 @@ modalConsoleView um@(UMHoleConflict {}) = do
   
 modalConsoleView _ = return ()
 
-drawingInterpreter :: DrawingInterpreter ColorType
+embedDrawingIn3 :: Drawing a -> Drawing a
+embedDrawingIn3 = map  
+   (\x -> head $ ( case length (head (fst x)) of 
+             1 -> embed 2 (const 0) . embed 1 (const 0.5)
+             2 -> embed 2 (const 0)
+             3 -> id ) [x] 
+   )
+
+drawingInterpreter :: Shadelike a => DrawingInterpreter a
 drawingInterpreter =
   DrawingInterpreter []
    (\case
@@ -1412,33 +1420,51 @@ initGiveCell caddr = do
 getHoveredAddress :: UIApp (Maybe Address)
 getHoveredAddress = do
   appS <- UI.getAppState 
-  let (x , y) = asLastMousePos appS
+  let (mX , mY) = asLastMousePos appS
       ((ee , ctx ) , _) = asExpression appS
       cub = asCub appS
   w <- gets UI.stateWindowWidth
   h <- gets UI.stateWindowHeight
   let dd = (getDim $ asCub appS) 
-  case (dd) < 3 of
-    True -> do let (mX , mY) = case dd of
-                                 1 -> (mouseToModel1d w h (x , y) , 0.5)
-                                 2 -> mouseToModel2d w h (x , y)
-                   cutoffDist = 100.0 / fromIntegral h
-                   cpFilter =
-                      \case
-                         ([x' , y'] , _ ) -> (abs (x' - mX) < cutoffDist) && (abs (y' - mY) < cutoffDist)
-                         ([x'] , _ ) -> (abs (x' - mX) < cutoffDist)
-                   clickPoints =   mkDrawCub ClickPoints (ee , ctx) cub                 
-                                  & fmap (first head)
-                                  & filter cpFilter
-                   mDist ([x' , y'] , _ ) = (x' - mX) ^ 2 + (y' - mY) ^ 2
-                   mDist ([x'] , _ ) = (x' - mX) ^ 2 + (0.5 - mY) ^ 2
-               -- liftIO $ putStrLn $ show (mY)
+  case (dd) <= 3 of
+    True ->
+      let m2s = model2Screen w h (asViewportProc appS)
+
+          clickPoints :: [((Double , Double) , Address)]
+          clickPoints = mkDrawCub ClickPoints (ee , ctx) cub
+                                  & embedDrawingIn3
+                                  & fmap (Bf.bimap (m2s . head) (fst . fst))
+                                  
+          mDist ((x , y) , _) = (x - mX) ^ 2 + (y - mY) ^ 2
+
+      in case clickPoints of
+           [] -> return Nothing
+           _ -> let (_ , nearestAddr) = minimumBy (compare `on` mDist) clickPoints          
+                in return (Just nearestAddr)
+      
+      
+      
+        
+    -- True -> do let (mX , mY) = case dd of
+    --                              1 -> (mouseToModel1d w h (x , y) , 0.5)
+    --                              2 -> mouseToModel2d w h (x , y)
+    --                cutoffDist = 100.0 / fromIntegral h
+    --                cpFilter =
+    --                   \case
+    --                      ([x' , y'] , _ ) -> (abs (x' - mX) < cutoffDist) && (abs (y' - mY) < cutoffDist)
+    --                      ([x'] , _ ) -> (abs (x' - mX) < cutoffDist)
+    --                clickPoints =   mkDrawCub ClickPoints (ee , ctx) cub                 
+    --                               & fmap (first head)
+    --                               & filter cpFilter
+    --                mDist ([x' , y'] , _ ) = (x' - mX) ^ 2 + (y' - mY) ^ 2
+    --                mDist ([x'] , _ ) = (x' - mX) ^ 2 + (0.5 - mY) ^ 2
+    --            -- liftIO $ putStrLn $ show (mY)
                
-               return $
-                   case clickPoints of
-                       [] -> Nothing
-                       _ -> Just $ fst $ fst $ snd $ minimumBy (compare `on` mDist)
-                                    clickPoints
+    --            return $
+    --                case clickPoints of
+    --                    [] -> Nothing
+    --                    _ -> Just $ fst $ fst $ snd $ minimumBy (compare `on` mDist)
+    --                                 clickPoints
             
     _ -> return Nothing
 
