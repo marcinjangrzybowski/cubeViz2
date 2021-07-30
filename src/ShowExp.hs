@@ -88,8 +88,10 @@ data AppState = AppState
    { fileName             :: Maybe String
    , asSession            :: SessionState
    , asCub                :: ClCub ()
+   , asAddress2PointMap   :: Address2PointMap
    , asDrawMode           :: DrawExprMode
    , asViewport           :: Viewport
+   , asMainRenderables    :: Renderables
    , asDragStartVP        :: Maybe Viewport
    , asUserMode           :: UserMode
    , asMarkedCAddresses   :: [ CAddress ]
@@ -241,6 +243,10 @@ drawExpr as Scaffold ee e =
               [                
                 mkDrawCub (CursorPT { cptCursorAddress = sptCA
                                      , cptSecCursorAddress = sptSCA
+                                     , cptSelectedAddressCorners = 
+                                         fromMaybe Set.empty $ do
+                                           (a , _) <- sptCA
+                                           Map.lookup a (asAddress2PointMap as)
                                         })
 
                 ,
@@ -405,6 +411,7 @@ initialize =
      case mbInitialSessionState of
        Right initialSessionState -> do
          let (ee , expr) = ssEnvExpr initialSessionState
+             cub = toClCub ee expr 
          return $ Just $
                    AppState
                     { fileName          = mbFName
@@ -419,7 +426,8 @@ initialize =
                     , asDrawMode        = Scaffold -- Stripes --   --head drawExprModes
                     , asDragStartVP     = Nothing
                     , asSession         = initialSessionState
-                    , asCub             = toClCub ee expr
+                    , asCub             = cub
+                    , asAddress2PointMap = mkAddress2PointMap cub 
                     , asUserMode        = Idle --umNavigation (rootAddress (getDim ee))
                     , asKeyPressed      = False
                     , asMessage         = ""
@@ -431,6 +439,7 @@ initialize =
                     , asPeristentConsolePrint = \x -> hPutStr peristentPrintH x >> hPutChar peristentPrintH '\n'
                     , asPeristentHandle = peristentPrintH
                     , asParentAppState = Nothing
+                    , asMainRenderables = []
                     }
        Left errorMsg -> do
           liftIO $ putStrLn errorMsg
@@ -636,6 +645,7 @@ setFromCubNoFlush newCub = do
                in s { --asUserMode = um ,
                       asSession = newS
                      , asCub = newCub -- toCub $ ssEnvExpr newS
+                     , asAddress2PointMap = mkAddress2PointMap newCub
                                 })
 
 
@@ -751,20 +761,39 @@ eventsGlobal pem ev =
             dsVP <- UI.getsAppState asDragStartVP
             -- draggingView
             when (pressed) $ do
-              if (GLFW.modifierKeysShift mk)
-              then when (isNothing dsVP ) $ UI.modifyAppState $ \s -> s
+              mbAddr' <- getHoveredAddress
+              case (mbAddr' , GLFW.modifierKeysShift mk) of
+                (Just addr' , sh) ->
+                   if (sh && (addresedDim addr' == 0))
+                   then UI.modifyAppState (\s -> s { asDragStartAddress = mbAddr' })
+                   else do UI.modifyAppState (\s -> s { asUserMode = umNavigation $ addr' })
+                           UI.flushDisplay
+                (Nothing , False) ->
+                   UI.modifyAppState $ \s -> s
                       { asDragStartVP = Just (asViewport s) }
-              else do
-                 mbAddr' <- getHoveredAddress
-                 UI.modifyAppState (\s -> s { asDragStartAddress = mbAddr' })
+                _ -> return ()
+              -- if (not $ GLFW.modifierKeysShift mk)
+              -- then when (isNothing dsVP ) $ 
+              -- else do
+                 
+
                  
             when (released) $ do
               um <- UI.getsAppState asUserMode
               cub <- UI.getsAppState asCub
+              as <- UI.getAppState
               mbAddr' <- getHoveredAddress
               mbSda <- UI.getsAppState asDragStartAddress
-              when (umAllowSelect um && mbAddr' == mbSda && isJust mbSda) $ do                   
-                   UI.modifyAppState (\s -> s { asUserMode = umNavigation $ fromJust mbSda })
+              when (umAllowSelect um && mbAddr' == mbSda && isJust mbSda) $ do
+                   let sda = fromJust mbSda
+                       newSelection =
+                          case asCursorAddress as of
+                              Nothing -> sda 
+                              Just addr0 -> fromMaybe addr0 $
+                                  pointSelectStep cub (asAddress2PointMap as) addr0 sda
+                   --  =
+                   --      
+                   UI.modifyAppState (\s -> s { asUserMode = umNavigation $ newSelection })
                    UI.flushDisplay
               case (um , mbSda , mbAddr') of
                  (UMNavigation addrSel _ , Just addr0 , Just addr1 ) -> do
@@ -1219,12 +1248,12 @@ updateGL =
                       (fst (asExpression appState))
                       ((asCub appState))
       printConsoleView
-      do let tryToRen = toRenderableDI drawingInterpreter drawings
-         case tryToRen of
+      let tryToRen = toRenderableDI drawingInterpreter drawings
+      case tryToRen of
            Left msg -> error msg
-           Right rens ->
-
-             liftIO $ initResources $ snd rens
+           Right rens -> 
+             (UI.setAppState (appState {asMainRenderables = snd rens })) >>
+             (liftIO $ initResources $ snd rens)
 
    where
      printConsoleView :: UIApp ()

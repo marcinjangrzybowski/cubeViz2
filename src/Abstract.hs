@@ -26,6 +26,8 @@ import Control.Monad
 
 import Control.Monad.State.Lazy
 
+import Control.Monad.Writer.Lazy
+
 
 import qualified Data.Foldable as Foldable
 
@@ -1971,3 +1973,39 @@ substInsideHole x caddr oCub =
 substInsideHoleUnsafe :: forall a1 a2. ClCub a1 -> CAddress -> OCub a2 -> ClCub (Maybe a1 , Maybe a2)
 substInsideHoleUnsafe x caddr oCub = 
   fromJust $ substInsideHole x caddr oCub
+
+
+
+type Address2PointMap = Map.Map Address (Set.Set Address)
+
+
+mkAddress2PointMap :: forall a1 . ClCub a1 -> Address2PointMap
+mkAddress2PointMap  cub =  
+    execWriter (cubMapTravWithB f g wb)
+
+  where
+    wb :: ClCub (Address)
+    wb = cubMapWAddr (\a _ -> a) cub
+
+    h n addr bd = 
+       tell
+         $ Map.singleton addr
+         $ Set.fromList $ if n ==0 then [addr] else
+                             (  ( oCubPickTopLevelData . (flip appLI (bdCub bd)) . subsetToBdSubFace) <$> (genAllLI n))
+                 
+
+    f n addr bd _ _ _ _ = h n addr bd
+       
+    
+    g n addr bd _ _ = h n addr bd 
+
+    
+  
+
+pointSelectStep :: ClCub a -> Address2PointMap -> Address -> Address -> (Maybe Address)
+pointSelectStep cub a2pm addrSel addrPt =
+   let q = a2pm Map.! addrSel
+       z = Map.filter
+              (\s -> Set.member addrPt s && Set.isProperSubsetOf q s)
+              a2pm
+   in listToMaybe $ sortOn addresedDim $ Map.keys z

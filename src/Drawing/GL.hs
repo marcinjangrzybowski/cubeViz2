@@ -113,11 +113,6 @@ initTrianglesResources pm vertices =
 
          -- maskAttr = concat $ replicate numVertices mask0
 
-     arrayBuffer <- genObjectName
-     bindBuffer ArrayBuffer $= Just arrayBuffer
-     withArray vertices $ \ptr -> do
-       let size = fromIntegral (numVertices * sizeOf (head vertices))
-       bufferData ArrayBuffer $= (size, ptr, StaticDraw)
 
      program <- loadShaders [
         ShaderInfo VertexShader (FileSource "data/shaders/shader3d.vert"),
@@ -129,70 +124,80 @@ initTrianglesResources pm vertices =
 
 
      let ofst = (2 * 3 * 4 + 1 * 4 * 4 + 2 * 1 * 4)
-     
-     vertexAttribPointer vPosition $=
-       (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset firstIndex))
-     vertexAttribArray vPosition $= Enabled
+     let size = fromIntegral (numVertices * sizeOf (head vertices))
 
-     normalBuffer <- genObjectName
-     bindBuffer ArrayBuffer $= Just normalBuffer
+
      withArray vertices $ \ptr -> do
-       let size = fromIntegral (numVertices * sizeOf (head vertices))
+       arrayBuffer <- genObjectName
+       bindBuffer ArrayBuffer $= Just arrayBuffer
+
        bufferData ArrayBuffer $= (size, ptr, StaticDraw)
 
-     let normalPosition = AttribLocation 1
-
-     vertexAttribPointer normalPosition $=
-       (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 )))
-     vertexAttribArray normalPosition $= Enabled
+       vertexAttribPointer vPosition $=
+         (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset firstIndex))
+       vertexAttribArray vPosition $= Enabled
 
 
-     colorBuffer <- genObjectName
-     bindBuffer ArrayBuffer $= Just colorBuffer
-     withArray vertices $ \ptr -> do
-       let size = fromIntegral (numVertices * sizeOf (head vertices))
+
+       normalBuffer <- genObjectName
+       bindBuffer ArrayBuffer $= Just normalBuffer
+       
+       bufferData ArrayBuffer $= (size, ptr, StaticDraw)
+       let normalPosition = AttribLocation 1
+
+       vertexAttribPointer normalPosition $=
+         (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 )))
+       vertexAttribArray normalPosition $= Enabled
+
+
+
+
+       colorBuffer <- genObjectName
+       bindBuffer ArrayBuffer $= Just colorBuffer
+       
        bufferData ArrayBuffer $= (size, ptr, StaticDraw)
 
-     let colorPosition = AttribLocation 2
- 
-     vertexAttribPointer colorPosition $=
-       (ToFloat, VertexArrayDescriptor 4 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2)))
-     vertexAttribArray colorPosition $= Enabled
+       let colorPosition = AttribLocation 2
+
+       vertexAttribPointer colorPosition $=
+         (ToFloat, VertexArrayDescriptor 4 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2)))
+       vertexAttribArray colorPosition $= Enabled
 
 
-     modeBuffer <- genObjectName
-     bindBuffer ArrayBuffer $= Just modeBuffer
-     withArray vertices $ \ptr -> do
-       let size = fromIntegral (numVertices * sizeOf (head vertices))
+
+
+       modeBuffer <- genObjectName
+       bindBuffer ArrayBuffer $= Just modeBuffer
+       
        bufferData ArrayBuffer $= (size, ptr, StaticDraw)
+       let modePosition = AttribLocation 3
 
-     let modePosition = AttribLocation 3
- 
-     vertexAttribPointer modePosition $=
-       (ToFloat, VertexArrayDescriptor 1 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2 + 4 * 4 * 1)))
-     vertexAttribArray modePosition $= Enabled
-
+       vertexAttribPointer modePosition $=
+         (ToFloat, VertexArrayDescriptor 1 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2 + 4 * 4 * 1)))
+       vertexAttribArray modePosition $= Enabled
 
 
-     visFlagBuffer <- genObjectName
-     bindBuffer ArrayBuffer $= Just visFlagBuffer
-     withArray vertices $ \ptr -> do
-       let size = fromIntegral (numVertices * sizeOf (head vertices))
-       bufferData ArrayBuffer $= (size, ptr, StaticDraw)
 
-     let visFlagPosition = AttribLocation 4
- 
-     vertexAttribPointer visFlagPosition $=
-       (ToFloat, VertexArrayDescriptor 1 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2 + 4 * 4 * 1 +  1 * 4 * 1)))
-     vertexAttribArray visFlagPosition $= Enabled
+       visFlagBuffer <- genObjectName
+       bindBuffer ArrayBuffer $= Just visFlagBuffer
+       
+       bufferData ArrayBuffer $= (size, ptr, DynamicDraw)
+       let visFlagPosition = AttribLocation 4
 
-
-     return $ Descriptor pm triangles firstIndex (fromIntegral (div (length vertices) elemsPerVert) ) defaultLineWidth
+       vertexAttribPointer visFlagPosition $=
+         (ToFloat, VertexArrayDescriptor 1 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2 + 4 * 4 * 1 +  1 * 4 * 1)))
+       vertexAttribArray visFlagPosition $= Enabled
 
 
 
 
 
+       return $ Descriptor pm triangles firstIndex (fromIntegral (div (length vertices) elemsPerVert) ) defaultLineWidth
+
+
+
+updateAttribValues :: IO ()
+updateAttribValues = undefined
 
 data Viewport = Viewport
    { vpAlpha :: Float

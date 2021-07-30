@@ -486,6 +486,7 @@ instance DrawingCtx (Env , Context) ColorType Int (ConstraintsViewPT a) where
 data CursorPT = CursorPT
   { cptCursorAddress :: Maybe (Address , CAddress)
   , cptSecCursorAddress :: Maybe Address
+  , cptSelectedAddressCorners :: Set.Set Address
   }
 
 
@@ -509,13 +510,18 @@ cursorDrw node1Fix cpt k addr =
 
          faceSelScaffS =
              (( ["faceSelectorScaff" , "vfgF0","vfgT1"] , ExtrudeLines) , gray 1.2)
-           
+
+         isSelectedAddressCorner =
+            (Set.member addr $ cptSelectedAddressCorners cpt)
+              
+            
               
          scaffS =
-            case (partOfSelectedCellBndr , partOfSecSelectedCellBndr) of
-               (True , _) -> (( ["cellBorder" , "cursor"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
-               (_ , True) -> (( ["cellBorder" , "cursorSec"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
-               (_ , _) -> (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
+            case (partOfSelectedCellBndr , partOfSecSelectedCellBndr , isSelectedAddressCorner) of
+               (_ , _,True) -> (( ["cellBorder" , "cursor"] , ExtrudeLines) , Rgba 1.0 1.0 0.0 1.0)
+               (True , _,_) -> (( ["cellBorder" , "cursor"] , ExtrudeLines) , Rgba 0.7 0.7 0.7 1.0)
+               (_ , True,_) -> (( ["cellBorder" , "cursorSec"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
+               (_ , _,_) -> (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
          scaff = if k <= 1 
              then ((Bf.second (const scaffS) <$> unitHyCube k)
                     ++ (Bf.second (const faceSelScaffS) <$> unitHyCube k))
@@ -557,7 +563,7 @@ instance DrawingCtx (Env , Context) ColorType Int CursorPT where
      fattenOn
       ( elem "cursor" . fst . fst )
       0.02
-      (( ["cellBorder" , "cursor"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
+      id
       
 
 

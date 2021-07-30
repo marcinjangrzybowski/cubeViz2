@@ -80,6 +80,7 @@ data SubFace = SubFace Int (Map.Map Int Bool)
   deriving (Eq , Ord)
 
 
+
 sfMissing :: SubFace -> Subset
 sfMissing (SubFace n m) = Subset n (Set.difference (Set.fromList (range n)) (Map.keysSet m))
 
@@ -773,3 +774,7 @@ toBdSubFace (Face n (i , b)) = BdSubFace n $ NEM.singleton i b
 
 allBdSubFaces :: Int -> [BdSubFace]
 allBdSubFaces n = sortBy (\a b -> compare (subFaceDimEmb $ bd2SubFace a) (subFaceDimEmb $ bd2SubFace b) ) (genAllLI n)
+
+subsetToBdSubFace :: Subset -> BdSubFace
+subsetToBdSubFace x@(Subset n s) = if n == 0 then error "todo" else
+              fromListLI (Just <$> (toListLI x))

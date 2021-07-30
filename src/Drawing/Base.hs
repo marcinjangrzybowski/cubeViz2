@@ -387,12 +387,12 @@ fattenSmplx a [x] =
 fattenSmplx _ x = [x]
 
 
-fattenOn :: (a -> Bool) -> Float -> a -> Drawing a -> Drawing a
+fattenOn :: (a -> Bool) -> Float -> (a -> a) -> Drawing a -> Drawing a
 fattenOn test x s =
   concatMap (\d -> 
               if (not $ test $ snd d)
               then [d]
-              else (, s) <$> fattenSmplx x (fst d)
+              else (, s (snd d)) <$> fattenSmplx x (fst d)
 
             )
   
