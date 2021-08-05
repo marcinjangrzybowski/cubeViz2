@@ -304,7 +304,9 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
 
   fillStyleProcess d drw =
     if dptShowFill d
-    then mapStyle (addTag "filling") drw
+    then filter (\(_ , ((tags , em) , color)) ->
+               not ("zeroCellCPI" `elem` tags)
+           ) $ (mapStyle (addTag "filling") drw)
     else []
 
   holeBleedStyleProcess d drw =
@@ -330,7 +332,11 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
     -- then mapStyle (addTag "selected") drw
     -- else drw
 
-  drawCellCommon spt k addr _ _ = []
+  drawCellCommon spt k addr _ _ =
+     if k == 0 then
+     [
+       ( [[]] , ((["zeroCellCPI"] , Midpoints) , gray 0))
+     ] else []
      -- let partOfSelectedCellBndr =
      --          maybe False (not . isInternalAddress)
      --        $ flip mbSubAddress addr =<< dptCursorAddress spt
@@ -364,7 +370,9 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
            filter ((\((tags , em) , color) -> not ("filling" `elem` tags && "hole" `elem` tags)) . snd)
 
         removePoints = filter
-           (\(x , _) -> length x > 1)
+           (\(x , ((tags , em) , color)) ->
+              length x > 1 || ("zeroCellCPI" `elem` tags)
+           )
                  
     in
        removePoints

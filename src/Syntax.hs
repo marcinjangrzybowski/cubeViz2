@@ -801,6 +801,55 @@ addVarToContext' :: Context -> CType -> String -> (Context , Int)
 addVarToContext' x@(Context t d) tm name =
    (addVarToContext x tm name , length t)
 
+
+dimSpecyficGenericVarName :: Int -> Char
+dimSpecyficGenericVarName =
+  \case
+     0 -> 'x'
+     1 -> 'p'
+     2 -> 's'
+     3 -> 'c'
+     _ -> error "todo"
+  
+
+boundedSymbolsInCtx :: Context -> [String]
+boundedSymbolsInCtx (Context t d) = nub ((fst <$> t) ++ (catMaybes (fst <$> d) ))
+
+
+
+genFreshName :: [String] -> Char -> String 
+genFreshName xs c = c : (toSSnum <$> (show k) )
+
+  where
+    
+    k =
+       let l = zip [0..]
+               $ sort
+               $ catMaybes
+               $ map
+                (\case 
+                    x : xs ->
+                      if x /= c then Nothing
+                      else (((traverse fromSSnum xs) >>= TR.readMaybe ) :: Maybe Int) 
+                    _ -> error "empty name!") $
+                xs
+       in maybe (length l) fst
+        $ find (uncurry (/=) )
+        $ l
+
+genFreshVarName :: Context -> Int -> String
+genFreshVarName ctx n =
+    genFreshName (boundedSymbolsInCtx ctx) (dimSpecyficGenericVarName n)
+
+
+genFreshDimName :: Context -> String
+genFreshDimName ctx =
+    genFreshName (boundedSymbolsInCtx ctx) 'i'
+
+    
+    
+    
+
 addDimToContext :: Context -> Maybe String -> Context
 addDimToContext (Context t d) name = Context t ((name , Nothing) : d)
 
@@ -994,7 +1043,7 @@ class Codelike a where
 instance Codelike (Int , Bool) where
   toCode (_ , ctx) (i , b) =
     do s <- (getDimSymbol ctx i)
-       return ((if b then "" else "~ ")  ++ fromMaybe ("dim" ++ show i) s)
+       return ((if b then "" else "~ ")  ++ fromMaybe ("imposible?") s)
   
 instance Codelike IExpr where
   toCode eee x =  
@@ -1170,10 +1219,17 @@ toSSnum x =
   case TR.readMaybe [x] of
     Just d -> "₀₁₂₃₄₅₆₇₈₉" !! d
     Nothing -> x
+
+fromSSnum :: Char -> Maybe Char
+fromSSnum x =
+  case elemIndex x "₀₁₂₃₄₅₆₇₈₉" of
+    Just d -> Just (head (show d))
+    Nothing -> Nothing
+
       
 --"₀₁₂₃₄₅₆₇₈₉"
   
-genericDims n = (["i","j","k"] ++ [ "i" ++ map toSSnum (show i) | i <- range (n - 3) ])
+genericDims n = take n $ (["i","j","k"] ++ [ "i" ++ map toSSnum (show i) | i <- range (n - 3) ])
   
 mkExprGrid :: Int -> Int ->  ((Env , Context) , Expr)
 mkExprGrid n k = ((env , ctxTop) , meg ctxTop k) 

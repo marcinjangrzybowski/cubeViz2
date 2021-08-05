@@ -1340,7 +1340,8 @@ contextAtIns ctx addr (Hcomp _ nam si a) =
      case reverse addr of
         AOnCylinder sf : xs ->
            case appLI sf (cylCub si) of
-             Just y -> contextAtIns (addSFConstraintToContext sf (addDimToContext ctx nam)) (reverse xs) y
+             Just y ->
+               contextAtIns (addSFConstraintToContext sf (addDimToContext ctx (nam))) (reverse xs) y
              Nothing -> Nothing
         AOnBottom sf : xs -> contextAtSafe ctx (Address sf (reverse xs)) a 
         _ -> error "imposible, this case should be handled in ther firt clause"

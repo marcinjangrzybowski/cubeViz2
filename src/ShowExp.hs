@@ -143,6 +143,7 @@ asExpression = ssEnvExpr . asSession
 asViewportProc :: AppState -> Viewport
 asViewportProc appS =
   case getDim $ asCub appS of
+    0 -> Viewport 0 0 0 1.0 (0.0,0.0)
     1 -> Viewport 0 0 0 1.0 (0.0,0.0)
     2 -> Viewport 0 0 0 1.0 (0.0,0.0)
     _ -> asViewport appS
@@ -257,9 +258,9 @@ drawExpr as Scaffold ee e =
 
                           })
                 
-               , \ee e ->
-                    fmap (second $ const (([] , Basic ) , nthColor 3))
-                           (mkDrawCub FaceHandles ee e) 
+               -- , \ee e ->
+               --      fmap (second $ const (([] , Basic ) , nthColor 3))
+               --             (mkDrawCub FaceHandles ee e) 
                 
 
               -- ,
@@ -592,26 +593,25 @@ printExpr =
      cub <- UI.getsAppState asCub
      (ee , expr) <- UI.getsAppState asExpression
      addrs <- UI.getsAppState asCursorAddress
-     let xxx = do a <- addrs
-                  cub' <- clCubPick a cub
-                  Just (a , cub')
-     case xxx of
-       Just (a , cub') ->
-          let ee' = (fst ee , contextAt (snd ee) a cub) 
-          in persistentPrint $
-                 (printCub ee'
-                     (CubPrintData
-                        { cpdCursorAddress = Nothing
-                        , cpdTailAddress = Nothing
-                        }) cub')
-       Nothing ->
-            persistentPrint $
-            (printCub ee (CubPrintData {cpdCursorAddress = Nothing , cpdTailAddress = asTailAddress appS}) cub)
+     -- let xxx = do a <- addrs
+     --              cub' <- clCubPick a cub
+     --              Just (a , cub')
+     -- case xxx of
+     --   Just (a , cub') ->
+     --      let ee' = (fst ee , contextAt (snd ee) a cub) 
+     --      in persistentPrint $
+     --             (printCub ee'
+     --                 (CubPrintData
+     --                    { cpdCursorAddress = Nothing
+     --                    , cpdTailAddress = Nothing
+     --                    }) cub')
+     --   Nothing ->
+     --        persistentPrint $
+     --        (printCub ee (CubPrintData {cpdCursorAddress = Nothing , cpdTailAddress = asTailAddress appS}) cub)
 
 
-     -- liftIO
-     --      $ (putStrLn $
-     --   (printCub ee (CubPrintData {cpdCursorAddress = addrs , cpdTailAddress = asTailAddress appS}) cub))
+     (persistentPrint $
+       (printCub ee (CubPrintData {cpdCursorAddress = addrs , cpdTailAddress = asTailAddress appS}) cub))
 
 
 
@@ -634,11 +634,16 @@ setFromCub newCub = do
     UI.flushDisplay
 
 setFromCubNoFlush :: ClCub () -> UIApp ()
-setFromCubNoFlush newCub = do
+setFromCubNoFlush = setFromCubNoFlushWithEnv Nothing
+
+setFromCubNoFlushWithEnv :: Maybe (Env, Context) -> ClCub () -> UIApp ()
+setFromCubNoFlushWithEnv mbEE newCub = do
     UI.modifyAppState (\s ->
                let ss = asSession s
-                                      
-                   newS = ssSetExpression ss (fromClCub (fst (ssEnvExpr ss) ) newCub)
+                   ee = case mbEE of
+                               Nothing -> (fst (ssEnvExpr ss) )
+                               Just ee' -> ee' 
+                   newS = ssSetExpression mbEE ss (fromClCub ee newCub)
                    --um = maybe um ( \addr -> if isValidAddressFor newCub addr then um else Idle) $ asCursorAddress s
                      
                      
@@ -646,7 +651,9 @@ setFromCubNoFlush newCub = do
                       asSession = newS
                      , asCub = newCub -- toCub $ ssEnvExpr newS
                      , asAddress2PointMap = mkAddress2PointMap newCub
+                     
                                 })
+
 
 
 navAndfixCursorAddress :: Maybe Address -> UIApp ()
@@ -664,6 +671,12 @@ navAndfixCursorAddress mba = do
     _ -> return ()
  
 
+addDimension :: UIApp ()
+addDimension = do
+  appS <- UI.getAppState
+  let ee = second (flip addDimToContext (Just "jjj")) (fst (ssEnvExpr (asSession appS)))
+  setFromCubNoFlushWithEnv (Just ee) (clDegenerate 0 (asCub appS))
+  
 addToContextAndFill :: Address -> UIApp ()
 addToContextAndFill addr = do
   appS <- UI.getAppState
@@ -676,9 +689,10 @@ addToContextAndFill addr = do
   case mbCTy of
      Nothing -> liftIO $ putStrLn "todo: handle case when there is hole somewhere in bpundary"
      Just cTy -> do
-       let (newC , i) = addVarToContext' c cTy "xxx"
+       let n = addresedDim addr
+           (newC , i) = addVarToContext' c cTy (genFreshVarName c n )
            caddr = addressClass (asCub appS) addr
-           n = addresedDim addr
+           
        UI.setAppState $
              appS {
                 asSession = SessionState (e , newC ) ss' ss'' ss''' }  -- addVarToContext undefined
@@ -812,7 +826,7 @@ eventsGlobal pem ev =
         (UI.EventKey win k scancode ks mk) ->
             when (ks == GLFW.KeyState'Pressed) $ do
                              -- Q, Esc: exit
-               when (k == GLFW.Key'Escape) $ inf "Quit" $
+               when (k == GLFW.Key'Escape && GLFW.modifierKeysControl mk) $ inf "Quit" $
                  liftIO $ GLFW.setWindowShouldClose win True
                when (k == GLFW.Key'P) $ inf "Print Expression" $
                  printExprCode
@@ -841,6 +855,7 @@ optionAction j = do
     _ -> return ()
   
   
+maxSupportedDim = 3
 
 modesEvents :: PEMode -> UserMode -> UI.Event -> UIAppDesc ()
 
@@ -854,14 +869,21 @@ modesEvents pem Idle ev = do
      case ev of
 
          (UI.EventKey win k scancode ks mk) -> do
-
+             when (ks == GLFW.KeyState'Pressed) $ do
                  when (k == GLFW.Key'Z && GLFW.modifierKeysControl mk
                           && isJust (asParentAppState appS)) $ inf "GiveFromDive" $ do
                        giveCellFromParentAS
                        
                  when (isArrowKey k) $ inf "" navToRoot
+
+                 when (k == GLFW.Key'D
+                         && getDim (asExpression appS) < maxSupportedDim
+                         && isNothing (asParentAppState appS)) $ do
+                   inf "Add dimension" $ addDimension
                  
          _ -> return ()
+
+-- TODO : check modifier keys for all actions!!!
 
 modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
      appS <- UI.getAppState
@@ -896,7 +918,8 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                 when (k == GLFW.Key'G) $ inf "GiveCell" $ do
                   initGiveCell addrClass
 
-
+                when (k == GLFW.Key'Escape) $ inf "Deselect" $
+                  setUserMode $ Idle
                
                 when (k == GLFW.Key'M) $ do
                   if (GLFW.modifierKeysControl mk)
@@ -913,10 +936,11 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
 
 
                 when (k == GLFW.Key'Z) $
-                  if (GLFW.modifierKeysControl mk)
-                  then (when (isJust (asParentAppState appS)) $
-                               inf "GiveFromDive" $ do giveCellFromParentAS)
-                  else (inf "DiveIn" $ do diveIn)
+                  when (not $ GLFW.modifierKeysControl mk)
+                  -- then (when (isJust (asParentAppState appS)) $
+                  --              inf "GiveFromDive" $ do giveCellFromParentAS)
+                  --else
+                     (inf "DiveIn" $ do diveIn)
                   
 
 
@@ -953,6 +977,8 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                      Nothing -> return ()
                      Just (addrClass' , sf) -> inf "Delete Side in Hcomp" $ do
                                  transformExpr (RemoveSide (addressClass cub addrClass') (sf , RSRKeepLeaves))
+
+
 
                 when (k == GLFW.Key'S) $ do
                   if (GLFW.modifierKeysControl mk)
@@ -1223,7 +1249,8 @@ modalConsoleView _ = return ()
 
 embedDrawingIn3 :: Drawing a -> Drawing a
 embedDrawingIn3 = map  
-   (\x -> head $ ( case length (head (fst x)) of 
+   (\x -> head $ ( case length (head (fst x)) of
+             0 -> embed 2 (const 0) . embed 1 (const 0.5) . embed 0 (const 0.5)
              1 -> embed 2 (const 0) . embed 1 (const 0.5)
              2 -> embed 2 (const 0)
              3 -> id ) [x] 
@@ -1233,6 +1260,7 @@ drawingInterpreter :: Shadelike a => DrawingInterpreter a
 drawingInterpreter =
   DrawingInterpreter []
    (\case
+      0 -> Just (toRenderablesIgnore . embed 2 (const 0) . embed 1 (const 0.5) . embed 0 (const 0.5))
       1 -> Just (toRenderablesIgnore . embed 2 (const 0) . embed 1 (const 0.5))
       2 -> Just (toRenderablesIgnore . embed 2 (const 0))
       3 -> Just toRenderablesIgnore
@@ -1676,3 +1704,29 @@ arrowKey2Bool k =
 
 allKeys :: [GLFW.Key]
 allKeys = [minBound .. maxBound]
+
+
+
+-- todo2
+-- Dive abort
+-- Dive indicator in console
+-- after face drag select "counterpart"
+-- show number of holes in current context
+-- cycle thru holes
+
+-- vertice indicator "(i = i0) (j = i1)"
+
+
+-- hcomp (λ _ → λ  { 
+--      ((~ j) = i1) → xxx i ∧ ~ k ∨ dim3
+--      ;((j) = i1) → xxx ~ i ∧ k ∨ dim3
+--      })
+-- (hcomp (λ _ → λ  { 
+--      ((~ i) = i1) → xxx j ∧ k ∧ dim3
+--      ;((i) = i1) → xxx ~ j ∧ ~ k ∧ dim3
+--      ;((~ j) = i1) → xxx i ∧ ~ k ∧ dim3
+--      ;((j) = i1) → xxx ~ i ∧ k ∧ dim3
+--      ;((~ k) = i1) → xxx i ∧ ~ j ∧ dim3
+--      ;((k) = i1) → xxx ~ i ∧ j ∧ dim3
+--      })
+-- (xxx ))

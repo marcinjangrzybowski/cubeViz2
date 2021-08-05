@@ -16,6 +16,8 @@ import ContextParser
 
 import Data.Bifunctor
 
+import Data.Maybe
+
 consToHead :: a -> [[a]] -> [[a]]
 consToHead a [] = [[a]]
 consToHead a (x : xs) = (a : x) : xs
@@ -52,10 +54,11 @@ data SessionState = SessionState (Env , Context) [(Expr , Expr)] BType Expr
 
 
 
+ssEnvExpr :: SessionState -> ((Env, Context), Expr)
 ssEnvExpr (SessionState ee _ _ e) = (ee , e)
 
-ssSetExpression :: SessionState -> Expr -> SessionState
-ssSetExpression (SessionState ee si bt _) e = (SessionState ee si bt e)
+ssSetExpression :: Maybe (Env, Context) -> SessionState -> Expr -> SessionState
+ssSetExpression mbEE (SessionState ee si bt _) e = (SessionState (fromMaybe ee mbEE) si bt e)
 
 ssAddToContext :: SessionState -> CType -> (SessionState , Int)
 ssAddToContext = undefined

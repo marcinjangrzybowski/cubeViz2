@@ -67,17 +67,19 @@ printCubO (ee , c) cpd addr (Cub _ _ a) =
                                      else ifSel ss
                                   
                                ) [0..] tl
-         in sym ++ " " ++ tailStr
+         in sym ++ " (" ++ tailStr ++ ")"
          
       s = (maybe ("{!!}") clStr a)
 
   in ifSel s
   
 printCubO (ee , c) cpd addr (Hcomp _ nm pa a) = 
-  let sides = Map.toList (Map.mapMaybe id $ toMapFLI $ cylCub pa)
+  let nm' = fromMaybe (genFreshDimName c) nm
+      sides = Map.toList (Map.mapMaybe id $ toMapFLI $ cylCub pa)
          & map (\(sf@(SubFace _ m) , e) -> let
                                 sf2 = Map.mapKeys (fromDimI c) m
-                                c2 = addSF2ConstraintToContext sf2 (addDimToContext c nm)                                  
+                                
+                                c2 = addSF2ConstraintToContext sf2 (addDimToContext c (Just nm'))                                  
                                 bo = printCubO (ee , c2) cpd (onCyl addr sf) e
                                 fc = either id id (toCode (ee , c) sf2)
                             in
@@ -92,7 +94,7 @@ printCubO (ee , c) cpd addr (Hcomp _ nm pa a) =
       y = (printCubO (ee , c) cpd (onBottom addr (fullSF (getDim a))) (clInterior a))
         
  
-      s = ("hcomp " ++ "(λ " ++ (fromMaybe ("_") nm) ++ " → λ  { " ++ (indent 5 ("\n" ++ sides)) ++ "})\n" ++ parr y )      
+      s = ("hcomp " ++ "(λ " ++ (nm') ++ " → λ  { " ++ (indent 5 ("\n" ++ sides)) ++ "})\n" ++ parr y )      
   in if Just addr == cpdCursorAddress cpd
      then bgColor Green s
      else s

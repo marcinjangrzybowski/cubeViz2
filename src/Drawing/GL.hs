@@ -83,7 +83,7 @@ renderables2CVD =
     mkVs x (D.Point pt , shade) =
       let pos = fmap trpl2arr [pt]          
       in x { pointVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
-                                                     ++ [ fromIntegral ( shadeModeVFG shade)  , fromIntegral (shadeModeVFG shade) ]))
+                                                     ++ [ fromIntegral ( shadeMode shade)  , fromIntegral (shadeModeVFG shade) ]))
                  ++ pointVs x}  
       
     
