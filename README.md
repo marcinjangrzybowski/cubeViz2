@@ -1,3 +1,6 @@
 # cubeViz2
 
-https://player.vimeo.com/589313743
+[![2d example](https://i.imgur.com/D0vHW6q.jpeg)](https://youtu.be/vt5fpE0bzSY)
+
+
+
