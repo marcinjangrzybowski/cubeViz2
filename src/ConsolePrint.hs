@@ -88,7 +88,7 @@ printCubO (ee , c) cpd addr (Hcomp _ nm pa a) =
                               if isCoveredIn (occupiedCylCells pa) sf
                               then Nothing
                               else Just ( (parr $ parr fc ++ " = i1") ++ " → " ++ bo ++ "\n")
-b                       )
+                       )
          & catMaybes
          & intercalate ";"
 
