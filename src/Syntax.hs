@@ -958,6 +958,37 @@ getDimSymbol (Context _ l) i =
                   (Right . fst)
                   (indexS j l)
 
+
+fillMaybesIndexed :: (Int -> a) -> [Maybe a] -> [a]
+fillMaybesIndexed f = fmi 0
+  where
+    fmi k (Just a : xs) = a : fmi k xs
+    fmi k (_ : xs) = f k : fmi (k + 1) xs
+    fmi k [] = []
+
+withPlaceholdersDimSymbols :: Context -> [String]
+withPlaceholdersDimSymbols (Context _ l) = reverse $ h $ wp
+  where
+
+    wp =   fillMaybesIndexed (("𝒊" ++) . toSSnumStr) 
+         $ map (fst)
+         $ reverse l
+    
+    f x = map (\y -> if x == y then y ++ "'" else y)       
+    
+    h [] = []
+    h (x : xs) = x : h (f x xs)
+
+getDimSymbolAlwaysPrim :: Context -> Int -> Either String String
+getDimSymbolAlwaysPrim ctx@(Context _ l) i = 
+   let j = ((length l - 1)- i)
+   in
+     if j < 0 then (Left $ "bad dim abstraction! : \n" ++ (show l) ++ "  " ++ show i) 
+     else maybe (Left "bad dim abstraction!")
+                  (Right)
+                  (indexS j (withPlaceholdersDimSymbols ctx))
+
+
 lookupVar :: Context -> String -> Maybe Int
 lookupVar (Context l _) x = ((length l - 1)-) <$> elemIndex x (map fst l) 
 
@@ -990,7 +1021,9 @@ printCTypeCorners ee ctx0 ct i =
           ctx = foldl addDimToContext ctx0 (replicate n Nothing )
           crnrs = exprCorners ctx (mkVar ctx (VarIndex i) (fmap dim $ range n))
       in indent 6 $ ("\n" ++ (intercalate "\n" $ fmap (show) $ toListFLI crnrs))
-        
+
+
+         
 instance Codelike Context where
    toCode (ee , _) (Context ty dims) = Right $
      "CTypes:\n" ++ (intercalate "\n" (
@@ -1042,8 +1075,10 @@ class Codelike a where
   
 instance Codelike (Int , Bool) where
   toCode (_ , ctx) (i , b) =
-    do s <- (getDimSymbol ctx i)
-       return ((if b then "" else "~ ")  ++ fromMaybe ("imposible?") s)
+    do s <- (getDimSymbolAlwaysPrim ctx i)
+       return ((if b then "" else "~ ")  ++ s)
+
+
   
 instance Codelike IExpr where
   toCode eee x =  
@@ -1214,6 +1249,9 @@ fExprAllFaces ctx =
                , side <- [True , False]
                ]
 
+toSSnumStr :: Int -> String 
+toSSnumStr i = map toSSnum (show i)
+
 toSSnum :: Char -> Char
 toSSnum x =
   case TR.readMaybe [x] of
@@ -1252,3 +1290,8 @@ mkExprGrid n k = ((env , ctxTop) , meg ctxTop k)
 
                        , meg ctx (k - 1) ))
       
+
+
+-- dimensionsContextPP :: Context -> String
+-- dimensionsContextPP c@(Context _ l) =
+--   sywithPlaceholdersDimSymbols

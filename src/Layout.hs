@@ -60,7 +60,7 @@ import Drawing.GL
 optionsViewports :: Float -> Int -> Viewport -> [Viewport]
 optionsViewports maxSize n vp0 =
   let s = Prelude.min maxSize (1.0/(fromIntegral n))
-  in [ vp0 { vpScale = s * (vpScale vp0)
+  in [ vp0 { vpScale = s * (vpScale vp0) * 0.95
            , vpScreenDelta = ((-1.0) + (fromIntegral (1 + 2 * i)) * s , (-1.0) +  s )
            }
 

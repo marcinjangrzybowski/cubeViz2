@@ -43,6 +43,7 @@ dependencies:
 - lattices
 - singletons
 - nonempty-containers
+- aeson
 
 library:
   source-dirs: src

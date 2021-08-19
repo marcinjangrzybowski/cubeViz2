@@ -47,6 +47,7 @@ import Data.Either (fromRight)
 
 import GHC.Stack.Types ( HasCallStack )
 
+import Data.Aeson
 
 data ClCub b = ClCub {clCub :: FromLI SubFace (OCub b)}
   deriving (Show ,  Functor , Eq)
@@ -2010,3 +2011,7 @@ pointSelectStep cub a2pm addrSel addrPt =
               (\s -> Set.member addrPt s && Set.isProperSubsetOf q s)
               a2pm
    in listToMaybe $ sortOn addresedDim $ Map.keys z
+
+
+countIndependentHoles :: ClCub a -> Int
+countIndependentHoles cub = undefined

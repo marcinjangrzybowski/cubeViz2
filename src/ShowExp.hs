@@ -356,7 +356,7 @@ additionalsToRender descriptors appS = opts
     
 
     opts =
-        if getDim (asCub appS) /= 3 then []
+        if getDim (asCub appS) > 3 then []
         else
           
           case um of
@@ -481,6 +481,14 @@ giveCellFromParentAS = do
     UMNavigation {} -> do
       let ca = umCoursorAddress um        
       transformExpr (SubstAt (addressClass (asCub orgS) ca) (asCub s))
+
+  return ()
+
+diveAbort :: UIApp ()
+diveAbort = do
+  s <- UI.getAppState
+  let orgS = fromJust $ asParentAppState s
+  UI.setAppState $ orgS
 
   return ()
 
@@ -839,6 +847,13 @@ eventsGlobal pem ev =
         _ -> return ()
 
 
+diveIndicator :: AppState -> String
+diveIndicator appS =
+  let d = getDim (asCub appS)
+  in (fromMaybe "" ( ((++ " >>" ) . diveIndicator ) <$> (asParentAppState appS))) ++ " " ++ (show d)
+  
+  
+
 optionAction :: Int -> UIApp ()
 optionAction j = do
   pd <- (Set.toList . (Set.delete j)) <$> pressedDigits 
@@ -847,7 +862,7 @@ optionAction j = do
       cub = asCub appS
   case um of
     UMNavigation {} -> 
-         when (getDim (asCub appS) == 3 && length pd == 1) $ do
+         when (getDim (asCub appS) <= 3 && length pd == 1) $ do
           let addr = umCoursorAddress um
               i = head pd
               [iF , jF] = enumerate (addresedDim addr) . (flip (-) 1) <$> [i , j]
@@ -874,12 +889,18 @@ modesEvents pem Idle ev = do
                           && isJust (asParentAppState appS)) $ inf "GiveFromDive" $ do
                        giveCellFromParentAS
                        
+                 -- when (k == GLFW.Key'Escape && GLFW.modifierKeysControl mk
+                 --          && isJust (asParentAppState appS)) $ inf "Dive Abort" $ do      
+                 --      diveAbort
+                       
                  when (isArrowKey k) $ inf "" navToRoot
 
                  when (k == GLFW.Key'D
                          && getDim (asExpression appS) < maxSupportedDim
                          && isNothing (asParentAppState appS)) $ do
                    inf "Add dimension" $ addDimension
+
+
                  
          _ -> return ()
 
@@ -919,7 +940,9 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                   initGiveCell addrClass
 
                 when (k == GLFW.Key'Escape) $ inf "Deselect" $
-                  setUserMode $ Idle
+                  when (not (GLFW.modifierKeysControl mk)) $
+                      setUserMode $ Idle
+                  
                
                 when (k == GLFW.Key'M) $ do
                   if (GLFW.modifierKeysControl mk)
@@ -1275,7 +1298,7 @@ updateGL =
       let drawings = drawExpr appState (asDrawMode appState)
                       (fst (asExpression appState))
                       ((asCub appState))
-      printConsoleView
+      printConsoleView appState
       let tryToRen = toRenderableDI drawingInterpreter drawings
       case tryToRen of
            Left msg -> error msg
@@ -1284,12 +1307,13 @@ updateGL =
              (liftIO $ initResources $ snd rens)
 
    where
-     printConsoleView :: UIApp ()
-     printConsoleView = do
+     printConsoleView :: AppState -> UIApp ()
+     printConsoleView appS = do
         wPersistentH SCA.hClearScreen
         printExpr
         ei <- eventsInfo
         persistentPrint ei
+        persistentPrint (diveIndicator appS) 
         persistentPrint ""
 
         -- liftIO $ putStrLn ""
@@ -1708,8 +1732,6 @@ allKeys = [minBound .. maxBound]
 
 
 -- todo2
--- Dive abort
--- Dive indicator in console
 -- after face drag select "counterpart"
 -- show number of holes in current context
 -- cycle thru holes
