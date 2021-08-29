@@ -1,6 +1,8 @@
 # cubeViz2
 
-## This project is a continuation of the work that started as an experiment written in Elm.
+_work in progress_
+
+## This project is a continuation of the [work](https://github.com/marcinjangrzybowski/cubeViz) that started as an experiment written in Elm.
 
 In contrast to the previous experiment, I decided to not implement a type checker, and just rely on Agda. Thanks to this, this tool accepts the usual Agda code and not some weird-agda-like-clone like the earlier version.
 
