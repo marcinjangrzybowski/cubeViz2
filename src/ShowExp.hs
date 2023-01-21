@@ -402,7 +402,15 @@ initialize =
                              Left e -> return (Nothing , Left e)
                              Right ss -> return (Just fName , Right ss)
                           
-          [] -> return (Nothing , Right $ freshSessionState 3)
+          [] -> do liftIO $ putStrLn "nr of dims?"
+                   nOfDStr <- liftIO $ getLine
+                   let nOfD = case nOfDStr of
+                                "3" -> 3
+                                "2" -> 2
+                                "1" -> 1
+                                _ -> 3
+                     
+                   return (Nothing , Right $ freshSessionState nOfD)
          
      currTime <- fmap utctDayTime $ liftIO getCurrentTime
 
@@ -707,12 +715,25 @@ addToContextAndFill addr = do
        let newE = CellExpr (VarIndex i) $ (dim <$> [0..(n-1)])
        transformExpr (SubstAt caddr (toClCubAt e newC (asCub appS) caddr newE ))      
 
+
+-- transformExpr' :: CubTransformation -> -> UIApp ()
+-- transformExpr' = 
+
 transformExpr :: CubTransformation -> UIApp ()
 transformExpr trns =
    do
       appS <- UI.getAppState
       case applyTransform trns (asCub appS) of
         (Left (CubTransformationConflict fhc)) ->
+            -- do let res = ClearOutwards 
+            --    let mbRC = resolveConflict fhc res  
+            --    case mbRC of
+            --      Just rc -> do setFromCubNoFlush $ void $ rc
+            --                    navAndfixCursorAddress (Just (toAddress $ ct2CAddress trns))
+            --                    --setUserMode $ Idle --umNavigation (umEditedCell um)
+            --                    consolePrint $ ""
+            --      Nothing -> consolePrint $ "confilct resolution via " ++ show res ++ "failed"  
+          
              initHoleConflict (toAddress $ ct2CAddress trns) fhc
           
         (Left err) ->
@@ -786,7 +807,7 @@ eventsGlobal pem ev =
               mbAddr' <- getHoveredAddress
               case (mbAddr' , GLFW.modifierKeysShift mk) of
                 (Just addr' , sh) ->
-                   if (sh && (addresedDim addr' == 0))
+                   if (sh && (addresedDim addr' < 2))
                    then UI.modifyAppState (\s -> s { asDragStartAddress = mbAddr' })
                    else do UI.modifyAppState (\s -> s { asUserMode = umNavigation $ addr' })
                            UI.flushDisplay
@@ -817,6 +838,7 @@ eventsGlobal pem ev =
                    --      
                    UI.modifyAppState (\s -> s { asUserMode = umNavigation $ newSelection })
                    UI.flushDisplay
+              consolePrint $ show (mbSda , mbAddr')
               case (um , mbSda , mbAddr') of
                  (UMNavigation addrSel _ , Just addr0 , Just addr1 ) -> do
                      -- consolePrint (show (addr0 , addr1 ))
@@ -971,6 +993,10 @@ modesEvents pem um@UMNavigation { umCoursorAddress = addr } ev = do
                   case (isHcompSideAddrToAdd cub addr) of
                     Just (addr , sf) -> inf "Add side cell" $  transformExpr (AddSide (addressClass cub addr) sf )
                     Nothing -> return ()
+
+                when (k == GLFW.Key'R) $ do
+                  inf "Make constant Cell" $ giveConstantCell addr
+
 
                 when (k == GLFW.Key'C) $ do
                   inf "Add to context and fill" $ addToContextAndFill addr
@@ -1393,6 +1419,16 @@ markCell :: CAddress -> UIApp ()
 markCell x = UI.modifyAppState (\s -> s { asMarkedCAddresses = pushUniq x $ asMarkedCAddresses s })
 
 
+giveConstantCell :: Address -> UIApp ()
+giveConstantCell caddr = do return ()
+   -- cub <- UI.getsAppState asCub
+   
+   -- caddr0 = (cAddressSubFace cub caddrPar (toSubFace fc1))
+   --    caddr1 = (cAddressSubFace cub caddrPar (toSubFace fc2))
+     
+  -- transformExpr (SubstAt caddr (toClCubAt env ctx0 (asCub appS) caddr x ))
+
+
 dragFaceOntoFace :: (CAddress , (Face , Face)) -> UIApp () 
 dragFaceOntoFace (caddrPar , ((fc1@(Face _ (k1 , b1)) , fc2@(Face _ (k2 , b2))))) = do
   cub <- UI.getsAppState asCub
@@ -1421,8 +1457,9 @@ dragFaceOntoFace (caddrPar , ((fc1@(Face _ (k1 , b1)) , fc2@(Face _ (k2 , b2))))
                    cubD = substDimsClCub n (fmap Right (cornerTail fc1 fc2)) cubToDeg
                transformExpr (SubstAt caddrPar cubD)
 
+  
 
-
+  
 initGiveCell :: CAddress -> UIApp ()
 initGiveCell caddr = do
   appS <- UI.getAppState
@@ -1448,7 +1485,8 @@ initGiveCell caddr = do
             let opts = case holeDim of
                           0 -> error "should be handled wihout second grid screen"
                           1 -> [ ("i", [ dim 0 ] ) , ("~i" , [ neg (dim 0) ] ) ]
-                          2 -> error "todo"
+                          2 -> [ ("i j", [ dim 0 , dim 1 ] ) , ("j i" , [ (dim 0) , dim 1 ] ) ]
+                               -- error "todo"
                 gsd' opts = GridSelectionDesc
                    { gsdChoices = [fmap fst opts]
                         
@@ -1489,7 +1527,8 @@ initGiveCell caddr = do
              let newVi = snd $ gridLookup nPos varsInCtxGrid
              in case holeDim of
                    0 -> finalGive (CellExpr newVi [])
-                   1 -> initGiveOptions newVi             
+                   1 -> initGiveOptions newVi
+                   2 -> initGiveOptions newVi
                    _ -> error $ "not implemented dim" ++ (show holeDim);   --else initGiveOptions
          , gsdAbortAction = return ()
            -- transformExpr undefined --(ReplaceAt addr initialCub)

@@ -320,13 +320,18 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
         else mapStyle (addTag "notselected") drw
       Nothing -> drw
 
-  cellStyleProcess spt ee n addr _ drw =
-    case dptCursorAddress spt of
-      Just ca ->
-        if isJust (mbSubAddress ca addr)
-        then mapStyle ((addTag "selected")) drw -- zaznaczone
-        else mapStyle (addTag "notselected") drw
-      Nothing -> drw
+  cellStyleProcess spt ee n addr _ drw' =
+    let drw =
+           filter
+            ((\((tags , em) , color) -> not ("ms0" `elem` tags && n == 2)) . snd)
+             drw'
+           -- if n == 2 then [] else drw'
+    in case dptCursorAddress spt of
+           Just ca ->
+             if isJust (mbSubAddress ca addr)
+             then mapStyle ((addTag "selected")) drw -- zaznaczone
+             else mapStyle (addTag "notselected") drw
+           Nothing -> drw
 
     -- if (dptCursorAddress d == Just addr)
     -- then mapStyle (addTag "selected") drw

@@ -98,7 +98,7 @@ abstr = abstT $ flip addDimToContext
   --    setState ctx 
   --    return (Just name , x)
 
-agdaName = many1 (digit <|> letter <|> (oneOf ".₀₁₂₃₄₅₆₇₈₉'"))
+agdaName = many1 (digit <|> letter <|> (oneOf ".₀₁₂₃₄₅₆₇₈₉'¹²"))
        
 varIdentifier :: Parsec String Context VarIndex
 varIdentifier = 

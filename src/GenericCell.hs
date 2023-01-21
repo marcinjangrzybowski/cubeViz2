@@ -71,8 +71,8 @@ primitivePieceBd x y | (getDim y == 0) = []
                      | otherwise =
   [ init (primitivePiece x y) , tail (primitivePiece x y) ]
 
-par1 = 0.2
-par2 = 0.4
+par1 = 0.4
+par2 = 0.5
 
 
 renderGCDSolid :: GCData -> ZDrawing ColorType
@@ -89,8 +89,9 @@ renderGCD (GCData fli@(FromLI n f)) =
         let (colId , uniqN) = appLI sbst fli
             mainSmplx = primitivePiece (par1 , par2) pc
             bdSmplxs = primitivePieceBd (par1 , par2) pc
+            -- mainStyle = if n == 0 then [ExtrudeLines] else []
         in
-          [(mainSmplx  , (([] , Basic) , nthColor colId)) ] ++
+          [(mainSmplx  , ((["ms"++(show n)] , Basic) , nthColor colId)) ] ++
           [(x  , (([] , Basic) , nthColor colId)) | x <- bdSmplxs ])
 
 type GCContext = Map.Map Int GCData

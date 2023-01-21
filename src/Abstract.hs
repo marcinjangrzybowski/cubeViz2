@@ -462,6 +462,12 @@ cAddressSubFace :: ClCub a -> CAddress -> SubFace -> CAddress
 cAddressSubFace cub caddr sf =
   addressClass cub (addressSubFace (head $ Set.toList $ cAddress caddr ) sf)
 
+cAddressVertexes :: ClCub a -> CAddress -> [CAddress]
+cAddressVertexes cub caddr =
+   cAddressSubFace cub caddr <$>
+    (filter (\x -> subFaceDimEmb x == 0) (genAllLI (getDim caddr)))
+
+
 
 cAddrWithSubFaces :: ClCub a -> CAddress -> Set.Set CAddress
 cAddrWithSubFaces cub x =
