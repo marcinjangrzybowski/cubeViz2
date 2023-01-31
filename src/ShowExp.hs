@@ -78,10 +78,12 @@ data Msg =
 
 data DisplayPreferences = DisplayPreferences
    { dpShowFilling       :: Bool
+   , dpShowTags          :: Set.Set String
    }
 
 defaultDisplayPreferences = DisplayPreferences
    { dpShowFilling        = True
+   , dpShowTags           = Set.fromList ["piece1", "piece3"]
    }
 
 data AppState = AppState
@@ -255,7 +257,7 @@ drawExpr as Scaffold ee e =
                           , dptShowFill = dpShowFilling $ asDisplayPreferences as
                           , dptFillFactor = 1.0
                               -- 0.5 * (sin (realToFrac $ asTime as) + 1)
-
+                          , dptTags = dpShowTags $ asDisplayPreferences as
                           })
                 
                -- , \ee e ->
@@ -804,50 +806,35 @@ eventsGlobal pem ev =
             dsVP <- UI.getsAppState asDragStartVP
             -- draggingView
             when (pressed) $ do
-              mbAddr' <- getHoveredAddress
-              case (mbAddr' , GLFW.modifierKeysShift mk) of
-                (Just addr' , sh) ->
-                   if (sh && (addresedDim addr' < 2))
-                   then UI.modifyAppState (\s -> s { asDragStartAddress = mbAddr' })
-                   else do UI.modifyAppState (\s -> s { asUserMode = umNavigation $ addr' })
-                           UI.flushDisplay
-                (Nothing , False) ->
-                   UI.modifyAppState $ \s -> s
-                      { asDragStartVP = Just (asViewport s) }
-                _ -> return ()
-              -- if (not $ GLFW.modifierKeysShift mk)
-              -- then when (isNothing dsVP ) $ 
-              -- else do
+              UI.modifyAppState $ \s -> s { asDragStartVP = Just (asViewport s) }
                  
-
-                 
-            when (released) $ do
-              um <- UI.getsAppState asUserMode
-              cub <- UI.getsAppState asCub
-              as <- UI.getAppState
-              mbAddr' <- getHoveredAddress
-              mbSda <- UI.getsAppState asDragStartAddress
-              when (umAllowSelect um && mbAddr' == mbSda && isJust mbSda) $ do
-                   let sda = fromJust mbSda
-                       newSelection =
-                          case asCursorAddress as of
-                              Nothing -> sda 
-                              Just addr0 -> fromMaybe addr0 $
-                                  pointSelectStep cub (asAddress2PointMap as) addr0 sda
-                   --  =
-                   --      
-                   UI.modifyAppState (\s -> s { asUserMode = umNavigation $ newSelection })
-                   UI.flushDisplay
-              consolePrint $ show (mbSda , mbAddr')
-              case (um , mbSda , mbAddr') of
-                 (UMNavigation addrSel _ , Just addr0 , Just addr1 ) -> do
-                     -- consolePrint (show (addr0 , addr1 ))
-                     case (mbSelectFaces cub addrSel addr0 addr1) of
-                        Just x -> do dragFaceOntoFace x
-                                     UI.flushDisplay
-                        Nothing -> return ()
+            -- when (released) $ do
+            --   um <- UI.getsAppState asUserMode
+            --   cub <- UI.getsAppState asCub
+            --   as <- UI.getAppState
+            --   mbAddr' <- getHoveredAddress
+            --   mbSda <- UI.getsAppState asDragStartAddress
+            --   when (umAllowSelect um && mbAddr' == mbSda && isJust mbSda) $ do
+            --        let sda = fromJust mbSda
+            --            newSelection =
+            --               case asCursorAddress as of
+            --                   Nothing -> sda 
+            --                   Just addr0 -> fromMaybe addr0 $
+            --                       pointSelectStep cub (asAddress2PointMap as) addr0 sda
+            --        --  =
+            --        --      
+            --        UI.modifyAppState (\s -> s { asUserMode = umNavigation $ newSelection })
+            --        UI.flushDisplay
+            --   consolePrint $ show (mbSda , mbAddr')
+            --   case (um , mbSda , mbAddr') of
+            --      (UMNavigation addrSel _ , Just addr0 , Just addr1 ) -> do
+            --          -- consolePrint (show (addr0 , addr1 ))
+            --          case (mbSelectFaces cub addrSel addr0 addr1) of
+            --             Just x -> do dragFaceOntoFace x
+            --                          UI.flushDisplay
+            --             Nothing -> return ()
                 
-                 _ -> return ()
+            --      _ -> return ()
 
 
             when ((not pressed) && isJust dsVP) $ UI.modifyAppState $ \s -> s
@@ -864,8 +851,16 @@ eventsGlobal pem ev =
                  modifyDrawingPreferences
                    (\dp ->
                       dp { dpShowFilling = not $ dpShowFilling dp })
-               when (isDigitKey k && GLFW.modifierKeysAlt mk) $ inf "" $ 
-                 optionAction (fromJust (toDigitKey k))
+               -- when (isDigitKey k && GLFW.modifierKeysAlt mk) $ inf "" $
+               --   optionAction (fromJust (toDigitKey k))
+               when (isDigitKey k && GLFW.modifierKeysAlt mk) $ inf "" $
+                 modifyDrawingPreferences
+                   (\dp ->
+                      let tag = "piece" ++ show (fromJust (toDigitKey k))
+                      in dp { dpShowTags =
+                              if tag `Set.member` (dpShowTags dp)
+                              then Set.delete tag (dpShowTags dp)
+                              else Set.insert tag (dpShowTags dp) })
         _ -> return ()
 
 
