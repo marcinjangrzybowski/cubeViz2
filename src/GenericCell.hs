@@ -47,7 +47,7 @@ import Debug.Trace
 
               -- first int refers to "color" (index of def of dim0)
               -- second int refers to uniqCounter for this primitive
-data GCData = GCData (FromLI Subset (Int , Int))
+data GCData = GCData String (FromLI Subset (Int , Int))
 
 
 
@@ -86,13 +86,61 @@ primitivePieceBd mirror x y | (getDim y == 0) = []
                      | otherwise =
   [ init (primitivePiece mirror x y) , tail (primitivePiece mirror x y) ]
 
+primitivePieceLoop2 :: Bool -> (Float , Float) -> Piece -> Smplx
+primitivePieceLoop2 mirror (distCorner , distCenter) (su , pm) =
+  let crnr = toListLI su
+      n = length crnr
+      ptCrnr = map (bool (0.0 + distCorner) (1.0 - distCorner)) crnr
+      ptCenter = map (bool (0.0 + distCenter) (1.0 - distCenter)) crnr
+      restPts :: ([Float] , [[Float]] )
+      restPts = mapAccumL
+                      (  fmap dupe . (\ pt k -> updateAt (ptCenter !! k ) k pt) )
+                      ptCrnr
+                      (toListLI $ invPerm pm)
+      pt = ptCrnr : snd restPts
+      cornerVector = [if k == unemerate pm then 0 else (if b then 1 else -1) | (k, b) <- zip [0..n-1] crnr]
+      mean pts = map (\x -> x / fromIntegral (length pts)) (map sum (transpose pts))
+      middle = translatePar cornerVector parTranslate (mean [ptCrnr, ptCenter])
+      translatedPt = translatePar cornerVector parTranslate pt
+      mirroredPt =
+        if mirror
+        then scaleOrigin (-1.0) middle translatedPt
+        else translatedPt
+      -- TODO ... scale squares to make 'weave' pattern like "#" ???
+  in
+    if n > 2
+    then error "unimplemented: dim > 2"
+    else mirroredPt
+
+primitivePieceLoop2Bd :: Bool -> (Float , Float) -> Piece -> [Smplx]
+primitivePieceLoop2Bd mirror x y | (getDim y == 0) = []
+                     | otherwise =
+  [ init (primitivePieceLoop2 mirror x y) , tail (primitivePieceLoop2 mirror x y) ]
+
 parSize = 0.05
 par1 = 0.3 -- 0.3 - parSize
 par2 = 0.4 -- 0.3 + parSize
-parTranslate = 0.2
+parTranslate = 0.1
 
 renderGCD :: GCData -> ZDrawing ColorType
-renderGCD (GCData fli@(FromLI n f)) =
+renderGCD (GCData "loop₂" fli@(FromLI 2 f)) =
+   let n = 2 in
+   FromLI n (\pc@(sbst , prm) ->
+        let (_ , uniqN) = appLI sbst fli
+            colId = uniqN
+            mainSmplx = primitivePieceLoop2  False (par1 , par2) pc
+            mirrorSmplx = primitivePieceLoop2 True (par1 , par2) pc
+            bdSmplxs = primitivePieceLoop2Bd False (par1 , par2) pc
+            mirrorBdSmplxs = primitivePieceLoop2Bd True (par1 , par2) pc
+            -- mainStyle = if n == 0 then [ExtrudeLines] else []
+            -- TODO maybe vary color by permutation?
+            color = nthColor colId
+        in
+          [(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , color)) ] ++
+          [(mirrorSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , color)) ] ++
+          [(x  , ((["m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , color)) | x <- bdSmplxs ] ++
+          [(x  , ((["m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , color)) | x <- mirrorBdSmplxs ])
+renderGCD (GCData _ fli@(FromLI n f)) =
    FromLI n (\pc@(sbst , prm) ->
         let (_ , uniqN) = appLI sbst fli
             colId = uniqN -- unemerate sbst
@@ -136,7 +184,7 @@ makeGCD (ee , ctx0) gccGS i (defName , ct) =
 
 
       ( newGCCGS , newGCD) =  mapAccumL visitCorner gccGS (toListFLI crnrs)
-  in ( newGCCGS , GCData $ fromListFLI n newGCD)
+  in ( newGCCGS , GCData defName $ fromListFLI n newGCD)
 
 initGCContext :: (Env , Context) -> GCContext
 initGCContext (ee , Context l _) =
@@ -148,8 +196,8 @@ initGCContext (ee , Context l _) =
 
 
 instance DiaDeg GCData where
-  appNegs l (GCData x) = GCData $ appNegs l x
+  appNegs l (GCData defName x) = GCData defName $ appNegs l x
 
-  appDiags l (GCData x) = GCData $ appDiags l x
+  appDiags l (GCData defName x) = GCData defName $ appDiags l x
 
-  appPerm l (GCData x) = GCData $ appPerm l x
+  appPerm l (GCData defName x) = GCData defName $ appPerm l x
