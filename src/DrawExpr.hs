@@ -285,6 +285,7 @@ data DefaultPT = DefaultPT { dptCursorAddress ::  Maybe Address
                            , dptShowFill      :: Bool
                            , dptFillFactor       :: Float
                            , dptTags          :: Set.Set String
+                           , dptShowLowDim    :: Int
                            }
 
 addTag :: String -> ColorType -> ColorType
@@ -386,7 +387,7 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
                                                   || not (Set.null (Set.intersection (Set.fromList tags) (dptTags settings)))))
 
         toggleLowDim =
-          filter (\(x, ((tags , em) , color)) -> "m2" `elem` tags)
+          filter (\(x, ((tags , em) , color)) -> ("m"++(show (dptShowLowDim settings))) `elem` tags)
     in
        toggleStrands
      . toggleLowDim
