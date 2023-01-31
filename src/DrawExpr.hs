@@ -382,16 +382,16 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
               length x > 1 || ("zeroCellCPI" `elem` tags)
            )
                  
-        toggleStrands =
-          filter (\(x, ((tags , em) , color)) -> (not ("m2" `elem` tags) || not ("gcd" `elem` tags)
-                                                  || not (Set.null (Set.intersection (Set.fromList tags) (dptTags settings)))))
+        -- toggleStrands =
+        --   filter (\(x, ((tags , em) , color)) -> (not ("m2" `elem` tags) || not ("gcd" `elem` tags)
+        --                                           || not (Set.null (Set.intersection (Set.fromList tags) (dptTags settings)))))
 
-        toggleLowDim =
-          filter (\(x, ((tags , em) , color)) -> ("m"++(show (dptShowLowDim settings))) `elem` tags)
+        -- toggleLowDim =
+        --   filter (\(x, ((tags , em) , color)) -> ("m"++(show (dptShowLowDim settings))) `elem` tags)
     in
-       toggleStrands
-     . toggleLowDim
-     . removePoints
+       -- toggleStrands
+     -- . toggleLowDim
+       removePoints
      . removeFillHoles
      . fillP
      . selectP
