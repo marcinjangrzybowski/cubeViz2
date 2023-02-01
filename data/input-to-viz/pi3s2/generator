@@ -1,0 +1,41 @@
+Goal: A
+Elaborates to: hcomp {ℓ} {A} {(~ i ∨ i) ∨ ~ j ∨ j ∨ ~ k ∨ k}
+               (λ l →
+                  primPOr {ℓ} (~ i ∨ i) (~ j ∨ j ∨ ~ k ∨ k) {λ _ → A}
+                  (primPOr {ℓ} (~ i) i {λ _ → A} (λ _ → s (l ∨ j) k)
+                   (λ _ → s (~ l ∧ j) k))
+                  (primPOr {ℓ} (~ j ∨ j) (~ k ∨ k) {λ _ → A}
+                   (primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → s (l ∨ i) k)
+                    (λ _ → s (~ l ∧ i) k))
+                   (primPOr {ℓ} (~ k) k {λ _ → A} (λ _ → x) (λ _ → x))))
+               (hcomp {ℓ} {A} {(~ i ∨ i) ∨ ~ j ∨ j ∨ ~ k ∨ k}
+                (λ f →
+                   primPOr {ℓ} (~ i ∨ i) (~ j ∨ j ∨ ~ k ∨ k) {λ _ → A}
+                   (primPOr {ℓ} (~ i) i {λ _ → A} (λ _ → s j (k ∧ f))
+                    (λ _ → s j (k ∧ f)))
+                   (primPOr {ℓ} (~ j ∨ j) (~ k ∨ k) {λ _ → A}
+                    (primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → s i k) (λ _ → s i k))
+                    (primPOr {ℓ} (~ k) k {λ _ → A} (λ _ → x) (λ _ → s j f))))
+                (s i k))
+———— Boundary ——————————————————————————————————————————————
+i = i0 ⊢ x
+i = i1 ⊢ x
+j = i0 ⊢ x
+j = i1 ⊢ x
+k = i0 ⊢ x
+k = i1 ⊢ x
+————————————————————————————————————————————————————————————
+k : I
+j : I
+i : I
+s : _≡_ {ℓ} {_≡_ {ℓ} {A} x x} (λ _ → x) (λ _ → x)
+x : A
+A : Type ℓ
+ℓ : Level
+———— Constraints ———————————————————————————————————————————
+x = ?0 (k = i1) : A (blocked on _359)
+x = ?0 (k = i0) : A (blocked on _359)
+x = ?0 (j = i1) : A (blocked on _359)
+x = ?0 (j = i0) : A (blocked on _359)
+x = ?0 (i = i1) : A (blocked on _359)
+x = ?0 (i = i0) : A (blocked on _359)

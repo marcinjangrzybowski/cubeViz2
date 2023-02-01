@@ -1,0 +1,33 @@
+Goal: A
+Elaborates to: hcomp {ℓ} {A} {~ j ∨ j ∨ ~ a ∨ a ∨ ~ b ∨ b}
+               (λ i →
+                  primPOr {ℓ} (~ j) (j ∨ ~ a ∨ a ∨ ~ b ∨ b) {λ _ → A}
+                  (λ _ → surf a b)
+                  (primPOr {ℓ} j (~ a ∨ a ∨ ~ b ∨ b) {λ _ → A} (λ _ → surf a b)
+                   (primPOr {ℓ} (~ a) (a ∨ ~ b ∨ b) {λ _ → A} (λ _ → surf i j)
+                    (primPOr {ℓ} a (~ b ∨ b) {λ _ → A} (λ _ → surf i j)
+                     (primPOr {ℓ} (~ b) b {λ _ → A} (λ _ → surf i j)
+                      (λ _ → surf i j))))))
+               (surf a b)
+———— Boundary ——————————————————————————————————————————————
+j = i0 ⊢ surf a b
+j = i1 ⊢ surf a b
+a = i0 ⊢ base
+a = i1 ⊢ base
+b = i0 ⊢ base
+b = i1 ⊢ base
+————————————————————————————————————————————————————————————
+b    : I
+a    : I
+j    : I
+surf : _≡_ {ℓ} {_≡_ {ℓ} {A} base base} (λ _ → base) (λ _ → base)
+base : A
+A    : Type ℓ
+ℓ    : Level
+———— Constraints ———————————————————————————————————————————
+base = ?0 (b = i1) : A (blocked on _22)
+base = ?0 (b = i0) : A (blocked on _22)
+base = ?0 (a = i1) : A (blocked on _22)
+base = ?0 (a = i0) : A (blocked on _22)
+surf a b = ?0 (j = i1) : A (blocked on _22)
+surf a b = ?0 (j = i0) : A (blocked on _22)
