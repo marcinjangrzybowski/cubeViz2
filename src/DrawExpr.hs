@@ -284,6 +284,8 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
 data DefaultPT = DefaultPT { dptCursorAddress ::  Maybe Address
                            , dptShowFill      :: Bool
                            , dptFillFactor       :: Float
+                           , dptTags          :: Set.Set String
+                           , dptShowLowDim    :: Int
                            }
 
 addTag :: String -> ColorType -> ColorType
@@ -305,6 +307,7 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
   fillStyleProcess d drw =
     if dptShowFill d
     then filter (\(_ , ((tags , em) , color)) ->
+               not ("ms0" `elem` tags) &&
                not ("zeroCellCPI" `elem` tags)
            ) $ (mapStyle (addTag "filling") drw)
     else []
@@ -356,7 +359,7 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
      --    then scaff
      --    else []
 
-  finalProcess _ =
+  finalProcess settings =
     let fillP = mapStyle
                  (\((tags , em) , color)  ->
 
@@ -379,7 +382,15 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
               length x > 1 || ("zeroCellCPI" `elem` tags)
            )
                  
+        -- toggleStrands =
+        --   filter (\(x, ((tags , em) , color)) -> (not ("m2" `elem` tags) || not ("gcd" `elem` tags)
+        --                                           || not (Set.null (Set.intersection (Set.fromList tags) (dptTags settings)))))
+
+        -- toggleLowDim =
+        --   filter (\(x, ((tags , em) , color)) -> ("m"++(show (dptShowLowDim settings))) `elem` tags)
     in
+       -- toggleStrands
+     -- . toggleLowDim
        removePoints
      . removeFillHoles
      . fillP

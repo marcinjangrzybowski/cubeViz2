@@ -52,8 +52,8 @@ data GCData = GCData (FromLI Subset (Int , Int))
 
 
 
-primitivePiece :: (Float , Float) -> Piece -> Smplx
-primitivePiece (distCorner , distCenter) (su , pm) =
+primitivePiece :: Bool -> (Float , Float) -> Piece -> Smplx
+primitivePiece mirror (distCorner , distCenter) (su , pm) =
   let crnr = toListLI su
       n = length crnr
       ptCrnr = map (bool (0.0 + distCorner) (1.0 - distCorner)) crnr
@@ -63,36 +63,47 @@ primitivePiece (distCorner , distCenter) (su , pm) =
                       (  fmap dupe . (\ pt k -> updateAt (ptCenter !! k ) k pt) )
                       ptCrnr
                       (toListLI $ invPerm pm)
+      pt = ptCrnr : snd restPts
+      cornerVector = [if k == unemerate pm then 0 else (if b then 1 else -1) | (k, b) <- zip [0..n-1] crnr]
+      mean pts = map (\x -> x / fromIntegral (length pts)) (map sum (transpose pts))
+      middle = translatePar cornerVector parTranslate (mean [ptCrnr, ptCenter])
+      translatedPt = translatePar cornerVector parTranslate pt
+      mirroredPt =
+        if mirror
+        then scaleOrigin (-1.0) middle translatedPt
+        else translatedPt
+  in
+    if n > 2
+    then error "unimplemented: dim > 2"
+    else mirroredPt
 
-  in ptCrnr : snd restPts
-
-primitivePieceBd :: (Float , Float) -> Piece -> [Smplx]
-primitivePieceBd x y | (getDim y == 0) = []
+primitivePieceBd :: Bool -> (Float , Float) -> Piece -> [Smplx]
+primitivePieceBd mirror x y | (getDim y == 0) = []
                      | otherwise =
-  [ init (primitivePiece x y) , tail (primitivePiece x y) ]
+  [ init (primitivePiece mirror x y) , tail (primitivePiece mirror x y) ]
 
-par1 = 0.4
-par2 = 0.5
-
-
-renderGCDSolid :: GCData -> ZDrawing ColorType
-renderGCDSolid (GCData fli@(FromLI n f)) =
-   FromLI n (\pc@(sbst , prm) ->
-        let (colId , uniqN) = appLI sbst fli
-            mainSmplx = primitivePiece (par1 , par2) pc
-        in [(mainSmplx  , (([] , Basic) , nthColor colId)) ]
-               )
+parSize = 0.05
+par1 = 0.3 -- 0.3 - parSize
+par2 = 0.4 -- 0.3 + parSize
+parTranslate = 0.2
 
 renderGCD :: GCData -> ZDrawing ColorType
 renderGCD (GCData fli@(FromLI n f)) =
    FromLI n (\pc@(sbst , prm) ->
-        let (colId , uniqN) = appLI sbst fli
-            mainSmplx = primitivePiece (par1 , par2) pc
-            bdSmplxs = primitivePieceBd (par1 , par2) pc
+        let (_ , uniqN) = appLI sbst fli
+            colId = uniqN -- unemerate sbst
+            mainSmplx = primitivePiece False (par1 , par2) pc
+            mirrorSmplx = primitivePiece True (par1 , par2) pc
+            bdSmplxs = primitivePieceBd False (par1 , par2) pc
+            mirrorBdSmplxs = primitivePieceBd True (par1 , par2) pc
             -- mainStyle = if n == 0 then [ExtrudeLines] else []
+            -- TODO maybe vary color by permutation?
+            color = nthColor colId
         in
-          [(mainSmplx  , ((["ms"++(show n)] , Basic) , nthColor colId)) ] ++
-          [(x  , (([] , Basic) , nthColor colId)) | x <- bdSmplxs ])
+          [(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , color)) ] ++
+          [(mirrorSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , color)) ] ++
+          [(x  , ((["m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , color)) | x <- bdSmplxs ] ++
+          [(x  , ((["m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , color)) | x <- mirrorBdSmplxs ])
 
 type GCContext = Map.Map Int GCData
 

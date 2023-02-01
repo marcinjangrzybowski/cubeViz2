@@ -43,6 +43,9 @@ class InSpace a where
   translate :: [Float] -> a -> a
   translate x = sMap (zipWith (+) x)
 
+  translatePar :: [Float] -> Float -> a -> a
+  translatePar x t = sMap (zipWith (+) (map (* t) x))
+
   scaleNonUniform :: [Float] -> a -> a
   scaleNonUniform x = sMap (zipWith (*) x)
 
