@@ -1,0 +1,21 @@
+Goal: A
+Elaborates to: loop₂ (x ∧ ~ y) (~ x ∨ (y ∧ ~ y) ∨ (x ∧ ~ y) ∨ x ∧ y)
+———— Boundary ——————————————————————————————————————————————
+x = i0 ⊢ base
+x = i1 ⊢ loop₂ (~ y) ((y ∧ ~ y) ∨ ~ y ∨ y)
+y = i0 ⊢ loop₂ x (~ x ∨ x)
+y = i1 ⊢ loop (~ x ∨ x)
+————————————————————————————————————————————————————————————
+y     : I
+x     : I
+loop₂ : PathP {ℓ} (λ i → _≡_ {ℓ} {A} (loop i) (loop i)) loop loop
+loop  : _≡_ {ℓ} {A} base base
+base  : A
+A     : Type ℓ
+ℓ     : Level
+———— Constraints ———————————————————————————————————————————
+loop (~ x ∨ x) = ?10 (y = i1) : A (blocked on _891)
+loop₂ x (~ x ∨ x) = ?10 (y = i0) : A (blocked on _891)
+loop₂ (~ y) ((y ∧ ~ y) ∨ ~ y ∨ y) = ?10 (x = i1) : A
+  (blocked on _891)
+base = ?10 (x = i0) : A (blocked on _891)

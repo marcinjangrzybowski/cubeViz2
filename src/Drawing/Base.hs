@@ -65,6 +65,9 @@ instance (InSpace b)  => InSpace [b] where
 instance InSpace a  => InSpace (a , b) where
   sMap = first . sMap
 
+instance InSpace a  => InSpace (a , a , a) where
+  sMap f (x, y, z) = (sMap f x, sMap f y, sMap f z)
+
 -- instance Bi a => InSpace (a [ Float ]) where
 --   sMap = fmap   
 
