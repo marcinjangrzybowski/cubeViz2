@@ -130,7 +130,7 @@ primitivePieceLoop2 withCrossing stacking (distCorner , distCenter) (su , pm) =
            else
              let alpha = ((1.0/8) - (width / ((sqrt 2.0) * 2.0)))
                  beta = 0.05
-                 gamma = 0.002
+                 gamma = 0.025
                  c1 = [alpha + beta, 0.5 - alpha - beta]
                  c2 = [0.25 - alpha + beta, 0.25 + alpha - beta]
                  c3 = [alpha + beta, 0.25 + alpha - beta]

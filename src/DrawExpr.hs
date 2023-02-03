@@ -54,37 +54,6 @@ import Data.Bits
 
 defaultCompPar = 0.3
 
-subFaceTrans :: SubFace -> Drawing a -> Drawing a
-subFaceTrans sf@(SubFace n m) drw =
-  case Map.toList m of
-    [] -> mempty
-    -- _ : [] -> emptyDrawing 
-    (i , b)  : js ->
-      let
-          -- putting subface in one of the adjacent face to execute face transform
-          augmentedWithMissingTail =
-             foldl (flip (\(i , b) -> embed (i - 1) (const $ if b then 1.0 else 0.0)))
-               drw js
-
-          transformed = sMap (ambFnOnArr
-             $ sideTransInv defaultCompPar STSubFace (Face n (i , b)))
-             $ transposeDrw i augmentedWithMissingTail
-
-
-      in transformed
-
-hcompDrawings :: Drawing a
-     -> Map.Map SubFace (Drawing a)
-     -> Drawing a
-hcompDrawings bot sides =
-   concat
-    (
-      sMap (map $ centerTransInv defaultCompPar) bot :
-      map snd (Map.toList
-       $ Map.mapWithKey subFaceTrans sides)
-     )
-
-
 type CellPainter b =
        Int -> Address
          -> Maybe CellExpr -> Drawing b
