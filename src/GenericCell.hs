@@ -199,12 +199,18 @@ renderGCD (GCData "loop₂" fli@(FromLI 2 f)) =
    FromLI n (\pc@(sbst , prm) ->
         let (_ , uniqN) = appLI sbst fli
             shouldTranspose = foldr xor False (toListLI sbst)
+            stacking =
+              case (toListLI sbst) of
+                [False, False] -> True
+                [True, True] -> True
+                [True, False] -> True
+                [False, True] -> True
             withCrossing = not ((unemerate prm == 0) `xor` (foldr xor False (toListLI sbst)))
             rotQuarter = scaleNonUniformOrigin [if b then -1.0 else 1.0 | b <- toListLI sbst] [0.5, 0.5]
                          . sMap (\[x,y] -> if shouldTranspose then [y,x] else [x,y])
             pcPrime = (fromListLI [False, False], prm)
             (mainSmplxs, mainSmplxs2, mainSmplxs3) =
-              rotQuarter (primitivePieceLoop2 withCrossing shouldTranspose (par1 , par2) pcPrime)
+              rotQuarter (primitivePieceLoop2 withCrossing stacking (par1 , par2) pcPrime)
             -- (bdSmplxs, bdSmplxs2) = primitivePieceLoop2Bd undefined (par1 , par2) pc
             -- mainStyle = if n == 0 then [ExtrudeLines] else []
             -- TODO maybe vary color by permutation?
@@ -219,6 +225,10 @@ renderGCD (GCData "loop₂" fli@(FromLI 2 f)) =
         in [(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , colorUnder)) | mainSmplx <- mainSmplxs] ++
            [(mainSmplx2 , ((["ms"++(show n), "m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , colorOver)) | mainSmplx2 <- mainSmplxs2] ++
            [(mainSmplx3 , ((["ms"++(show n), "m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , colorOver)) | mainSmplx3 <- mainSmplxs3])
+
+renderGCD (GCData "loop₃" fli@(FromLI 3 f)) =
+  FromLI 3 (\_ -> [])
+
 renderGCD (GCData _ fli@(FromLI n f)) =
    FromLI n (\pc@(sbst , prm) ->
         let (_ , uniqN) = appLI sbst fli

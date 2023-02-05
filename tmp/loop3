@@ -1,0 +1,25 @@
+Goal: A
+Elaborates to: {!!}
+———— Boundary ——————————————————————————————————————————————
+i = i0 ⊢ loop₂ j k
+i = i1 ⊢ loop₂ j k
+j = i0 ⊢ loop₂ i k
+j = i1 ⊢ loop₂ i k
+k = i0 ⊢ loop₂ i j
+k = i1 ⊢ loop₂ i j
+————————————————————————————————————————————————————————————
+k : I
+j : I
+i : I
+loop₂ : PathP {ℓ} (λ i₁ → _≡_ {ℓ} {A} (loop i₁) (loop i₁)) loop loop
+loop : _≡_ {ℓ} {A} base base
+base : A
+A : Type ℓ
+ℓ : Level
+———— Constraints ———————————————————————————————————————————
+loop₂ i j = ?14 (k = i1) : A (blocked on _926)
+loop₂ i j = ?14 (k = i0) : A (blocked on _926)
+loop₂ i k = ?14 (j = i1) : A (blocked on _926)
+loop₂ i k = ?14 (j = i0) : A (blocked on _926)
+loop₂ j k = ?14 (i = i1) : A (blocked on _926)
+loop₂ j k = ?14 (i = i0) : A (blocked on _926)

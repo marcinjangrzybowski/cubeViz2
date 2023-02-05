@@ -1,0 +1,20 @@
+Goal: A
+Elaborates to: hcomp {ℓ} {A} {x ∨ ~ x ∨ ~ y ∨ y} (λ z → primPOr {ℓ} x (~ x ∨ ~ y ∨ y) {λ _ → A} (λ _ → loop₂ (~ z) y) (primPOr {ℓ} (~ x) (~ y ∨ y) {λ _ → A} (λ _ → loop y) (primPOr {ℓ} (~ y) y {λ _ → A} (λ _ → loop (x ∧ ~ z)) (λ _ → loop (x ∧ ~ z))))) (hcomp {ℓ} {A} {(~ x ∨ x) ∨ ~ y ∨ y} (λ z → primPOr {ℓ} (~ x ∨ x) (~ y ∨ y) {λ _ → A} (λ _ → loop₂ y z) (λ _ → loop₂ x z)) (loop₂ x y))
+———— Boundary ——————————————————————————————————————————————
+x = i0 ⊢ loop y
+x = i1 ⊢ loop y
+y = i0 ⊢ base
+y = i1 ⊢ base
+————————————————————————————————————————————————————————————
+y     : I
+x     : I
+loop₂ : PathP {ℓ} (λ i → _≡_ {ℓ} {A} (loop i) (loop i)) loop loop
+loop  : _≡_ {ℓ} {A} base base
+base  : A
+A     : Type ℓ
+ℓ     : Level
+———— Constraints ———————————————————————————————————————————
+base = ?15 (y = i1) : A (blocked on _954)
+base = ?15 (y = i0) : A (blocked on _954)
+loop y = ?15 (x = i1) : A (blocked on _954)
+loop y = ?15 (x = i0) : A (blocked on _954)
