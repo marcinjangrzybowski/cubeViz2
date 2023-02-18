@@ -258,7 +258,7 @@ drawExpr as Scaffold ee e =
                           , dptFillFactor = 1.0
                               -- 0.5 * (sin (realToFrac $ asTime as) + 1)
                           , dptTags = dpShowTags $ asDisplayPreferences as
-                          , dptShowLowDim = 1 -- 1 for 2D examples, 2 for 3D examples
+                          , dptShowLowDim = 2 -- 1 for 2D examples, 2 for 3D examples
                           })
                 
                -- , \ee e ->
