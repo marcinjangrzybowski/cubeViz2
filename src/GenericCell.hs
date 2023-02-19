@@ -47,7 +47,7 @@ import Debug.Trace
 
               -- first int refers to "color" (index of def of dim0)
               -- second int refers to uniqCounter for this primitive
-data GCData = GCData String (FromLI Subset (Int , Int))
+data GCData = GCData String (FromLI Piece (Int , Int , Piece))
 
 
 
@@ -181,7 +181,7 @@ renderGCD :: GCData -> ZDrawing ColorType
 renderGCD (GCData "loop₂" fli@(FromLI 1 f)) =
    let n = 1 in
    FromLI 1 (\pc@(sbst , prm) ->
-        let (_ , uniqN) = appLI sbst fli
+        let (_ , uniqN , pcOrg@(sbstOrg , prmOrg)) = appLI pc fli
             rotQuarter = scaleNonUniformOrigin [if b then -1.0 else 1.0 | b <- toListLI sbst] [0.5]
             pcPrime = (fromListLI [False], prm)
             (mainSmplxs, mainSmplxs2) =
@@ -189,8 +189,8 @@ renderGCD (GCData "loop₂" fli@(FromLI 1 f)) =
             -- (bdSmplxs, bdSmplxs2) = primitivePieceLoop2Bd undefined (par1Loop2 , par2Loop2) pc
             -- mainStyle = if n == 0 then [ExtrudeLines] else []
             -- TODO maybe vary color by permutation?
-            colorFst = nthColor 1
-            colorSnd = nthColor 2
+            colorFst = nthColor (unemerate pcOrg) --nthColor 1
+            colorSnd = nthColor (unemerate pcOrg) --nthColor 2
             (colorOver, colorUnder) =
               case toListLI sbst of
                 [False] -> (colorFst, colorFst)
@@ -201,15 +201,15 @@ renderGCD (GCData "loop₂" fli@(FromLI 1 f)) =
 renderGCD (GCData "loop₂" fli@(FromLI 2 f)) =
    let n = 2 in
    FromLI n (\pc@(sbst , prm) ->
-        let (_ , uniqN) = appLI sbst fli
-            shouldTranspose = foldr xor False (toListLI sbst)
+        let (_ , uniqN , pcOrg@(sbstOrg , prmOrg)) = appLI pc fli
+            shouldTranspose = foldr xor False (toListLI sbstOrg)
             stacking =
-              case (toListLI sbst) of
+              case (toListLI sbstOrg) of
                 [False, False] -> True
                 [True, True] -> True
                 [True, False] -> True
                 [False, True] -> True
-            withCrossing = not ((unemerate prm == 0) `xor` (foldr xor False (toListLI sbst)))
+            withCrossing = not ((unemerate prm == 0) `xor` (foldr xor False (toListLI sbstOrg)))
             rotQuarter = scaleNonUniformOrigin [if b then -1.0 else 1.0 | b <- toListLI sbst] [0.5, 0.5]
                          . sMap (\[x,y] -> if shouldTranspose then [y,x] else [x,y])
             pcPrime = (fromListLI [False, False], prm)
@@ -218,10 +218,10 @@ renderGCD (GCData "loop₂" fli@(FromLI 2 f)) =
             -- (bdSmplxs, bdSmplxs2) = primitivePieceLoop2Bd undefined (par1Loop2 , par2Loop2) pc
             -- mainStyle = if n == 0 then [ExtrudeLines] else []
             -- TODO maybe vary color by permutation?
-            colorFst = nthColor 1
-            colorSnd = nthColor 2
+            colorFst = nthColor 1 --nthColor (unemerate pcOrg) --
+            colorSnd = nthColor 2 --nthColor (unemerate pcOrg) -- nthColor 2
             (colorOver, colorUnder) =
-              case toListLI sbst of
+              case toListLI sbstOrg of
                 [False, False] -> (colorFst, colorFst)
                 [True, True] -> (colorSnd, colorSnd)
                 [True, False] -> (colorFst, colorSnd)
@@ -236,7 +236,7 @@ renderGCD (GCData "loop₃" fli@(FromLI 3 f)) =
 renderGCD (GCData nm fli@(FromLI n f)) =
    let (par1', par2') = (if nm == "loop₁" then (par1Loop2, par2Loop2) else (par1, par2)) in
    FromLI n (\pc@(sbst , prm) ->
-        let (_ , uniqN) = appLI sbst fli
+        let (_ , uniqN , _) = appLI pc fli
             colId = uniqN -- unemerate sbst
             mainSmplx = primitivePiece False (par1' , par2') pc
             mirrorSmplx = primitivePiece True (par1' , par2') pc
@@ -276,9 +276,12 @@ makeGCD (ee , ctx0) gccGS i (defName , ct) =
          in (Map.insert k xx gCCGS , xx)
 
 
-
+ 
       ( newGCCGS , newGCD) =  mapAccumL visitCorner gccGS (toListFLI crnrs)
-  in ( newGCCGS , GCData defName $ fromListFLI n newGCD)
+      
+  in ( newGCCGS ,
+          GCData defName $
+            (FromLI n (\pc -> (1 , 1 , pc))))
 
 initGCContext :: (Env , Context) -> GCContext
 initGCContext (ee , Context l _) =
