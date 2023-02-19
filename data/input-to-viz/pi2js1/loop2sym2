@@ -1,0 +1,20 @@
+Goal: A
+Elaborates to: loop₂ x (~ y)
+———— Boundary ——————————————————————————————————————————————
+x = i0 ⊢ loop y
+x = i1 ⊢ loop y
+y = i0 ⊢ loop (~ x)
+y = i1 ⊢ loop (~ x)
+————————————————————————————————————————————————————————————
+y     : I
+x     : I
+loop₂ : PathP {ℓ} (λ i → _≡_ {ℓ} {A} (loop i) (loop i)) loop loop
+loop  : _≡_ {ℓ} {A} base base
+base  : A
+A     : Type ℓ
+ℓ     : Level
+———— Constraints ———————————————————————————————————————————
+base = ?15 (y = i1) : A (blocked on _954)
+base = ?15 (y = i0) : A (blocked on _954)
+loop y = ?15 (x = i1) : A (blocked on _954)
+loop y = ?15 (x = i0) : A (blocked on _954)

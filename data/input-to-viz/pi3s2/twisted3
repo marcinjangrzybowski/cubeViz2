@@ -1,0 +1,24 @@
+Goal: A
+Elaborates to: hcomp {ℓ} {A} {(~ i ∨ i) ∨ ~ j ∨ j ∨ ~ k ∨ k} (λ l → primPOr {ℓ} (~ i ∨ i) (~ j ∨ j ∨ ~ k ∨ k) {λ _ → A} (primPOr {ℓ} (~ i) i {λ _ → A} (λ _ → hcomp {ℓ} {A} {(~ l ∨ l) ∨ ~ k ∨ k} (λ l₁ → primPOr {ℓ} (~ l ∨ l) (~ k ∨ k) {λ _ → A} (primPOr {ℓ} (~ l) l {λ _ → A} (λ _ → s (~ l₁ ∧ j ∧ k) ((~ j ∧ k) ∨ j ∨ k)) (λ _ → s ((~ l₁ ∧ ~ j ∨ (j ∧ k) ∨ k) ∨ l₁ ∨ ~ j ∨ (j ∧ k) ∨ k) (~ j ∧ k))) (primPOr {ℓ} (~ k) k {λ _ → A} (λ _ → s (~ l₁ ∧ ~ j ∧ l) (j ∧ ~ l)) (λ _ → s ((~ l₁ ∧ (~ j ∧ l) ∨ j ∨ l) ∨ l₁ ∨ (~ j ∧ l) ∨ j ∨ l) (~ j ∨ (j ∧ ~ l) ∨ ~ l)))) (s ((~ j ∧ l) ∨ (j ∧ k) ∨ l ∧ k) ((~ j ∧ k) ∨ (j ∧ ~ l) ∨ k ∧ ~ l))) (λ _ → hcomp {ℓ} {A} {(l ∨ ~ l) ∨ k ∨ ~ k} (λ l₁ → primPOr {ℓ} (l ∨ ~ l) (k ∨ ~ k) {λ _ → A} (primPOr {ℓ} l (~ l) {λ _ → A} (λ _ → s (~ l₁ ∧ ~ j ∧ ~ k) ((j ∧ ~ k) ∨ ~ j ∨ ~ k)) (λ _ → s ((~ l₁ ∧ j ∨ (~ j ∧ ~ k) ∨ ~ k) ∨ l₁ ∨ j ∨ (~ j ∧ ~ k) ∨ ~ k) (j ∧ ~ k))) (primPOr {ℓ} k (~ k) {λ _ → A} (λ _ → s (~ l₁ ∧ j ∧ ~ l) (~ j ∧ l)) (λ _ → s ((~ l₁ ∧ (j ∧ ~ l) ∨ ~ j ∨ ~ l) ∨ l₁ ∨ (j ∧ ~ l) ∨ ~ j ∨ ~ l) (j ∨ (~ j ∧ l) ∨ l)))) (s ((j ∧ ~ l) ∨ (~ j ∧ ~ k) ∨ ~ l ∧ ~ k) ((j ∧ ~ k) ∨ (~ j ∧ l) ∨ ~ k ∧ l)))) (primPOr {ℓ} (~ j ∨ j) (~ k ∨ k) {λ _ → A} (primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → hcomp {ℓ} {A} {(k ∨ ~ k) ∨ ~ l ∨ l} (λ l₁ → primPOr {ℓ} (k ∨ ~ k) (~ l ∨ l) {λ _ → A} (primPOr {ℓ} k (~ k) {λ _ → A} (λ _ → s (~ l₁ ∧ ~ i ∧ l) ((i ∧ l) ∨ ~ i ∨ l)) (λ _ → s ((~ l₁ ∧ i ∨ (~ i ∧ l) ∨ l) ∨ l₁ ∨ i ∨ (~ i ∧ l) ∨ l) (i ∧ l))) (primPOr {ℓ} (~ l) l {λ _ → A} (λ _ → s (~ l₁ ∧ i ∧ ~ k) (~ i ∧ k)) (λ _ → s ((~ l₁ ∧ (i ∧ ~ k) ∨ ~ i ∨ ~ k) ∨ l₁ ∨ (i ∧ ~ k) ∨ ~ i ∨ ~ k) (i ∨ (~ i ∧ k) ∨ k)))) (s ((i ∧ ~ k) ∨ (~ i ∧ l) ∨ ~ k ∧ l) ((i ∧ l) ∨ (~ i ∧ k) ∨ l ∧ k))) (λ _ → hcomp {ℓ} {A} {(~ k ∨ k) ∨ l ∨ ~ l} (λ l₁ → primPOr {ℓ} (~ k ∨ k) (l ∨ ~ l) {λ _ → A} (primPOr {ℓ} (~ k) k {λ _ → A} (λ _ → s (~ l₁ ∧ i ∧ ~ l) ((~ i ∧ ~ l) ∨ i ∨ ~ l)) (λ _ → s ((~ l₁ ∧ ~ i ∨ (i ∧ ~ l) ∨ ~ l) ∨ l₁ ∨ ~ i ∨ (i ∧ ~ l) ∨ ~ l) (~ i ∧ ~ l))) (primPOr {ℓ} l (~ l) {λ _ → A} (λ _ → s (~ l₁ ∧ ~ i ∧ k) (i ∧ ~ k)) (λ _ → s ((~ l₁ ∧ (~ i ∧ k) ∨ i ∨ k) ∨ l₁ ∨ (~ i ∧ k) ∨ i ∨ k) (~ i ∨ (i ∧ ~ k) ∨ ~ k)))) (s ((~ i ∧ k) ∨ (i ∧ ~ l) ∨ k ∧ ~ l) ((~ i ∧ ~ l) ∨ (i ∧ ~ k) ∨ ~ l ∧ ~ k)))) (λ _ → a))) a
+———— Boundary ——————————————————————————————————————————————
+i = i0 ⊢ a
+i = i1 ⊢ a
+j = i0 ⊢ a
+j = i1 ⊢ a
+k = i0 ⊢ a
+k = i1 ⊢ a
+————————————————————————————————————————————————————————————
+k : I
+j : I
+i : I
+s : _≡_ {ℓ} {_≡_ {ℓ} {A} a a} (λ _ → a) (λ _ → a)
+a : A
+A : Type ℓ
+ℓ : Level
+———— Constraints ———————————————————————————————————————————
+a = ?0 (k = i1) : A (blocked on _188)
+a = ?0 (k = i0) : A (blocked on _188)
+a = ?0 (j = i1) : A (blocked on _188)
+a = ?0 (j = i0) : A (blocked on _188)
+a = ?0 (i = i1) : A (blocked on _188)
+a = ?0 (i = i0) : A (blocked on _188)
