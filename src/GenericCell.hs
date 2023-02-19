@@ -233,14 +233,15 @@ renderGCD (GCData "loop₂" fli@(FromLI 2 f)) =
 renderGCD (GCData "loop₃" fli@(FromLI 3 f)) =
   FromLI 3 (\_ -> [])
 
-renderGCD (GCData _ fli@(FromLI n f)) =
+renderGCD (GCData nm fli@(FromLI n f)) =
+   let (par1', par2') = (if nm == "loop₁" then (par1Loop2, par2Loop2) else (par1, par2)) in
    FromLI n (\pc@(sbst , prm) ->
         let (_ , uniqN) = appLI sbst fli
             colId = uniqN -- unemerate sbst
-            mainSmplx = primitivePiece False (par1 , par2) pc
-            mirrorSmplx = primitivePiece True (par1 , par2) pc
-            bdSmplxs = primitivePieceBd False (par1 , par2) pc
-            mirrorBdSmplxs = primitivePieceBd True (par1 , par2) pc
+            mainSmplx = primitivePiece False (par1' , par2') pc
+            mirrorSmplx = primitivePiece True (par1' , par2') pc
+            bdSmplxs = primitivePieceBd False (par1' , par2') pc
+            mirrorBdSmplxs = primitivePieceBd True (par1' , par2') pc
             -- mainStyle = if n == 0 then [ExtrudeLines] else []
             -- TODO maybe vary color by permutation?
             color = nthColor colId
