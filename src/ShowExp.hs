@@ -83,7 +83,7 @@ data DisplayPreferences = DisplayPreferences
 
 defaultDisplayPreferences = DisplayPreferences
    { dpShowFilling        = True
-   , dpShowTags           = Set.fromList ["piece1", "piece3"]
+   , dpShowTags           = Set.fromList ["piece1", "piece2", "piece3", "piece4"]
    }
 
 data AppState = AppState

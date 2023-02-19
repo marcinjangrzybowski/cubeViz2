@@ -72,10 +72,14 @@ primitivePiece mirror (distCorner , distCenter) (su , pm) =
         if mirror
         then scaleOrigin (-1.0) middle translatedPt
         else translatedPt
+      squishedPt = mirroredPt
+      -- TODO how to fix this?
+      -- squishedPt =
+      --   scaleNonUniformOrigin [0.25, 1] middle mirroredPt
   in
     if n > 2
     then error "unimplemented: dim > 2"
-    else mirroredPt
+    else squishedPt
 
 primitivePieceBd :: Bool -> (Float , Float) -> Piece -> [Smplx]
 primitivePieceBd mirror x y | (getDim y == 0) = []
