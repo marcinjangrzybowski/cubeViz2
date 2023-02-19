@@ -83,7 +83,7 @@ data DisplayPreferences = DisplayPreferences
 
 defaultDisplayPreferences = DisplayPreferences
    { dpShowFilling        = True
-   , dpShowTags           = Set.fromList ["piece1", "piece2", "piece3", "piece4"]
+   , dpShowTags           = Set.fromList ["piece1", "piece2", "piece3", "piece4", "piece5", "piece6", "piece7", "piece8"]
    }
 
 data AppState = AppState
@@ -258,7 +258,7 @@ drawExpr as Scaffold ee e =
                           , dptFillFactor = 1.0
                               -- 0.5 * (sin (realToFrac $ asTime as) + 1)
                           , dptTags = dpShowTags $ asDisplayPreferences as
-                          , dptShowLowDim = 2 -- 1 for 2D examples, 2 for 3D examples
+                          , dptShowLowDim = 1 -- 1 for 2D examples, 2 for 3D examples
                           })
                 
                -- , \ee e ->
