@@ -343,7 +343,7 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
   drawCellCommon spt k addr _ _ =
      if k == 0 then
      [
-       ( [[]] , ((["zeroCellCPI"] , Midpoints) , gray 0))
+       ( [[]] , ((["zeroCellCPI","m0"] , Midpoints) , gray 0))
      ] else []
      -- let partOfSelectedCellBndr =
      --          maybe False (not . isInternalAddress)
@@ -387,7 +387,7 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
                                                   || not (Set.null (Set.intersection (Set.fromList tags) (dptTags settings)))))
 
         toggleLowDim =
-          filter (\(x, ((tags , em) , color)) -> ("m"++(show (dptShowLowDim settings))) `elem` tags)
+          filter (\(x, ((tags , em) , color)) -> not ("m0" `elem` tags))
     in
        toggleStrands
      . toggleLowDim
