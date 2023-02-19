@@ -167,9 +167,13 @@ primitivePieceLoop2 withCrossing stacking (distCorner , distCenter) (su , pm) =
 --                      | otherwise =
 --   [ init (primitivePieceLoop2 mirror x y) , tail (primitivePieceLoop2 mirror x y) ]
 
-par1 = 0.2
-par2 = 0.3
-parTranslate = 0.1
+par1 = 0.3
+par2 = 0.4
+parTranslate = 0.2
+
+par1Loop2 = 0.2
+par2Loop2 = 0.3
+parTranslateLoop2 = 0.1
 
 triangle1 = [[0.0, 0.05], [0.05, 0.05], [0.0, 0.0]]
 
@@ -181,8 +185,8 @@ renderGCD (GCData "loop₂" fli@(FromLI 1 f)) =
             rotQuarter = scaleNonUniformOrigin [if b then -1.0 else 1.0 | b <- toListLI sbst] [0.5]
             pcPrime = (fromListLI [False], prm)
             (mainSmplxs, mainSmplxs2) =
-              rotQuarter (primitivePieceLoop1d (par1 , par2) pcPrime)
-            -- (bdSmplxs, bdSmplxs2) = primitivePieceLoop2Bd undefined (par1 , par2) pc
+              rotQuarter (primitivePieceLoop1d (par1Loop2 , par2Loop2) pcPrime)
+            -- (bdSmplxs, bdSmplxs2) = primitivePieceLoop2Bd undefined (par1Loop2 , par2Loop2) pc
             -- mainStyle = if n == 0 then [ExtrudeLines] else []
             -- TODO maybe vary color by permutation?
             colorFst = nthColor 1
@@ -210,8 +214,8 @@ renderGCD (GCData "loop₂" fli@(FromLI 2 f)) =
                          . sMap (\[x,y] -> if shouldTranspose then [y,x] else [x,y])
             pcPrime = (fromListLI [False, False], prm)
             (mainSmplxs, mainSmplxs2, mainSmplxs3) =
-              rotQuarter (primitivePieceLoop2 withCrossing stacking (par1 , par2) pcPrime)
-            -- (bdSmplxs, bdSmplxs2) = primitivePieceLoop2Bd undefined (par1 , par2) pc
+              rotQuarter (primitivePieceLoop2 withCrossing stacking (par1Loop2 , par2Loop2) pcPrime)
+            -- (bdSmplxs, bdSmplxs2) = primitivePieceLoop2Bd undefined (par1Loop2 , par2Loop2) pc
             -- mainStyle = if n == 0 then [ExtrudeLines] else []
             -- TODO maybe vary color by permutation?
             colorFst = nthColor 1
