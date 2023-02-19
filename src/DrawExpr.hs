@@ -331,7 +331,7 @@ instance DrawingCtx GCContext ColorType GCData DefaultPT where
   finalProcess settings =
     let fillP = mapStyle
                  (\((tags , em) , color)  ->
-                    color
+                    ((tags, em), color)
                     -- if "filling" `elem` tags
                     -- then ((tags , em) , lighter 0.6 color)
                     -- else ((tags , em) , color)
