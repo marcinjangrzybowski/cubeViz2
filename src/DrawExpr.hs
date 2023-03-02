@@ -47,6 +47,7 @@ import Reorientable
 import DataExtra
 
 import GenericCell
+import ConcreteCell
 
 import Debug.Trace
 
@@ -175,12 +176,12 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
   -- HERE PIECE ARGUMENT IS ADDITIONAL!!!, for some special application!
   -- TODO :: Recover local context in cellPainter using Address
   -- getting internal cell representation, 
-  drawGenericTerm :: d -> a -> Piece -> VarIndex -> c
+  drawTermFromContext :: d -> a -> Piece -> VarIndex -> c
 
   --Drawing b
 
   -- "rendering" internal cell representation to drawing in pieces
-  drawD :: d -> a -> c -> ZDrawing b
+  drawD :: d -> a -> c  -> ZDrawing b
 
   drawCellCommon :: d -> Int -> Address -> a ->
                     Maybe CellExpr -> Drawing b
@@ -188,7 +189,7 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
 
   drawCellPiece :: d -> Int -> Address -> a -> PieceExpr -> (Piece -> Drawing b)
   drawCellPiece d n adr a (PieceExpr h t) =
-     \pc -> appLI pc (remapTL (drawD d a) n t $ drawGenericTerm d a pc h)
+     \pc -> appLI pc (remapTL (drawD d a) n t $ drawTermFromContext d a pc h)
 
   drawHole :: d -> Int -> Address -> a -> Drawing b
   drawHole _ _ _ _ = []
@@ -260,12 +261,15 @@ data DefaultPT = DefaultPT { dptCursorAddress ::  Maybe Address
 addTag :: String -> ColorType -> ColorType
 addTag s = first (first (addIfNotIn s))
 
-instance DrawingCtx GCContext ColorType GCData DefaultPT where
+instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) DefaultPT where
   fromCtx _ = initGCContext
-  drawGenericTerm _ gcc _ (VarIndex vi) = gcc Map.! vi
+  drawTermFromContext _ gcc _ (VarIndex vi) =
+    let g@(GCData s _) = gcc Map.! vi
+    in case renderNamedCell s of
+         Just x -> Right (ConcreteCellData x)
+         Nothing -> Left g
 
-
-  drawD _ _ = renderGCD
+  drawD _ _ = either renderGCD ccdDrawing
 
   drawHole spt k addr ee =
       if k <= 3
@@ -410,7 +414,7 @@ data ScaffoldPT = ScaffoldPT
 instance DrawingCtx (Env , Context) ColorType Int ScaffoldPT where
   fromCtx _ = id
 
-  drawGenericTerm _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
+  drawTermFromContext _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
 
   drawD _ _ k = FromLI k (const [])
 
@@ -438,7 +442,7 @@ data ConstraintsViewPT a = ConstraintsViewPT
 instance DrawingCtx (Env , Context) ColorType Int (ConstraintsViewPT a) where
   fromCtx _ = id
 
-  drawGenericTerm _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
+  drawTermFromContext _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
 
   drawD _ _ k = FromLI k (const [])
 
@@ -537,7 +541,7 @@ faceSelectorDrw k = \case
 instance DrawingCtx (Env , Context) ColorType Int CursorPT where
   fromCtx _ = id
 
-  drawGenericTerm _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
+  drawTermFromContext _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
 
   drawD _ _ k = FromLI k (const [])
 
@@ -567,7 +571,7 @@ data ClickPoints = ClickPoints
 instance DrawingCtx (Env , Context) (ColorType2 Address) Int ClickPoints where
   fromCtx _ = id
 
-  drawGenericTerm _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
+  drawTermFromContext _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
 
   drawD _ _ k = FromLI k (const [])
 
@@ -591,7 +595,7 @@ faceHandleSize = 0.3
 instance DrawingCtx (Env , Context) (ColorType2 Address) Int FaceHandles where
   fromCtx _ = id
 
-  drawGenericTerm _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
+  drawTermFromContext _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
 
   drawD _ _ k = FromLI k (const [])
 
@@ -627,7 +631,7 @@ instance DrawingCtx (Env , Context) (ColorType2 Address) Int FaceHandles where
 
 -- instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where    
 --   fromCtx _ _ = ()
---   drawGenericTerm _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
+--   drawTermFromContext _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
 
 --   drawD _ _ k = FromLI k (const [])
@@ -689,7 +693,7 @@ instance DrawingCtx (Env , Context) (ColorType2 Address) Int FaceHandles where
 
 -- -- instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int CursorPT where    
 -- --   fromCtx _ _ = ()
--- --   drawGenericTerm _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
+-- --   drawTermFromContext _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
 
 
 -- --   drawD _ _ k = FromLI k (const [])

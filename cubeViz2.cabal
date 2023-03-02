@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d210a216e0a5882322a77fbfccb07f35863fcfb8dbdae5b2ccdedfcbd830847c
+-- hash: 501a513decd364ad2f8879fb4bf6b4b486341a8845a0d01ee8e0051ef1fb6f07
 
 name:           cubeViz2
 version:        0.1.0.0
@@ -29,6 +29,7 @@ library
   exposed-modules:
       Abstract
       Combi
+      ConcreteCell
       ConsolePrint
       ContextParser
       DataExtra

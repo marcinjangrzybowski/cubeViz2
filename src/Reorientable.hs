@@ -107,14 +107,34 @@ instance DiaDeg (FromLI Subset a) where
 
   appPerm prm (FromLI n f) = (FromLI n (f . fromListLI . listPermute prm . toListLI )) 
 
-instance DiaDeg (FromLI Piece a) where
-  appNegs l (FromLI n f) = (FromLI n (f . fromListLI . (zipWith (\x (b , y) -> ((xor (not x) b) , y)) l) . toListLI ))
+
+class DiaDegPiece a where
+
+  pieceAppNegs :: [Bool] -> a -> a
+  
+  pieceAppDiags :: [(Int,Int)] -> a -> a
+
+  pieceAppPerm :: Permutation -> a -> a
+
+
+instance (DiaDegPiece a) => DiaDeg (FromLI Piece a) where
+  appNegs l (FromLI n f) = (FromLI n (pieceAppNegs l . f . fromListLI . (zipWith (\x (b , y) -> ((xor (not x) b) , y)) l) . toListLI ))
   
   appDiags l (FromLI n f) = 
      let isDupe = not . (flip elem) (fmap fst l)
-     in (FromLI (n - length l) (f . fromListLI . map snd . (filter (isDupe . fst ) )  . (zip [0..]) . toListLI ))
+     in (FromLI (n - length l) (pieceAppDiags l . f . fromListLI . map snd . (filter (isDupe . fst ) )  . (zip [0..]) . toListLI ))
 
-  appPerm prm (FromLI n f) = (FromLI n (f . fromListLI . listPermute prm . toListLI )) 
+  appPerm prm (FromLI n f) = (FromLI n (pieceAppPerm prm .f . fromListLI . listPermute prm . toListLI )) 
+
+instance (DiaDeg a , DiaDeg b) => DiaDeg (Either a b) where
+  appNegs l = bimap (appNegs l) (appNegs l)
+     -- (FromLI n (f . fromListLI . (zipWith (\x (b , y) -> ((xor (not x) b) , y)) l) . toListLI ))
+  
+  appDiags l = bimap (appDiags l) (appDiags l)
+     -- let isDupe = not . (flip elem) (fmap fst l)
+     -- in (FromLI (n - length l) (f . fromListLI . map snd . (filter (isDupe . fst ) )  . (zip [0..]) . toListLI ))
+
+  appPerm prm = bimap (appPerm prm) (appPerm prm)
 
   
 
