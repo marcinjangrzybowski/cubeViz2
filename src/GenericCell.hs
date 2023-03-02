@@ -55,10 +55,11 @@ data GCData = GCData String (FromLI Piece (Int , Int , Piece))
 
 
 renderGCD' :: (Float , Float , Float) -> GCData -> ZDrawing ColorType
-renderGCD' (par1 , par2 , parTranslate) (GCData _ fli@(FromLI n f)) =
+renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n f)) =
    FromLI n (\pc@(sbst , prm) ->
-        let (_ , uniqN , _) = appLI pc fli
-            colId = uniqN -- unemerate sbst
+        let (_ , uniqN , pcOrg) = appLI pc fli
+            pieceId = unemerate pcOrg + 1
+            colId = if nm == "loop₁" then uniqN else pieceId            
             mainSmplx = primitivePiece False (par1 , par2) pc
             mirrorSmplx = primitivePiece True (par1 , par2) pc
             bdSmplxs = primitivePieceBd False (par1 , par2) pc
@@ -67,10 +68,10 @@ renderGCD' (par1 , par2 , parTranslate) (GCData _ fli@(FromLI n f)) =
             -- TODO maybe vary color by permutation?
             color = nthColor colId
         in
-          [(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , color)) ] ++
-          [(mirrorSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , color)) ] ++
-          [(x  , ((["m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , color)) | x <- bdSmplxs ] ++
-          [(x  , ((["m"++(show n), "piece"++(show uniqN), "gcd"] , Basic) , color)) | x <- mirrorBdSmplxs ])
+          [(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pieceId), "gcd"] , Basic) , color)) ] ++
+          [(mirrorSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pieceId), "gcd"] , Basic) , color)) ] ++
+          [(x  , ((["m"++(show n), "piece"++(show pieceId), "gcd"] , Basic) , color)) | x <- bdSmplxs ] ++
+          [(x  , ((["m"++(show n), "piece"++(show pieceId), "gcd"] , Basic) , color)) | x <- mirrorBdSmplxs ])
  where
    primitivePiece :: Bool -> (Float , Float) -> Piece -> Smplx
    primitivePiece mirror (distCorner , distCenter) (su , pm) =
