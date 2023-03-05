@@ -377,11 +377,13 @@ instance Shadelike ColorType where
               isCursorSec = elem "cursorSec" tags
               hollowBox = elem "hollowBox" tags
               animStripes = elem "animated-stripes" tags
-              shadeMode = case (isCursor , isCursorSec , animStripes , hollowBox) of
-                              (True , _ , _ , _) -> 6
-                              (_ , True , _ , _) -> 7
-                              (_ , _ , True , _) -> 3
-                              (_ , _ , _ , True) -> 4
+              moveFibres = elem "moveFibres" tags
+              shadeMode = case (isCursor , isCursorSec , animStripes , hollowBox,moveFibres) of
+                              (True , _ , _ , _ , _) -> 6
+                              (_ , True , _ , _ , _) -> 7
+                              (_ , _ , True , _ , _) -> 3
+                              (_ , _ , _ , True , _) -> 4
+                              (_ , _ , _ , _ , True) -> 10
                               _ -> 0
               vfg = foldl setBit 1 $ catMaybes
                      $ map (\case

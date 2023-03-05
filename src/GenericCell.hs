@@ -54,11 +54,16 @@ data GCData = GCData String (FromLI Piece (Int , Int , Piece))
 
 
 
+
+
+
 renderGCD' :: (Float , Float , Float) -> GCData -> ZDrawing ColorType
 renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n f)) =
    FromLI n (\pc@(sbst , prm) ->
         let (_ , uniqN , pcOrg) = appLI pc fli
             pieceId = unemerate pcOrg + 1
+            vfg = show (pieceId + 4)
+            
             colId = if nm == "loop₁" then uniqN else pieceId            
             mainSmplx = primitivePiece False (par1 , par2) pc
             mirrorSmplx = primitivePiece True (par1 , par2) pc
@@ -68,10 +73,15 @@ renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n f)) =
             -- TODO maybe vary color by permutation?
             color = nthColor colId
         in
-          [(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pieceId), "gcd"] , Basic) , color)) ] ++
-          [(mirrorSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pieceId), "gcd"] , Basic) , color)) ] ++
-          [(x  , ((["m"++(show n), "piece"++(show pieceId), "gcd"] , Basic) , color)) | x <- bdSmplxs ] ++
-          [(x  , ((["m"++(show n), "piece"++(show pieceId), "gcd"] , Basic) , color)) | x <- mirrorBdSmplxs ])
+          [(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) ] ++
+          [(mirrorSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) ] ++
+          [(x  , ((["m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) | x <- bdSmplxs ] ++
+          [(x  , ((["m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) | x <- mirrorBdSmplxs ]
+         -- if n == 2 then [ ([[0.5+x*x',0.5+y*y']] , (([] , Basic) , nthColor 2))
+         --                 | x <- [-1.0 , 1.0]
+         --                 , y <- [-1.0 , 1.0]
+         --                 , (x' , y') <- [(0.2,0.3),(0.3,0.2)] ] else []
+            )
  where
    primitivePiece :: Bool -> (Float , Float) -> Piece -> Smplx
    primitivePiece mirror (distCorner , distCenter) (su , pm) =
@@ -106,6 +116,53 @@ renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n f)) =
    primitivePieceBd mirror x y | (getDim y == 0) = []
                         | otherwise =
      [ init (primitivePiece mirror x y) , tail (primitivePiece mirror x y) ]
+
+renderGCD'Points :: (Float , Float , Float) -> GCData -> ZDrawing ColorType
+renderGCD'Points (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n f)) =
+   FromLI n (\pc@(sbst , prm) ->
+        let (_ , uniqN , pcOrg) = appLI pc fli
+            pieceId = unemerate pcOrg + 1
+            vfg = show (pieceId + 4)
+            
+            colId = if nm == "loop₁" then uniqN else pieceId            
+            gridPoints = primitivePiecePoint (par1 , par2) pc
+            -- mirrorSmplx = primitivePiece True (par1 , par2) pc
+            -- bdSmplxs = primitivePieceBd False (par1 , par2) pc
+            -- mirrorBdSmplxs = primitivePieceBd True (par1 , par2) pc
+            -- mainStyle = if n == 0 then [ExtrudeLines] else []
+            -- TODO maybe vary color by permutation?
+            color = nthColor colId
+        in
+          -- [(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) ] ++
+          -- [(mirrorSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) ] ++
+          -- [(x  , ((["m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) | x <- bdSmplxs ] ++
+          -- [(x  , ((["m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) | x <- mirrorBdSmplxs ]
+         if n == 2 then [ (mainPoint , ((["vfgT"++vfg, "vfgF0" , "moveFibres"] , Basic) , nthColor colId))
+                         | mainPoint <- gridPoints ] else []
+            )
+ where
+   primitivePiecePoint :: (Float , Float) -> Piece -> [Smplx]
+   primitivePiecePoint (distCorner , distCenter) (su , pm) =
+     let crnr = toListLI su
+         n = length crnr
+         ptCrnr = map (bool (0.0 + distCorner) (1.0 - distCorner)) crnr
+         ptCenter = map (bool (0.0 + distCenter) (1.0 - distCenter)) crnr
+         [bX , bY] = map (bool (-1.0) (1.0)) crnr
+         grdN = 5
+         
+         dX = 0.5 / fromIntegral grdN
+         dY = 0.5 / fromIntegral grdN
+         pts = [[[0.5+bX*(fromIntegral i + if (unemerate pm == 0) then 0.25 else 0.5)*dX
+                  ,0.5+bY*(fromIntegral j +if (unemerate pm == 0) then 0.5 else 0.25)*dY]]  | i <- range (grdN - 2) , j <- range (grdN - 2)  , let pmB = (i > j) `xor` (unemerate pm == 0) , pmB ];
+
+         
+         -- TODO how to fix this?
+         -- squishedPt =
+         --   scaleNonUniformOrigin [0.25, 1] middle mirroredPt
+     in
+       if n > 2
+       then error "unimplemented: dim > 2"
+       else pts
 
 
 

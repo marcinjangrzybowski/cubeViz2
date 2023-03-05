@@ -39,7 +39,7 @@ in vec3 Normal;
 in vec4 Color;
 in float Mode;
 in float VisFlagF;
-
+in float ObjGroup;
 
 out vec4 vCol;
 
@@ -159,7 +159,8 @@ main()
 		      (
 			vec4(sx , sy , 0.1 , 1.0)  *
 		       ( anglesToAxes(euler.xyz) *
-		      (vec4(2.0 , 2.0 , 2.0 , 1.0) * ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
+		      (vec4(2.0 , 2.0 , 2.0 , 1.0) *
+              ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
 			 - vec4(0.5 , 0.5 , 0.5 , 0.0)))))))
 			  + vec4(screenDelta.x,screenDelta.y,0.0,0.0)) ;
    }
@@ -173,7 +174,7 @@ main()
    screenPos = (gl_Position.xyz)/gl_Position.w;
    
 
-   gl_PointSize = 5.0;
+   gl_PointSize = 5.0+ObjGroup;
 }
 `;
 
@@ -355,9 +356,44 @@ function main() {
     let vpGamma = -0.1;
     let vpScale = 0.5;
 
+    let VisF = 1;
+
+    
+    toggleVisGroup = function(k){
+        VisF = (VisF ^ 1<<(4+k));
+//	console.log(VisF);
+    };
+
+    [1,2,3,4,5,6,7,8].forEach(toggleVisGroup);
+
+    // [3,4].forEach(toggleVisGroup);
+    // vpAlpha = 0;
+    // toggleVisGroup(7);
+    document.body.addEventListener("keydown",function(e){
+	if(e.code.slice(0,5)=="Digit")
+	{
+	    let k = parseInt(e.code.slice(5,6));
+	    if (e.shiftKey){
+
+	    
+	    VisF = 1;
+		
+	    }
+	    toggleVisGroup(k);
+	}
+    });
+
+
+    
+    
     canvas.addEventListener("mousemove",function(e){
-	vpAlpha=(((e.y-512)/1024)*-0.3)+1/5;
-	vpGamma=(e.x/1024-0.5);
+	if(e.buttons == 1){
+	    vpAlpha=
+		Math.min(Math.max(vpAlpha+(((e.movementY)/1024)*-0.3) , 0),0.5);
+	    
+	vpGamma+=(e.movementX/1024)*0.3;
+	}
+	
     });
 	
   gl.enable(gl.DEPTH_TEST);  
@@ -371,7 +407,8 @@ function main() {
                  ,(vpGamma * 360)
 			,(vpScale)];
       
-           gl.uniform4fv(uLoc["euler"], vMat);
+      gl.uniform4fv(uLoc["euler"], vMat);
+       gl.uniform1fv(uLoc["VisF"], [VisF]);
           //console.log(i.d.dElemNum, i.buffData.length);
           gl.drawArrays(gl[i.d.dPrimitiveMode.toUpperCase()], i.d.StartIndex,
 	   i.d.dElemNum

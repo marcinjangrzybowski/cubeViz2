@@ -119,7 +119,7 @@ perVert :: [[a]] -> [a] -> [a]
 perVert lv lt = concat $ fmap (\x -> x ++ lt) lv 
 
 
-elemsPerVert = 13
+elemsPerVert = 14
 
 renderables2CVD :: Renderables -> CombinedVertexData
 renderables2CVD =
@@ -138,19 +138,25 @@ renderables2CVD =
     mkVs x (D.Triangle pts , shade) =
       let pos = fmap (\x -> x ++ [0.0]) $ fmap trpl2arr $ trpl2arr pts          
       in x { triangleVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
-                                                     ++ [ fromIntegral (shadeMode shade) , fromIntegral ( shadeModeVFG shade) ]))
+                                                     ++ [ fromIntegral (shadeMode shade)
+                                                        , fromIntegral ( shadeModeVFG shade)
+                                                        , fromIntegral 0]))
                 ++ triangleVs x }
 
     mkVs x (D.Line pts , shade) =
       let pos = fmap (\x -> x ++ [0.0]) $ fmap trpl2arr $ tpl2arr pts          
       in x { lineVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
-                                                     ++ [ fromIntegral (shadeMode shade) , fromIntegral ( shadeModeVFG shade)  ]))
+                                                     ++ [ fromIntegral (shadeMode shade)
+                                                        , fromIntegral ( shadeModeVFG shade)
+                                                        , fromIntegral 0]))
                  ++ lineVs x }
 
     mkVs x (D.Point pt , shade) =
       let pos = fmap (\x -> x ++ [0.0]) $ fmap trpl2arr [pt]          
       in x { pointVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
-                                                     ++ [ fromIntegral ( shadeMode shade)  , fromIntegral (shadeModeVFG shade) ]))
+                                      ++ [ fromIntegral ( shadeMode shade)
+                                         , fromIntegral (shadeModeVFG shade)
+                                         , fromIntegral 0 ]))
                  ++ pointVs x}  
       
     
@@ -178,7 +184,7 @@ makeTrianglesResources pm vertices =
          firstIndex = 0
 
 
-         ofst = (1 * 3 * 4 + 2 * 4 * 4 + 2 * 1 * 4)
+         ofst = (1 * 3 * 4 + 2 * 4 * 4 + 3 * 1 * 4)
          -- size = fromIntegral (numVertices * sizeOf (head vertices))
 
          arrayCmd :: String -> Int -> Int -> Int -> Writer [String] ()
@@ -198,7 +204,7 @@ makeTrianglesResources pm vertices =
            arrayCmd "Color" 4 ofst (firstIndex + 3 * 4 * 1 + 4 * 4 * 1)           
            arrayCmd "Mode" 1 ofst (firstIndex + 3 * 4 * 1 + 4 * 4 * 2 )                      
            arrayCmd "VisFlagF" 1 ofst (firstIndex + 3 * 4 * 1 + 4 * 4 * 2 +  1 * 4 * 1)
-
+           arrayCmd "ObjGroup" 1 ofst (firstIndex + 3 * 4 * 1 + 4 * 4 * 2 +  2 * 4 * 1)
 
 
      in WebGlDescriptor pm
@@ -245,6 +251,7 @@ onDisplay vgf vp ds =
                  ,(vpBeta vp * 360)
                  ,(vpGamma vp * 360)
                  ,(vpScale vp)]
+      
       tell ["webgl.uniform4fv(uLoc[\"euler\"], "++ show vMat ++");"]
       tell ["webgl.uniform2fv(uLoc[\"screen\"], [w , h]);"]
       case dPrimitiveMode ds of

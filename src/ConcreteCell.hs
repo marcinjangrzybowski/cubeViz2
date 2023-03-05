@@ -132,9 +132,6 @@ primitivePieceLoop2 withCrossing stacking (distCorner , distCenter) (su , pm) =
 --                      | otherwise =
 --   [ init (primitivePieceLoop2 mirror x y) , tail (primitivePieceLoop2 mirror x y) ]
 
-par1 = 0.3
-par2 = 0.4
-parTranslate = 0.2
 
 par1Loop2 = 0.2
 par2Loop2 = 0.3
@@ -208,7 +205,13 @@ renderNamedCell "loop₁" = Just $
    par1Loop2 = 0.2
    par2Loop2 = 0.3
    parTranslateLoop2 = 0.1
-     
+
+
+-- renderNamedCell "s" = Just $
+--    renderGCD'Points
+--     (par1 , par2 , parTranslate)
+--     (GCData "" $ FromLI 2 (\pc -> (unemerate pc , (unemerate pc + 1) , pc)))
+
 renderNamedCell _ = Nothing
 
 -- renderGCD (GCData "loop₂" fli@(FromLI 2 f)) =
