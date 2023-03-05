@@ -1,17 +1,18 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Drawing.GL where
 
 
 import Control.Concurrent.STM    (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue
                                   , newTVarIO)
-import Graphics.Rendering.OpenGL as GL
-import Graphics.UI.GLFW as GLFW
+-- import Graphics.Rendering.OpenGL as GL
+-- import Graphics.UI.GLFW as GLFW
 import Control.Monad
+import Control.Monad.Writer (Writer , tell , mapWriterT , listen, runWriter ,execWriter)
 -- import Control.Monad.Trans
 import System.Exit ( exitWith, ExitCode(..) )
 import System.IO  
 import System.Environment
 
-import LoadShaders
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
@@ -22,26 +23,92 @@ import Drawing.Example
 
 import Data.List
 
+import Data.Aeson
+
 import Data.Maybe
 
 import Data.Bifunctor
+import GHC.Generics
 
 import DataExtra
 
 import Debug.Trace
 
-data Descriptor = Descriptor
-  { dPrimitiveMode :: PrimitiveMode
-  , dVertexArrayObject :: VertexArrayObject
-  , dArrayIndex :: ArrayIndex
-  , dNumArrayIndices :: NumArrayIndices
-  , dLineWidth :: Int
-  }
-  deriving Show
+-- data Descriptor = Descriptor
+--   { dPrimitiveMode :: PrimitiveMode
+--   , dVertexArrayObject :: VertexArrayObject
+--   , dArrayIndex :: ArrayIndex
+--   , dNumArrayIndices :: NumArrayIndices
+--   , dLineWidth :: Int
+--   }
+--   deriving Show
 
+data PrimitiveMode =
+     Points
+     -- ^ Treats each vertex as a single point. Vertex /n/ defines point /n/.
+     -- /N/ points are drawn.
+   | Lines
+     -- ^ Treats each pair of vertices as an independent line segment. Vertices
+     -- 2/n/-1 and 2/n/ define line /n/. /N/\/2 lines are drawn.
+   | LineLoop
+     -- ^ Draws a connected group of line segments from the first vertex to the
+     -- last, then back to the first. Vertices /n/ and /n/+1 define line /n/.
+     -- The last line, however, is defined by vertices /N/ and 1. /N/ lines
+     -- are drawn.
+   | LineStrip
+     -- ^ Draws a connected group of line  segments from the first vertex to the
+     -- last. Vertices /n/ and /n/+1 define line /n/. /N/-1 lines are drawn.
+   | Triangles
+     -- ^ Treats each triplet of vertices as an independent triangle. Vertices
+     -- /3n-2/, /3n-1/, and /3n/ define triangle /n/. /N\/3/ triangles are drawn.
+   | TriangleStrip
+     -- ^ Draws a connected group of triangles. One triangle is defined for each
+     -- vertex presented after the first two vertices. For odd /n/, vertices
+     -- /n/, /n/+1, and /n/+2 define triangle /n/. For even /n/, vertices /n/+1,
+     -- /n/, and /n/+2 define triangle /n/. /N/-2 triangles are drawn.
+   | TriangleFan
+     -- ^ Draws a connected group of triangles. One triangle is defined for each
+     -- vertex presented after the first two vertices. Vertices 1, /n/+1, and
+     -- /n/+2 define triangle /n/. /N/-2 triangles are drawn.
+   | Quads
+     -- ^ Treats each group of four vertices as an independent quadrilateral.
+     -- Vertices 4/n/-3, 4/n/-2, 4/n/-1, and 4/n/ define quadrilateral /n/.
+     -- /N/\/4 quadrilaterals are drawn.
+   | QuadStrip
+     -- ^ Draws a connected group of quadrilaterals. One quadrilateral is
+     --defined for each pair of vertices presented after the first pair.
+     -- Vertices 2/n/-1, 2/n/, 2/n/+2, and 2/n/+1 define quadrilateral /n/.
+     -- /N/\/2-1 quadrilaterals are drawn. Note that the order in which vertices
+     -- are used to construct a quadrilateral from strip data is different from
+     -- that used with independent data.
+   | Polygon
+     -- ^ Draws a single, convex polygon. Vertices 1 through /N/ define this
+     -- polygon.
+   | Patches
+     -- ^ Only used in conjunction with tessellation. The number of vertices per
+     -- patch can be set with 'patchVertices'.
+   deriving ( Generic,Eq, Ord, Show )
+
+instance FromJSON PrimitiveMode
+instance ToJSON PrimitiveMode
+
+
+data WebGlDescriptor = WebGlDescriptor
+  { dPrimitiveMode :: PrimitiveMode
+  , dvertexData :: [Float]
+  , dStartIndex :: Int
+  , dElemNum :: Int
+  , dLineWidth :: Int
+  , dInitCommands :: String
+  , dDrawCommands :: String
+  }
+  deriving (Generic,Show)
+
+instance FromJSON WebGlDescriptor
+instance ToJSON WebGlDescriptor
 
 data CombinedVertexData =
-  CombinedVertexData { pointVs :: [GLfloat] , lineVs :: [GLfloat] , triangleVs :: [GLfloat] }
+  CombinedVertexData { pointVs :: [Float] , lineVs :: [Float] , triangleVs :: [Float] }
 
 emptyCVD = CombinedVertexData { pointVs = [] , lineVs = [] , triangleVs = [] }
 
@@ -52,7 +119,7 @@ perVert :: [[a]] -> [a] -> [a]
 perVert lv lt = concat $ fmap (\x -> x ++ lt) lv 
 
 
-elemsPerVert = 11
+elemsPerVert = 13
 
 renderables2CVD :: Renderables -> CombinedVertexData
 renderables2CVD =
@@ -60,139 +127,86 @@ renderables2CVD =
 
   where
 
-    calcNormal :: [[GLfloat]] -> [GLfloat] 
+    calcNormal :: [[Float]] -> [Float] 
     calcNormal [ v0 , v1 , v2 ] =
-        let [ uX , uY , uZ ] = zipWith (-) v1 v0
-            [ vX , vY , vZ ] = zipWith (-) v2 v0
+        let [ uX , uY , uZ , _] = zipWith (-) v1 v0
+            [ vX , vY , vZ , _] = zipWith (-) v2 v0
         in [ uY * vZ - uZ * vY , uZ * vX - uX * vZ , uX * vY - uY * vX ]
     calcNormal [ v0 , v1 ] = [0.0 , 0.0 , 0.0 ] 
     calcNormal _ = [0.0 , 0.0 , 0.0 ] 
     
     mkVs x (D.Triangle pts , shade) =
-      let pos = fmap trpl2arr $ trpl2arr pts          
+      let pos = fmap (\x -> x ++ [0.0]) $ fmap trpl2arr $ trpl2arr pts          
       in x { triangleVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
                                                      ++ [ fromIntegral (shadeMode shade) , fromIntegral ( shadeModeVFG shade) ]))
                 ++ triangleVs x }
 
     mkVs x (D.Line pts , shade) =
-      let pos = fmap trpl2arr $ tpl2arr pts          
+      let pos = fmap (\x -> x ++ [0.0]) $ fmap trpl2arr $ tpl2arr pts          
       in x { lineVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
                                                      ++ [ fromIntegral (shadeMode shade) , fromIntegral ( shadeModeVFG shade)  ]))
                  ++ lineVs x }
 
     mkVs x (D.Point pt , shade) =
-      let pos = fmap trpl2arr [pt]          
+      let pos = fmap (\x -> x ++ [0.0]) $ fmap trpl2arr [pt]          
       in x { pointVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
                                                      ++ [ fromIntegral ( shadeMode shade)  , fromIntegral (shadeModeVFG shade) ]))
                  ++ pointVs x}  
       
     
-type Descriptors = (Descriptor,Descriptor,Descriptor) 
+-- type Descriptors = (Descriptor,Descriptor,Descriptor) 
 
-initResources :: Renderables -> IO [Descriptor]
+initResources :: Renderables -> [WebGlDescriptor]
 initResources rs =
-  do de0 <- initTrianglesResources Points (pointVs (renderables2CVD rs))
-     de1 <- initTrianglesResources Lines (lineVs (renderables2CVD rs))
-     de2 <- initTrianglesResources Triangles (triangleVs (renderables2CVD rs))
-     -- putStr (show de2)
-     return $ reverse [de0 , de1 , de2]
+  let de0 = makeTrianglesResources Points (pointVs (renderables2CVD rs))
+      de1 = makeTrianglesResources Lines (lineVs (renderables2CVD rs))
+      de2 = makeTrianglesResources Triangles (triangleVs (renderables2CVD rs))
+
+  in reverse [de0 , de1 , de2]
      
 bufferOffset :: Integral a => a -> Ptr b
 bufferOffset = plusPtr nullPtr . fromIntegral
 
-initTrianglesResources ::  PrimitiveMode -> [GLfloat] -> IO Descriptor
-initTrianglesResources pm vertices = 
 
-  do triangles <- genObjectName
-     bindVertexArrayObject $= Just triangles
+makeInitJSFun :: [String] -> String
+makeInitJSFun l = unlines l
 
-     -- putStr (show $ length vertices)
-     -- let vertices = [
+makeTrianglesResources ::  PrimitiveMode -> [Float] -> WebGlDescriptor
+makeTrianglesResources pm vertices = 
 
      let numVertices = (length vertices) 
-
-         -- maskAttr = concat $ replicate numVertices mask0
-
-
-     program <- loadShaders [
-        ShaderInfo VertexShader (FileSource "data/shaders/shader3d.vert"),
-        ShaderInfo FragmentShader (FileSource "data/shaders/shader3d.frag")]
-     currentProgram $= Just program
-
-     let firstIndex = 0
-         vPosition = AttribLocation 0
+         firstIndex = 0
 
 
-     let ofst = (2 * 3 * 4 + 1 * 4 * 4 + 2 * 1 * 4)
-     let size = fromIntegral (numVertices * sizeOf (head vertices))
+         ofst = (1 * 3 * 4 + 2 * 4 * 4 + 2 * 1 * 4)
+         -- size = fromIntegral (numVertices * sizeOf (head vertices))
+
+         arrayCmd :: String -> Int -> Int -> Int -> Writer [String] ()
+         arrayCmd vName size stride offset = do
+             tell ["var arrId = webgl.getAttribLocation(program, \""++vName++"\");"]
+             tell ["webgl.vertexAttribPointer(arrId, "++
+                     show size ++", webgl.FLOAT, false ,"++
+                     show stride ++","++
+                     show offset ++")"]
+             tell ["webgl.enableVertexAttribArray(arrId);"]
 
 
-     withArray vertices $ \ptr -> do
-       arrayBuffer <- genObjectName
-       bindBuffer ArrayBuffer $= Just arrayBuffer
-
-       bufferData ArrayBuffer $= (size, ptr, StaticDraw)
-
-       vertexAttribPointer vPosition $=
-         (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset firstIndex))
-       vertexAttribArray vPosition $= Enabled
+         traingleCommands :: Writer [String] ()
+         traingleCommands = do
+           arrayCmd "vPosition" 4 ofst firstIndex
+           arrayCmd "Normal" 3 ofst (firstIndex + 4 * 4 * 1 )
+           arrayCmd "Color" 4 ofst (firstIndex + 3 * 4 * 1 + 4 * 4 * 1)           
+           arrayCmd "Mode" 1 ofst (firstIndex + 3 * 4 * 1 + 4 * 4 * 2 )                      
+           arrayCmd "VisFlagF" 1 ofst (firstIndex + 3 * 4 * 1 + 4 * 4 * 2 +  1 * 4 * 1)
 
 
 
-       normalBuffer <- genObjectName
-       bindBuffer ArrayBuffer $= Just normalBuffer
-       
-       bufferData ArrayBuffer $= (size, ptr, StaticDraw)
-       let normalPosition = AttribLocation 1
-
-       vertexAttribPointer normalPosition $=
-         (ToFloat, VertexArrayDescriptor 3 Float ofst (bufferOffset (firstIndex + 3 * 4 * 1 )))
-       vertexAttribArray normalPosition $= Enabled
-
-
-
-
-       colorBuffer <- genObjectName
-       bindBuffer ArrayBuffer $= Just colorBuffer
-       
-       bufferData ArrayBuffer $= (size, ptr, StaticDraw)
-
-       let colorPosition = AttribLocation 2
-
-       vertexAttribPointer colorPosition $=
-         (ToFloat, VertexArrayDescriptor 4 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2)))
-       vertexAttribArray colorPosition $= Enabled
-
-
-
-
-       modeBuffer <- genObjectName
-       bindBuffer ArrayBuffer $= Just modeBuffer
-       
-       bufferData ArrayBuffer $= (size, ptr, StaticDraw)
-       let modePosition = AttribLocation 3
-
-       vertexAttribPointer modePosition $=
-         (ToFloat, VertexArrayDescriptor 1 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2 + 4 * 4 * 1)))
-       vertexAttribArray modePosition $= Enabled
-
-
-
-       visFlagBuffer <- genObjectName
-       bindBuffer ArrayBuffer $= Just visFlagBuffer
-       
-       bufferData ArrayBuffer $= (size, ptr, DynamicDraw)
-       let visFlagPosition = AttribLocation 4
-
-       vertexAttribPointer visFlagPosition $=
-         (ToFloat, VertexArrayDescriptor 1 Float ofst (bufferOffset (firstIndex + 3 * 4 * 2 + 4 * 4 * 1 +  1 * 4 * 1)))
-       vertexAttribArray visFlagPosition $= Enabled
-
-
-
-
-
-       return $ Descriptor pm triangles firstIndex (fromIntegral (div (length vertices) elemsPerVert) ) defaultLineWidth
+     in WebGlDescriptor pm
+          vertices
+          firstIndex
+          (fromIntegral (div (length vertices) elemsPerVert) )
+          defaultLineWidth
+          (makeInitJSFun (execWriter traingleCommands)) ""
 
 
 
@@ -208,47 +222,70 @@ data Viewport = Viewport
    }
   deriving Show
 
-onDisplay :: Window -> Int -> Int -> VizGroupFlag -> Viewport -> Descriptor -> IO ()
-onDisplay win w h vgf vp ds = do
 
-  -- GL.clear [GL.DepthBuffer]
-  blend $= Disabled
-  vertexProgramPointSize $= Enabled
-  clearDepth $= 1
-  depthFunc $= Just Lequal
-  cullFace $= Nothing
-  lineWidth $= 2
-  now <- GLFW.getTime
-  -- blendFunc $= (SrcAlpha , OneMinusSrcAlpha)
-  polygonSmooth $= Disabled
+makeDrawJSFun :: [String] -> String
+makeDrawJSFun l = unlines l
+
+onDisplay :: VizGroupFlag -> Viewport -> WebGlDescriptor -> WebGlDescriptor
+onDisplay vgf vp ds = 
+ let dCmds :: Writer [String] ()
+
+     -- passUnifrom :: String -> [ Float ] -> Writer [String] ()
+     -- passUnifrom uName val = do
+     --   tell  ["webgl.uniform4fv(offsetLoc, [1, 0, 0, 0]);"]
+     --   return ()
+  
+     dCmds = do
+
+      tell ["webgl.disable(webgl.BLEND);"]
+      tell ["webgl.clearDepth(1);"]
+      tell ["webgl.depthFunc(webgl.LEQUAL)"]
+
+      let vMat = [(vpAlpha vp * 360)
+                 ,(vpBeta vp * 360)
+                 ,(vpGamma vp * 360)
+                 ,(vpScale vp)]
+      tell ["webgl.uniform4fv(uLoc[\"euler\"], "++ show vMat ++");"]
+      tell ["webgl.uniform2fv(uLoc[\"screen\"], [w , h]);"]
+      case dPrimitiveMode ds of
+         Lines -> tell ["webgl.uniform1fv(uLoc[\"shade\"], [0]);"]
+         Points -> tell ["webgl.uniform1fv(uLoc[\"shade\"], [0]);"]
+         _ -> tell ["webgl.uniform1fv(uLoc[\"shade\"], [1]);"]
+      tell ["webgl.uniform1fv(uLoc[\"scaleG\"], [1]);"]
+      let (vpX , vpY) = vpScreenDelta vp
+      tell ["webgl.uniform2fv(uLoc[\"screenDelta\"], "++show [vpX , vpY]++");"]
+      tell ["webgl.uniform1fv(uLoc[\"VisF\"], ["++ show (fromIntegral vgf)++"]);"] 
+      return ()       
+
+ in ds { dDrawCommands = makeDrawJSFun (execWriter dCmds) }
 
   
-  let vMat = Vector4 (vpAlpha vp * 360) (vpBeta vp * 360) (vpGamma vp * 360) (vpScale vp)  --75.0 0.0 $ 1.0 * (-35.0 + 1.0 * 50.0 * sin (0.7 * (realToFrac $ fromJust now)))
+--   let vMat = Vector4 (vpAlpha vp * 360) (vpBeta vp * 360) (vpGamma vp * 360) (vpScale vp)  --75.0 0.0 $ 1.0 * (-35.0 + 1.0 * 50.0 * sin (0.7 * (realToFrac $ fromJust now)))
 
   
-  uniform (UniformLocation 0 ) $= (vMat :: Vector4 GLfloat)
-  uniform (UniformLocation 1 ) $= (Vector2 (fromIntegral w) (fromIntegral h) :: Vector2 GLfloat)
-  case now of
-    Just nowD -> uniform (UniformLocation 2 ) $= nowD
-    Nothing -> return ()
+--   uniform (UniformLocation 0 ) $= (vMat :: Vector4 Float)
+--   uniform (UniformLocation 1 ) $= (Vector2 (fromIntegral w) (fromIntegral h) :: Vector2 Float)
+--   case now of
+--     Just nowD -> uniform (UniformLocation 2 ) $= nowD
+--     Nothing -> return ()
 
 
-  let (Descriptor pm verts firstIndex numVertices _) = ds
-  case pm of
-    Lines -> uniform (UniformLocation 3 ) $= (0 :: GLfloat)
-    Points -> uniform (UniformLocation 3 ) $= (0 :: GLfloat)
-    _ -> uniform (UniformLocation 3 ) $= (1 :: GLfloat)
+--   let (Descriptor pm verts firstIndex numVertices _) = ds
+--   case pm of
+--     Lines -> uniform (UniformLocation 3 ) $= (0 :: Float)
+--     Points -> uniform (UniformLocation 3 ) $= (0 :: Float)
+--     _ -> uniform (UniformLocation 3 ) $= (1 :: Float)
 
-  uniform (UniformLocation 4 ) $= (1.0 :: GLfloat)
-  uniform (UniformLocation 5 ) $= ((uncurry Vector2 (vpScreenDelta vp))  :: Vector2 GLfloat)
-  uniform (UniformLocation 6 ) $= ((fromIntegral vgf) :: GLfloat)
+--   uniform (UniformLocation 4 ) $= (1.0 :: Float)
+--   uniform (UniformLocation 5 ) $= ((uncurry Vector2 (vpScreenDelta vp))  :: Vector2 Float)
+--   uniform (UniformLocation 6 ) $= ((fromIntegral vgf) :: Float)
     
-  bindVertexArrayObject $= Just verts
-  drawArrays pm firstIndex numVertices
+--   bindVertexArrayObject $= Just verts
+--   drawArrays pm firstIndex numVertices
 
 
-onDisplayAll :: Window -> Int -> Int -> VizGroupFlag -> Viewport -> [Descriptor] -> IO ()
-onDisplayAll win w h vfg vp = void . sequence . map (onDisplay win w h vfg vp) 
+onDisplayAll :: VizGroupFlag -> Viewport -> [WebGlDescriptor] -> [WebGlDescriptor]
+onDisplayAll vfg vp = map (onDisplay vfg vp) 
 
 mouseToModel1d :: Int -> Int -> (Double , Double) -> (Float)
 mouseToModel1d w h (x , y) =

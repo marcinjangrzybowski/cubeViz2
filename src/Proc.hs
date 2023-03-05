@@ -5,7 +5,7 @@ import System.Exit ( exitWith, ExitCode(..) )
 import System.IO  
 import System.Environment
 
-import LoadShaders
+-- import LoadShaders
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
@@ -23,25 +23,25 @@ import InteractiveParse
 import Data.Bifunctor
 
 
-mainProcTerm :: String -> IO ()
-mainProcTerm fname =
-  do let list = []
-     handle <- openFile fname ReadMode
-     contents <- hGetContents handle
-     let parseResult = parseInteractive contents
-     putStr $ either id (show) parseResult
-     putStr $ either id
-       (\(SessionState (env , ctx) _ bType expr) -> toStringEE ctx expr)
-       parseResult
+-- mainProcTerm :: String -> IO ()
+-- mainProcTerm fname =
+--   do let list = []
+--      handle <- openFile fname ReadMode
+--      contents <- hGetContents handle
+--      let parseResult = parseInteractive contents
+--      putStr $ either id (show) parseResult
+--      putStr $ either id
+--        (\(SessionState (env , ctx) _ bType expr) -> toStringEE ctx expr)
+--        parseResult
      
-     hClose handle   
+--      hClose handle   
 
 
-main :: IO ()
--- main = mainShowTerm "data/input-to-viz/penta-lhs"
-main =
-  do args <- getArgs
-     putStr (show args)
-     mainProcTerm ("data/input-to-viz/" ++ head args)
+-- main :: IO ()
+-- -- main = mainShowTerm "data/input-to-viz/penta-lhs"
+-- main =
+--   do args <- getArgs
+--      putStr (show args)
+--      mainProcTerm ("data/input-to-viz/" ++ head args)
 
 

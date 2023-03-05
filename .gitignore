@@ -46,3 +46,7 @@ flycheck_*.el
 
 # directory configuration
 .dir-locals.el
+
+dist-newstyle
+
+TAGS

@@ -496,7 +496,7 @@ cursorDrw node1Fix cpt k addr =
 
          partOfSelectedCellBndr =
            (maybe False $ any partOfSelectedCellBndrF)
-           -- $ fmap (Set.singleton . fst)
+--           -- $ fmap (Set.singleton . fst)
            $ fmap (cAddress . snd) 
            $ cptCursorAddress cpt
 

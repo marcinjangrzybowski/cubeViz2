@@ -49,15 +49,12 @@ library
       InteractiveParseTests
       Layout
       Lib
-      LoadShaders
       PiecesEval
       Proc
       Reorientable
-      ShowExp
-      ShowExpOld
+      ShowExpWeb
       Syntax
       Test
-      UI.UI
   other-modules:
       Paths_cubeViz2
   hs-source-dirs:
@@ -85,6 +82,7 @@ library
     , time
     , transformers
     , type-iso
+    , string-class
   default-language: Haskell2010
 
 executable cubeViz2-exe

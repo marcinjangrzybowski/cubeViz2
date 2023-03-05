@@ -483,13 +483,13 @@ arityForceRepair ctx k x@(mbNs , Var vi tl)
 
         depth = getDim ctx
 
-      -- | k == (length mbNs) = x
-      -- | k < (length mbNs) = error "unable to repair arity"
-      -- | k > (length mbNs) =
-      --      let missingN = k - (length mbNs)
-      --          newTail = (
-      --            map snd tl) ++ (map dim [(length mbNs)..(k-1)])
-      --      in ( mbNs ++ (replicate missingN $ Nothing) , mkVar ctx vi newTail)
+      -- -- | k == (length mbNs) = x
+      -- -- | k < (length mbNs) = error "unable to repair arity"
+      -- -- | k > (length mbNs) =
+      -- --      let missingN = k - (length mbNs)
+      -- --          newTail = (
+      -- --            map snd tl) ++ (map dim [(length mbNs)..(k-1)])
+      -- --      in ( mbNs ++ (replicate missingN $ Nothing) , mkVar ctx vi newTail)
     
 arityForceRepair _ _ x = x
 

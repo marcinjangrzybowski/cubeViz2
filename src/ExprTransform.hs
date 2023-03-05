@@ -115,12 +115,12 @@ data CubTransformation =
    | SubstAt CAddress (ClCub ())
    | RemoveSide CAddress (SubFace , RemoveSideRegime)
    | AddSide CAddress SubFace
-   -- | ReplaceAt Address (ClCub ())
-   -- | RemoveCell Address
-   -- | RemoveCellLeaveFaces Address
-   -- | AddSubFace (Address , SubFace)
-   -- | MapAt Address (ClCub () -> Either String (ClCub ()))
-  -- deriving (Show)
+  --  -- | ReplaceAt Address (ClCub ())
+  --  -- | RemoveCell Address
+  --  -- | RemoveCellLeaveFaces Address
+  --  -- | AddSubFace (Address , SubFace)
+  --  -- | MapAt Address (ClCub () -> Either String (ClCub ()))
+  -- -- deriving (Show)
 
 -- TODO :: transofrmations for filling - automaticly recognises holes in faces of compositions  which can be removed
 

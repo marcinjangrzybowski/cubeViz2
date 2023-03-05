@@ -291,8 +291,8 @@ instance Show SubFace where
     intercalate "|"
     $ zipWith (curry (uncurry (++) . Bf.bimap show (maybe "_" (bool "-" "+")))) [0..] (toListLI sf)
     -- concat
-    -- $ map (uncurry (++))
-    -- $ map (Bf.bimap show (bool "-" "+")) $ Map.toList x
+    -- -- $ map (uncurry (++))
+    -- -- $ map (Bf.bimap show (bool "-" "+")) $ Map.toList x
 
 
 instance Show Subset where
