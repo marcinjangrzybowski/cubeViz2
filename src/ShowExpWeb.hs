@@ -217,7 +217,7 @@ asExpression = ssEnvExpr . asSession
 
 
 drawExpr :: AppState -> DrawExprMode -> (Env , Context) -> ClCub ()
-                  -> (Drawing (([String] , ExtrudeMode) , Color))
+                  -> (Drawing (([String] , ExtrudeMode , (Float , Float)) , Color))
 -- drawExpr _ Stripes = fmap pure . mkDrawExprFill DefaultPT
 -- drawExpr _ StripesNoFill = fmap pure . mkDrawExpr DefaultPT 
 -- drawExpr _ Scaffold = \e ->
@@ -237,15 +237,6 @@ drawExpr as Scaffold ee e =
    in concat (
 
               [                
-                mkDrawCub (CursorPT { cptCursorAddress = sptCA
-                                     , cptSecCursorAddress = sptSCA
-                                     , cptSelectedAddressCorners = 
-                                         fromMaybe Set.empty $ do
-                                           (a , _) <- sptCA
-                                           Map.lookup a (asAddress2PointMap as)
-                                        })
-
-                ,
                 mkDrawCub (DefaultPT { dptCursorAddress = fmap fst sptCA
                           , dptShowFill = dpShowFilling $ asDisplayPreferences as
                           , dptFillFactor = 1.0
@@ -271,51 +262,7 @@ drawExpr as Scaffold ee e =
                -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
               ) 
 
-drawExpr as Constraints ee e =
-
-   let (cub , sptCA , sptSCA ) =
-          case (Nothing) of 
-             -- Just a -> ((fmap fst $ traceConstraints (asCub as) (cAddrWithSubFaces (asCub as) (addressClass (asCub as) a)))
-             --             , (Just ((a , addressClass (asCub as) a)) )
-             --              , asSecCursorAddress as)
-
-             -- Just a -> ((fmap fst $ traceConstraints (asCub as) (Set.singleton (addressClass (asCub as) a)))
-             --             , (Just ((a , addressClass (asCub as) a)) )
-             --              , asSecCursorAddress as)
-
-             -- Just a -> ((fmap fst $ traceConstraintsSingle (asCub as) ((addressClass (asCub as) a)))
-             --             , (Just ((a , addressClass (asCub as) a)) )
-             --              , asSecCursorAddress as)
-
-
-             Nothing -> (fmap (const Nothing) cub , Nothing , Nothing)
-
-       
-
-   in concat (
-
-              [                
-                mkDrawCub (ConstraintsViewPT { cvptDrawFillSkelet = True
-                                           , cvptCursorAddress = fmap fst sptCA
-                                           , cvptScaffDim = 1
-                                           , cvptCub = cub })
-              
-              ] <*> (pure ee) <*> (pure e)
-               -- ++
-               -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
-              ) 
-
-
-drawExpr as DebugDEM ee e =
-        concat (
-
-              [                
-                fmap (second $ const (([] , Basic ) , nthColor 3)) (mkDrawCub ClickPoints ee e)
-
-              ] 
-               -- ++
-               -- maybe [] (\cAddr -> [mkDrawExpr (CursorPT { cursorAddress = cAddr })]) (asCursorAddress as)
-              ) 
+drawExpr as _ ee e = [] 
 
 
 drawingInterpreter :: Shadelike a => DrawingInterpreter a

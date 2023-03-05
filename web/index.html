@@ -16,7 +16,26 @@
 			/* canvas { */
 			/* 	width: 100%; */
 			/* 	height: 100%; */
-			/* } */
+		  /* } */
+		  body {
+		      background : #eee;
+		  }
+		  canvas {
+		      background : white;
+		  }
+
+		  #sManip {
+                      width: 256px;
+		      height: 256px;
+		      position: fixed;
+		      /* top: 0; */
+		      /* right: 0; */
+		      z-index:10;
+		      border:1px solid black;
+		      background-color: yellow;
+		      display:inline-block;
+		      
+		  }
 		</style> 
 	</head> 
 	<body> 
@@ -28,7 +47,8 @@
 		<script src="m3.js"></script>
 		<script src="m4.js"></script>
 		<script src="cvd.js"></script>
-		<canvas id="canvas" width="1024" height="1024"> </canvas>
+		<canvas id="canvas" width="512" height="512"> </canvas>
+		<div id="sManip"></div>
 
  <script>
 
@@ -47,6 +67,9 @@ out vec3 vNor;
 
 out vec3 worldPos;
 out vec3 screenPos;
+
+
+out vec2 cellPos;
 
 out float vMode;
 
@@ -148,12 +171,12 @@ main()
       sy = scale * aspect;
    }
 
-   highp int VisFlag = int(VisFlagF);
-   highp int Vis = int(VisF);
+   // highp int VisFlag = int(VisFlagF);
+   // highp int Vis = int(VisF);
 
-   int VisRes = Vis & VisFlag;
+   // int VisRes = Vis & VisFlag;
 
-   if(VisRes!=0){
+   // if(VisRes!=0){
       gl_Position =
 		     ((
 		      (
@@ -163,18 +186,20 @@ main()
               ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
 			 - vec4(0.5 , 0.5 , 0.5 , 0.0)))))))
 			  + vec4(screenDelta.x,screenDelta.y,0.0,0.0)) ;
-   }
-   else
-   {
-      gl_Position = vec4(0.0,0.0,0.0,0.0);
-   }
+   // }
+   // else
+   // {
+   //    gl_Position = vec4(0.0,0.0,0.0,0.0);
+   // }
 
 
    worldPos = vPosition.xyz;
    screenPos = (gl_Position.xyz)/gl_Position.w;
+
+   cellPos = vec2(VisFlagF,ObjGroup);
    
 
-   gl_PointSize = 5.0+ObjGroup;
+   gl_PointSize = 5.0+0.0*ObjGroup;
 }
 `;
 
@@ -191,8 +216,12 @@ out vec4 fColor;
 in vec3 worldPos;
 in vec3 screenPos;
 
+in vec2 cellPos;
+
 uniform float time;
 uniform float shade;
+
+uniform vec2 sqCrsr;
 
 float checker(vec3 uvw, float repeats) 
 {
@@ -243,51 +272,51 @@ main()
    
    preRGB = vCol.rgb;
 
-   if(vMode == 0.0){
+   // if(vMode == 0.0){
 
-   }else if(vMode == 1.0){
-      if (stripper(worldPos , 30.0 , 0.5  , float(time*0.1) ) < 0.5)
-      {
-       preRGB  = vec3(0.0,0.0,0.0);
-      }else{
-       preRGB  = vec3(1.0,1.0,1.0);
-      }
-   }else if(vMode == 2.0){
-      if (checker(worldPos , 10.0) < 0.5)
-      {
-       discard;
-      }
-   }else if(vMode == 3.0){ // selected primitive
-      if (stripper(worldPos , 10.0 , 0.5  , float(time*0.1) ) < 0.5)
-      {
-       allLightFactor = 1.7;
-      }
-   }else if(vMode == 4.0){ // hollowBox
-      if (stripper(worldPos , 50.0 , 0.5  , float(time*0.0) ) < 0.5)
-      {
-       discard;
-       // allLightFactor = 1.7;
-      }
-   }else if(vMode == 5.0){ // stripped
-      if (stripper(worldPos , 10.0 , 0.2  , float(time*0.1) ) < 0.5)
-      {
-       discard;
-      }
-   }else if(vMode == 6.0){ // cursor moving
-      if (stripper(worldPos , 30.0 , 0.5  , float(time*0.1) ) < 0.5)
-      {
-       preRGB  = preRGB * 0.7;
-      }else{
-       preRGB  = preRGB * 1.3;
-      }
-   }else if(vMode == 7.0){ // cursor stationary
-      if (stripper(worldPos , 30.0 , 0.5  , float(time*0.0) ) < 0.5)
-      {
-       preRGB  = vec3(0.0,0.0,0.0);
-      }else{
-       preRGB  = vec3(1.0,1.0,1.0);
-      }
-   }
+   // }else if(vMode == 1.0){
+   //    if (stripper(worldPos , 30.0 , 0.5  , float(time*0.1) ) < 0.5)
+   //    {
+   //     preRGB  = vec3(0.0,0.0,0.0);
+   //    }else{
+   //     preRGB  = vec3(1.0,1.0,1.0);
+   //    }
+   // }else if(vMode == 2.0){
+   //    if (checker(worldPos , 10.0) < 0.5)
+   //    {
+   //     discard;
+   //    }
+   // }else if(vMode == 3.0){ // selected primitive
+   //    if (stripper(worldPos , 10.0 , 0.5  , float(time*0.1) ) < 0.5)
+   //    {
+   //     allLightFactor = 1.7;
+   //    }
+   // }else if(vMode == 4.0){ // hollowBox
+   //    if (stripper(worldPos , 50.0 , 0.5  , float(time*0.0) ) < 0.5)
+   //    {
+   //     discard;
+   //     // allLightFactor = 1.7;
+   //    }
+   // }else if(vMode == 5.0){ // stripped
+   //    if (stripper(worldPos , 10.0 , 0.2  , float(time*0.1) ) < 0.5)
+   //    {
+   //     discard;
+   //    }
+   // }else if(vMode == 6.0){ // cursor moving
+   //    if (stripper(worldPos , 30.0 , 0.5  , float(time*0.1) ) < 0.5)
+   //    {
+   //     preRGB  = preRGB * 0.7;
+   //    }else{
+   //     preRGB  = preRGB * 1.3;
+   //    }
+   // }else if(vMode == 7.0){ // cursor stationary
+   //    if (stripper(worldPos , 30.0 , 0.5  , float(time*0.0) ) < 0.5)
+   //    {
+   //     preRGB  = vec3(0.0,0.0,0.0);
+   //    }else{
+   //     preRGB  = vec3(1.0,1.0,1.0);
+   //    }
+   // }
 
    if (shade > 0.5){
 	finalRGB = preRGB * allLightFactor * (ambient + boost * abs(dot(lightDir,normal)));  
@@ -295,6 +324,15 @@ main()
 	finalRGB = preRGB * allLightFactor * (ambient + boost * 0.5);
    }
 
+
+   float cpd = distance(cellPos,sqCrsr);
+
+   float a = 1.0;
+
+   if(cpd>0.01){
+     discard;
+   }
+   
 
    // if (dotter(worldPos , 1000.0 ) < 0.5)
    // {
@@ -310,7 +348,8 @@ main()
 function main() {
   // Get A WebGL context
   /** @type {HTMLCanvasElement} */
-  var canvas = document.querySelector("#canvas");
+    var canvas = document.querySelector("#canvas");
+      var sManip = document.querySelector("#sManip");
   var gl = canvas.getContext("webgl2");
   if (!gl) {
     return;
@@ -332,7 +371,7 @@ function main() {
 
   getULoc = function(n){uLoc[n]=gl.getUniformLocation(program, n);} 
 
-  unis = ["euler","screen","shade","scaleG","screenDelta","VisF"];
+  unis = ["euler","screen","shade","scaleG","screenDelta","VisF","sqCrsr"];
   unis.map(getULoc);
 
   
@@ -354,7 +393,7 @@ function main() {
     let vpAlpha = 1/5;
     let vpBeta = 0;
     let vpGamma = -0.1;
-    let vpScale = 0.5;
+    let vpScale = 0.8;
 
     let VisF = 1;
 
@@ -384,18 +423,26 @@ function main() {
     });
 
 
-    
+    const sqCrsr = {x : 0.3 , y : 0.4};
     
     canvas.addEventListener("mousemove",function(e){
 	if(e.buttons == 1){
 	    vpAlpha=
 		Math.min(Math.max(vpAlpha+(((e.movementY)/1024)*-0.3) , 0),0.5);
 	    
-	vpGamma+=(e.movementX/1024)*0.3;
+	    vpGamma+=(e.movementX/1024)*0.3;
 	}
 	
     });
+
+    sManip.addEventListener("mousemove",function(e){
+	if(e.buttons == 1){
+	    sqCrsr.x = e.layerX/256;
+	    sqCrsr.y = e.layerY/256;
+	}
 	
+    });
+    
   gl.enable(gl.DEPTH_TEST);  
   const drawPrimitives = function(i){
           if(i.d.dElemNum<1) return;
@@ -408,7 +455,8 @@ function main() {
 			,(vpScale)];
       
       gl.uniform4fv(uLoc["euler"], vMat);
-       gl.uniform1fv(uLoc["VisF"], [VisF]);
+      gl.uniform1fv(uLoc["VisF"], [VisF]);
+      gl.uniform2fv(uLoc["sqCrsr"], [sqCrsr.x,sqCrsr.y]);
           //console.log(i.d.dElemNum, i.buffData.length);
           gl.drawArrays(gl[i.d.dPrimitiveMode.toUpperCase()], i.d.StartIndex,
 	   i.d.dElemNum

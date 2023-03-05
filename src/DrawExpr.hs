@@ -259,7 +259,7 @@ data DefaultPT = DefaultPT { dptCursorAddress ::  Maybe Address
                            }
 
 addTag :: String -> ColorType -> ColorType
-addTag s = first (first (addIfNotIn s))
+addTag s ((x , y , z) , w) = ((addIfNotIn s x , y , z) , w)
 
 instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) DefaultPT where
   fromCtx _ = initGCContext
@@ -271,15 +271,15 @@ instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) Default
 
   drawD _ _ = either renderGCD ccdDrawing
 
-  drawHole spt k addr ee =
-      if k <= 3
-      then let holeS = (( ["hole" , "hollowBox"] , Basic) , gray 0.0)
-           in  scaleCell 0.8 $ Bf.second (const holeS) <$> unitHyCubeSkel k 1
-      else []
+  drawHole spt k addr ee = undefined
+      -- if k <= 3
+      -- then let holeS = (( ["hole" , "hollowBox"] , Basic) , gray 0.0)
+      --      in  scaleCell 0.8 $ Bf.second (const holeS) <$> unitHyCubeSkel k 1
+      -- else []
 
   fillStyleProcess d drw =
     if dptShowFill d
-    then filter (\(_ , ((tags , em) , color)) ->
+    then filter (\(_ , ((tags , em , _) , color)) ->
                not ("ms0" `elem` tags) &&
                not ("zeroCellCPI" `elem` tags)
            ) $ (mapStyle (addTag "filling") drw)
@@ -299,7 +299,7 @@ instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) Default
   cellStyleProcess spt ee n addr _ drw' =
     let drw =
            filter
-            ((\((tags , em) , color) -> not ("ms0" `elem` tags && n == 2)) . snd)
+            ((\((tags , em , _) , color) -> not ("ms0" `elem` tags && n == 2)) . snd)
              drw'
            -- if n == 2 then [] else drw'
     in case dptCursorAddress spt of
@@ -316,7 +316,7 @@ instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) Default
   drawCellCommon spt k addr _ _ =
      if k == 0 then
      [
-       ( [[]] , ((["zeroCellCPI","m0"] , Midpoints) , gray 0))
+       ( [[]] , ((["zeroCellCPI","m0"] , Midpoints , (0,0)) , gray 0))
      ] else []
      -- let partOfSelectedCellBndr =
      --          maybe False (not . isInternalAddress)
@@ -334,33 +334,33 @@ instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) Default
 
   finalProcess settings =
     let fillP = mapStyle
-                 (\((tags , em) , color)  ->
-                    ((tags, em), color)
+                 (\((tags , em , sqPt) , color)  ->
+                    ((tags, em, sqPt), color)
                     -- if "filling" `elem` tags
                     -- then ((tags , em) , lighter 0.6 color)
                     -- else ((tags , em) , color)
                    )
         selectP = mapStyle
-                 (\((tags , em) , color)  ->
+                 (\((tags , em, sqPt) , color)  ->
 
                     if "notselected" `elem` tags
-                    then ((tags , em) , lighter 0.2 $ desat 0.4 color)
-                    else ((tags , em) , color)
+                    then ((tags , em, sqPt) , lighter 0.2 $ desat 0.4 color)
+                    else ((tags , em, sqPt) , color)
                    )
         removeFillHoles = 
-           filter ((\((tags , em) , color) -> not ("filling" `elem` tags && "hole" `elem` tags)) . snd)
+           filter ((\((tags , em, sqPt) , color) -> not ("filling" `elem` tags && "hole" `elem` tags)) . snd)
 
         removePoints = filter
-           (\(x , ((tags , em) , color)) ->
+           (\(x , ((tags , em, sqPt) , color)) ->
               length x > 1 || ("zeroCellCPI" `elem` tags)
            )
                  
         toggleStrands =
-          filter (\(x, ((tags , em) , color)) -> (not ("m2" `elem` tags) || not ("gcd" `elem` tags)
+          filter (\(x, ((tags , em, sqPt) , color)) -> (not ("m2" `elem` tags) || not ("gcd" `elem` tags)
                                                   || not (Set.null (Set.intersection (Set.fromList tags) (dptTags settings)))))
 
         toggleLowDim =
-          filter (\(x, ((tags , em) , color)) -> not ("m0" `elem` tags))
+          filter (\(x, ((tags , em, sqPt) , color)) -> not ("m0" `elem` tags))
     in
        toggleStrands
      . toggleLowDim
@@ -372,7 +372,7 @@ instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) Default
 
 
 instance Shadelike ColorType where
-  toShade ((tags , _) , c) =
+  toShade ((tags , _ , sqPt) , c) =
           let isCursor = elem "cursor" tags
               isCursorSec = elem "cursorSec" tags
               hollowBox = elem "hollowBox" tags
@@ -402,319 +402,9 @@ instance Shadelike ColorType where
           Shade { shadeColor = c
                 , shadeMode = shadeMode
                 , shadeModeVFG = vfg'
-                     
+                , sqPt = sqPt     
                 }
-
-data ScaffoldPT = ScaffoldPT
-  { sptDrawFillSkelet :: Bool
-  , sptCursorAddress :: Maybe Address
-  , sptScaffDim :: Int
-  , sptMissingSubFaceCursor :: Maybe (Address , SubFace)
-  }
-
-
-instance DrawingCtx (Env , Context) ColorType Int ScaffoldPT where
-  fromCtx _ = id
-
-  drawTermFromContext _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
-
-  drawD _ _ k = FromLI k (const [])
-
-  drawCellCommon spt k addr _ _ =
-     let scaffS = if isJust $ flip mbSubAddress addr =<< sptCursorAddress spt
-                  then (( ["cellBorder"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
-                  else (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
-         scaff = if k <= 1
-             then Bf.second (const scaffS) <$> unitHyCube k
-             else []
-
-     in scaff
-
-  fillStyleProcess _ _ = []
-
-
-data ConstraintsViewPT a = ConstraintsViewPT
-  { cvptDrawFillSkelet :: Bool
-  , cvptCursorAddress :: Maybe Address
-  , cvptScaffDim :: Int
-  , cvptCub :: ClCub (Maybe a)
-  }
-
-
-instance DrawingCtx (Env , Context) ColorType Int (ConstraintsViewPT a) where
-  fromCtx _ = id
-
-  drawTermFromContext _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
-
-  drawD _ _ k = FromLI k (const [])
-
-  drawCellCommon spt k addr _ _ =
-     let cdata = clCubPickData addr $ cvptCub spt
-
-         scaff =
-           case (fromJust cdata) of
-             Nothing -> let s = (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
-                        in if k <= -1
-                           then Bf.second (const s) <$> unitHyCube k
-                           else []
-             Just _ ->
-                 let s = (( ["cellBorder"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
-                 in Bf.second (const s) <$> unitHyCubeSkel k 2
-
-     in scaff
-
-
-
-  nodePainterCommon spt _ k addr _ _ _ = 
-     let cdata = clCubPickData addr $ cvptCub spt
-
-         scaff =
-           case (fromJust cdata) of
-             Nothing -> let s = (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
-                        in if k <= -1
-                           then Bf.second (const s) <$> unitHyCube k
-                           else []
-             Just _ ->
-                 let s = (( ["cellBorder"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
-                 in Bf.second (const s) <$> unitHyCubeSkel k 2
-
-     in scaff
-
-  fillStyleProcess _ _ = []
-
-data CursorPT = CursorPT
-  { cptCursorAddress :: Maybe (Address , CAddress)
-  , cptSecCursorAddress :: Maybe Address
-  , cptSelectedAddressCorners :: Set.Set Address
-  }
-
-
-cursorDrw :: Bool -> CursorPT -> Int -> Address -> Drawing  ColorType
-cursorDrw node1Fix cpt k addr =
-     let partOfSelectedCellBndrF addr' = 
-           if node1Fix then (addr == addr') else
-              maybe False (not . isInternalAddress)
-            $ mbSubAddress addr' addr
-
-         partOfSelectedCellBndr =
-           (maybe False $ any partOfSelectedCellBndrF)
---           -- $ fmap (Set.singleton . fst)
-           $ fmap (cAddress . snd) 
-           $ cptCursorAddress cpt
-
-         partOfSecSelectedCellBndr =
-           if node1Fix then (Just addr == cptSecCursorAddress cpt) else
-              maybe False (not . isInternalAddress)
-            $ flip mbSubAddress addr =<< cptSecCursorAddress cpt
-
-         faceSelScaffS =
-             (( ["faceSelectorScaff" , "vfgF0","vfgT1"] , ExtrudeLines) , gray 1.2)
-
-         isSelectedAddressCorner =
-            (Set.member addr $ cptSelectedAddressCorners cpt)
-              
-            
-              
-         scaffS =
-            case (partOfSelectedCellBndr , partOfSecSelectedCellBndr , isSelectedAddressCorner) of
-               (_ , _,True) -> (( ["cellBorder" , "cursor"] , ExtrudeLines) , Rgba 1.0 1.0 0.0 1.0)
-               (True , _,_) -> (( ["cellBorder" , "cursor"] , ExtrudeLines) , Rgba 0.7 0.7 0.7 1.0)
-               (_ , True,_) -> (( ["cellBorder" , "cursorSec"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
-               (_ , _,_) -> (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
-         scaff = if k <= 1 
-             then ((Bf.second (const scaffS) <$> unitHyCube k)
-                    ++ (Bf.second (const faceSelScaffS) <$> unitHyCube k))
-             else []
-
-     in if partOfSelectedCellBndr || partOfSecSelectedCellBndr 
-        then scaff
-        else []
-
-
-faceSelectorDrw :: Int -> Maybe CAddress -> Address -> Drawing ColorType
-faceSelectorDrw k = \case
-  Nothing -> \_ -> []
-  Just cAddr -> \addr ->
-    let z = nub $ catMaybes $ (join . (fmap toFace) . (flip mbSubFaceAddr addr)) <$> (Set.toList (cAddress cAddr))
-    in Bf.second (const (( ["faceSelector","vfgF0"]
-                             ++ [ "vfgT" ++ (show $ ((unemerate f) + 2) ) | f <- z]
-                         , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)) <$> unitHyCube k
-
-instance DrawingCtx (Env , Context) ColorType Int CursorPT where
-  fromCtx _ = id
-
-  drawTermFromContext _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
-
-  drawD _ _ k = FromLI k (const [])
-
-  nodePainterCommon cpt _ k addr _ _ _ =
-    faceSelectorDrw k (snd <$> cptCursorAddress cpt) addr ++
-    (if (k==1) then
-     cursorDrw True cpt k addr
-     else []) 
-    
-  drawCellCommon cpt k addr _ _ =
-    faceSelectorDrw k (snd <$> cptCursorAddress cpt) addr
-    ++ cursorDrw False cpt k addr 
-  fillStyleProcess _ _ = []
-
-  finalProcess _ =
-     fattenOn
-      ( elem "cursor" . fst . fst )
-      0.02
-      id
-      
-
-
-data ClickPoints = ClickPoints
-  { 
-  }
-
-instance DrawingCtx (Env , Context) (ColorType2 Address) Int ClickPoints where
-  fromCtx _ = id
-
-  drawTermFromContext _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
-
-  drawD _ _ k = FromLI k (const [])
-
-  nodePainterCommon cpt _ k addr _ _ _ = []
-    
-  drawCellCommon cpt k addr _ _ =
-     [
-       ( [ replicate k 0.5 ] , ((addr , Midpoints) , gray 0))
-     ]
-  fillStyleProcess _ _ = []
-
-
-data FaceHandles = FaceHandles
-  { 
-  }
-
-faceHandleDepth = 0.1
-faceHandleDist = 0.3
-faceHandleSize = 0.3
-
-instance DrawingCtx (Env , Context) (ColorType2 Address) Int FaceHandles where
-  fromCtx _ = id
-
-  drawTermFromContext _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
-
-  drawD _ _ k = FromLI k (const [])
-
-  nodePainterCommon cpt _ k addr _ _ _ = []
-    
-  drawCellCommon cpt k addr _ _ =
-     [
-     ]
-  fillStyleProcess _ _ = []
-
-  drawHole _ k addr _ = concat
-    [
-
-      translate [ if j==i
-                  then (faceHandleDist * (if s then (1.0) else (-1.0)))
-                  else  0.0
-                | j <- [0..(k - 1)] ] $
-      scaleNonUniformOrigin
-                [ if j==i
-                  then faceHandleDepth
-                  else faceHandleSize
-                | j <- [0..(k - 1)] ] (replicate k 0.5) $
-      fmap (Bf.second (const ((addr , Basic) , gray 0)))
-        (unitHyCube k)
-
-    | i <- [0..(k - 1)]
-    , s <- [False , True]
-    ]
     
     -- [
     --   ( [ replicate k 0.5 ] , ((addr , Midpoints) , gray 0))
     -- ]
-
--- instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int ScaffoldPT where    
---   fromCtx _ _ = ()
---   drawTermFromContext _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
-
-
---   drawD _ _ k = FromLI k (const [])
-
---   -- fillStyleProcess _ =
---   --   map (\(s , a@((tags , em) , c) ) ->
---   --          case em of
---   --            ExtrudeLines -> (s , ((tags , em) , Rgba 0.9 0.9 0.9 1.0))
---   --            _ -> (s , a) 
---   --       )
-
---   nodePainter spt ee dctx n addr () nm si center = Right $
---           let cursor = if (sptCursorAddress spt == Just addr)
---                        then fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 0.0 1.0 0.0 0.3))
---                             $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 2
---                        else []
---               sfCursor =
---                    (sptMissingSubFaceCursor spt)
---                    & maybe [] 
---                      (\(addrM , sf) ->
---                          if addrM == addr
---                          then 
---                                subFaceTrans sf
---                               $ fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 0.0 0.0 1.0 0.3))
---                               $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel (subFaceDimEmb sf + 1) 2 
---                          else []
---                      )
-
---           in cursor ++ sfCursor
-
---   drawCellCommon spt _ n addr _ _ x =
---     let g = if ( sptDrawFillSkelet spt) then 0.85 else 0.0
-
-
---         lines = if n > -1
---                 then  fmap (Bf.second $ const $ (( ["cellBorder"] , ExtrudeLines) , gray g))
---                        $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 1
---                 else []
-
---         cursor = 
---           if (sptCursorAddress spt == Just addr)
---           then fmap (Bf.second $ const $
---                        (( ["cursor" , "hole" , either (const "hole") (const "cell") x] , Basic)
---                           , Rgba 1.0 0.0 0.0 0.3))
---                 $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCubeSkel n 2
---           else []
-
-
-
---     in case (n , (sptCursorAddress spt == Just addr)) of
---          (1 , True) -> cursor
---          _ -> cursor ++ lines
-
-
-
-
-
--- -- data CursorPT = CursorPT { cursorAddress :: Address }
-
--- -- instance DrawingCtx () (([String] , ExtrudeMode) , Color) Int CursorPT where    
--- --   fromCtx _ _ = ()
--- --   drawTermFromContext _ (env , ctx) _ _ vI = getCTyDim env ctx (getVarType ctx vI)  
-
-
--- --   drawD _ _ k = FromLI k (const [])
-
--- --   -- fillStyleProcess _ =
--- --   --   map (\(s , a@((tags , em) , c) ) ->
--- --   --          case em of
--- --   --            ExtrudeLines -> (s , ((tags , em) , Rgba 0.9 0.9 0.9 1.0))
--- --   --            _ -> (s , a) 
--- --   --       )
-
--- --   drawCellCommon cpt _ n addr _ = 
--- --     let cAddr = cursorAddress cpt 
--- --     in
--- --        if cAddr == addr
--- --        then fmap (Bf.second $ const $ (( ["cursor"] , Basic) , Rgba 1.0 0.0 0.0 0.3))
--- --                $ translate (replicate n 0.0) $ scale 1.0 $ unitHyCube n
--- --        else []
-
-
-
--- -- -- drawExpr = mkDrawExpr (forget Stripes1)

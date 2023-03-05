@@ -139,24 +139,24 @@ renderables2CVD =
       let pos = fmap (\x -> x ++ [0.0]) $ fmap trpl2arr $ trpl2arr pts          
       in x { triangleVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
                                                      ++ [ fromIntegral (shadeMode shade)
-                                                        , fromIntegral ( shadeModeVFG shade)
-                                                        , fromIntegral 0]))
+                                                        , fst (sqPt shade)
+                                                        , snd (sqPt shade)]))
                 ++ triangleVs x }
 
     mkVs x (D.Line pts , shade) =
       let pos = fmap (\x -> x ++ [0.0]) $ fmap trpl2arr $ tpl2arr pts          
       in x { lineVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
                                                      ++ [ fromIntegral (shadeMode shade)
-                                                        , fromIntegral ( shadeModeVFG shade)
-                                                        , fromIntegral 0]))
+                                                        , fst (sqPt shade)
+                                                        , snd (sqPt shade)]))
                  ++ lineVs x }
 
     mkVs x (D.Point pt , shade) =
       let pos = fmap (\x -> x ++ [0.0]) $ fmap trpl2arr [pt]          
       in x { pointVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
                                       ++ [ fromIntegral ( shadeMode shade)
-                                         , fromIntegral (shadeModeVFG shade)
-                                         , fromIntegral 0 ]))
+                                         , fst (sqPt shade)
+                                        , snd (sqPt shade) ]))
                  ++ pointVs x}  
       
     

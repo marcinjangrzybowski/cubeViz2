@@ -140,38 +140,38 @@ parTranslateLoop2 = 0.1
 triangle1 = [[0.0, 0.05], [0.05, 0.05], [0.0, 0.0]]
 
 
-renderNamedCell :: String -> Maybe (ZDrawing ColorType)
-renderNamedCell "loop₂" = Just $
-  let n = 2
-  in FromLI 2 (\pc@(sbst , prm) ->
-        let shouldTranspose = foldr xor False (toListLI sbst)
-            pcId = unemerate prm + 1
-            stacking =
-              case (toListLI sbst) of
-                [False, False] -> True
-                [True, True] -> True
-                [True, False] -> True
-                [False, True] -> True
-            withCrossing = not ((unemerate prm == 0) `xor` (foldr xor False (toListLI sbst)))
-            rotQuarter = scaleNonUniformOrigin [if b then -1.0 else 1.0 | b <- toListLI sbst] [0.5, 0.5]
-                         . sMap (\[x,y] -> if shouldTranspose then [y,x] else [x,y])
-            pcPrime = (fromListLI [False, False], prm)
-            (mainSmplxs, mainSmplxs2, mainSmplxs3) =
-              rotQuarter (primitivePieceLoop2 withCrossing stacking (par1Loop2 , par2Loop2) pcPrime)
-            -- (bdSmplxs, bdSmplxs2) = primitivePieceLoop2Bd undefined (par1Loop2 , par2Loop2) pc
-            -- mainStyle = if n == 0 then [ExtrudeLines] else []
-            -- TODO maybe vary color by permutation?
-            colorFst = nthColor 1 --nthColor (unemerate pcOrg) --
-            colorSnd = nthColor 2 --nthColor (unemerate pcOrg) -- nthColor 2
-            (colorOver, colorUnder) =
-              case toListLI sbst of
-                [False, False] -> (colorFst, colorFst)
-                [True, True] -> (colorSnd, colorSnd)
-                [True, False] -> (colorFst, colorSnd)
-                [False, True] -> (colorSnd, colorFst)
-        in [(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pcId), "gcd"] , Basic) , colorUnder)) | mainSmplx <- mainSmplxs] ++
-           [(mainSmplx2 , ((["ms"++(show n), "m"++(show n), "piece"++(show pcId), "gcd"] , Basic) , colorOver)) | mainSmplx2 <- mainSmplxs2] ++
-           [(mainSmplx3 , ((["ms"++(show n), "m"++(show n), "piece"++(show pcId), "gcd"] , Basic) , colorOver)) | mainSmplx3 <- mainSmplxs3])
+-- renderNamedCell :: String -> Maybe (ZDrawing ColorType)
+-- renderNamedCell "loop₂" = Just $
+--   let n = 2
+--   in FromLI 2 (\pc@(sbst , prm) ->
+--         let shouldTranspose = foldr xor False (toListLI sbst)
+--             pcId = unemerate prm + 1
+--             stacking =
+--               case (toListLI sbst) of
+--                 [False, False] -> True
+--                 [True, True] -> True
+--                 [True, False] -> True
+--                 [False, True] -> True
+--             withCrossing = not ((unemerate prm == 0) `xor` (foldr xor False (toListLI sbst)))
+--             rotQuarter = scaleNonUniformOrigin [if b then -1.0 else 1.0 | b <- toListLI sbst] [0.5, 0.5]
+--                          . sMap (\[x,y] -> if shouldTranspose then [y,x] else [x,y])
+--             pcPrime = (fromListLI [False, False], prm)
+--             (mainSmplxs, mainSmplxs2, mainSmplxs3) =
+--               rotQuarter (primitivePieceLoop2 withCrossing stacking (par1Loop2 , par2Loop2) pcPrime)
+--             -- (bdSmplxs, bdSmplxs2) = primitivePieceLoop2Bd undefined (par1Loop2 , par2Loop2) pc
+--             -- mainStyle = if n == 0 then [ExtrudeLines] else []
+--             -- TODO maybe vary color by permutation?
+--             colorFst = nthColor 1 --nthColor (unemerate pcOrg) --
+--             colorSnd = nthColor 2 --nthColor (unemerate pcOrg) -- nthColor 2
+--             (colorOver, colorUnder) =
+--               case toListLI sbst of
+--                 [False, False] -> (colorFst, colorFst)
+--                 [True, True] -> (colorSnd, colorSnd)
+--                 [True, False] -> (colorFst, colorSnd)
+--                 [False, True] -> (colorSnd, colorFst)
+--         in [(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pcId), "gcd"] , Basic) , colorUnder)) | mainSmplx <- mainSmplxs] ++
+--            [(mainSmplx2 , ((["ms"++(show n), "m"++(show n), "piece"++(show pcId), "gcd"] , Basic) , colorOver)) | mainSmplx2 <- mainSmplxs2] ++
+--            [(mainSmplx3 , ((["ms"++(show n), "m"++(show n), "piece"++(show pcId), "gcd"] , Basic) , colorOver)) | mainSmplx3 <- mainSmplxs3])
 
 
 -- renderNamedCell "loop₂" = Just $ 
@@ -197,14 +197,14 @@ renderNamedCell "loop₂" = Just $
 
 
 
-renderNamedCell "loop₁" = Just $
-   renderGCD'
-    (par1Loop2 , par2Loop2 , parTranslateLoop2)
-    (GCData "" $ FromLI 1 (\pc -> (unemerate pc , (unemerate pc + 1) , pc)))
-  where
-   par1Loop2 = 0.2
-   par2Loop2 = 0.3
-   parTranslateLoop2 = 0.1
+-- renderNamedCell "loop₁" = Just $
+--    renderGCD'
+--     (par1Loop2 , par2Loop2 , parTranslateLoop2)
+--     (GCData "" $ FromLI 1 (\pc -> (unemerate pc , (unemerate pc + 1) , pc)))
+--   where
+--    par1Loop2 = 0.2
+--    par2Loop2 = 0.3
+--    parTranslateLoop2 = 0.1
 
 
 renderNamedCell "s" = Just $
