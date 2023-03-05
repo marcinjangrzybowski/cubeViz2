@@ -207,10 +207,10 @@ renderNamedCell "loop₁" = Just $
    parTranslateLoop2 = 0.1
 
 
--- renderNamedCell "s" = Just $
---    renderGCD'Points
---     (par1 , par2 , parTranslate)
---     (GCData "" $ FromLI 2 (\pc -> (unemerate pc , (unemerate pc + 1) , pc)))
+renderNamedCell "s" = Just $
+   renderGCD'Points
+    (par1 , par2 , parTranslate)
+    (GCData "" $ FromLI 2 (\pc -> (unemerate pc , (unemerate pc + 1) , pc)))
 
 renderNamedCell _ = Nothing
 
