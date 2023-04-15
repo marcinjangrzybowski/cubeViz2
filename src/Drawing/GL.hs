@@ -107,6 +107,13 @@ data WebGlDescriptor = WebGlDescriptor
 instance FromJSON WebGlDescriptor
 instance ToJSON WebGlDescriptor
 
+
+webGlDescriptorStats :: WebGlDescriptor -> String
+webGlDescriptorStats wgld = unlines
+  [ show (dPrimitiveMode wgld)
+  , show (dElemNum wgld)
+  ]
+
 data CombinedVertexData =
   CombinedVertexData { pointVs :: [Float] , lineVs :: [Float] , triangleVs :: [Float] }
 

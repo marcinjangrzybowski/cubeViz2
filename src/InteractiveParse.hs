@@ -40,6 +40,13 @@ sectionsHeads =
   ,(False , "———— Constraints ———————————————————————————————————————————")
   ]
 
+sectionsHeads' :: [String]
+sectionsHeads' =
+  fmap snd [(True , "Goal:")
+  ,(True , "Elaborates to:")
+  ,(True , "————————————————————————————————————————————————————————————")
+  ]
+
 
 rawSections :: String -> Either String (String,String,String,String,String)
 rawSections x =
@@ -47,7 +54,14 @@ rawSections x =
     Right [_ , s1 , s2 , s3 , s4 , s5] -> Right (s1 , s2 , s3 , s4 , s5)
     Right _ -> Left "fatal error in rawSections"
     Left y -> Left ("section: " ++ y ++ " is missing from input")
-      
+
+rawSections' :: String -> Either String (String,String,String)
+rawSections' x =
+  case (splitsBy sectionsHeads' x) of
+    Right [_ , s1 , s2 , s4] -> Right (s1 , s2 ,  s4)
+    Right _ -> Left "fatal error in rawSections"
+    Left y -> Left ("section: " ++ y ++ " is missing from input")
+
 
 data SessionState = SessionState (Env , Context) [(Expr , Expr)] BType Expr
 
@@ -84,6 +98,13 @@ instance Show SessionState where
 parseInteractive :: String -> Either String SessionState
 parseInteractive x =
   do (goalRaw , termRaw , boundaryRaw , contextRaw , constraintsRaw) <- rawSections x
+     (env , ctx) <- parseContext contextRaw
+     currExpr <- first show $ parseExpr ctx termRaw
+     return (SessionState (env , ctx) [] undefined currExpr)
+
+parseInteractive' :: String -> Either String SessionState
+parseInteractive' x =
+  do (goalRaw , termRaw , contextRaw ) <- rawSections' x
      (env , ctx) <- parseContext contextRaw
      currExpr <- first show $ parseExpr ctx termRaw
      return (SessionState (env , ctx) [] undefined currExpr)

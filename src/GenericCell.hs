@@ -47,7 +47,7 @@ import Debug.Trace
 
               -- first int refers to "color" (index of def of dim0)
               -- second int refers to uniqCounter for this primitive
-data GCData = GCData String (FromLI Piece (Int , Int , Piece))
+data GCData = GCData String (FromLI Piece (Int , Int))
 
 
 
@@ -58,13 +58,60 @@ data GCData = GCData String (FromLI Piece (Int , Int , Piece))
 
 
 renderGCD' :: (Float , Float , Float) -> GCData -> ZDrawing ColorType
-renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n f)) =
+renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n@1 f)) =
    FromLI n (\pc@(sbst , prm) ->
-        let (_ , uniqN , pcOrg) = appLI pc fli
-            pieceId = unemerate pcOrg + 1
+        let (vertN , uniqN ) = appLI pc fli
+            pieceId = unemerate pc + 1
             vfg = show (pieceId + 4)
             
-            colId = if nm == "loop₁" then uniqN else pieceId            
+            colId = if nm == "loop₁" then uniqN else vertN
+            -- colId = vertN
+            
+            mainSmplx = primitivePiece (par1 , par2) pc
+            bdSmplxs = primitivePieceBd (par1 , par2) pc
+            -- mainStyle = if n == 0 then [ExtrudeLines] else []
+            -- TODO maybe vary color by permutation?
+            color = nthColor colId
+        in (
+               ([(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) ] ++
+
+               [(x  , ((["m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) | x <- bdSmplxs ])))
+
+ where
+   primitivePiece :: (Float , Float) -> Piece -> Smplx
+   primitivePiece (distCorner , distCenter) (su , pm) =
+     let crnr = toListLI su
+         n = length crnr
+         ptCrnr = map (bool (0.0 + distCorner) (1.0 - distCorner)) crnr
+         ptCenter = map (bool (0.0 + distCenter) (1.0 - distCenter)) crnr
+         restPts :: ([Float] , [[Float]] )
+         restPts = mapAccumL
+                         (  fmap dupe . (\ pt k -> updateAt (ptCenter !! k ) k pt) )
+                         ptCrnr
+                         (toListLI $ invPerm pm)
+         pt = ptCrnr : snd restPts
+         cornerVector = [if k == unemerate pm then 0 else (if b then 1 else -1) | (k, b) <- zip [0..n-1] crnr]
+         mean pts = map (\x -> x / fromIntegral (length pts)) (map sum (transpose pts))
+         middle = translatePar cornerVector parTranslate (mean [ptCrnr, ptCenter])
+         translatedPt = translatePar cornerVector parTranslate pt
+         
+     in translatedPt
+
+   primitivePieceBd :: (Float , Float) -> Piece -> [Smplx]
+   primitivePieceBd x y | (getDim y == 0) = []
+                        | otherwise =
+     [ init (primitivePiece x y) , tail (primitivePiece x y) ]
+
+   
+renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n f)) =
+   FromLI n (\pc@(sbst , prm) ->
+        let (vertN , uniqN ) = appLI pc fli
+            pieceId = unemerate pc + 1
+            vfg = show (pieceId + 4)
+            
+            colId = (if nm == "loop₁" then uniqN else vertN) --pieceId)
+            -- colId = uniqN
+            
             mainSmplx = primitivePiece False (par1 , par2) pc
             mirrorSmplx = primitivePiece True (par1 , par2) pc
             bdSmplxs = primitivePieceBd False (par1 , par2) pc
@@ -120,8 +167,8 @@ renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n f)) =
 renderGCD'Points :: (Float , Float , Float) -> GCData -> ZDrawing ColorType
 renderGCD'Points (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n f)) =
    FromLI n (\pc@(sbst , prm) ->
-        let (_ , uniqN , pcOrg) = appLI pc fli
-            pieceId = unemerate pcOrg + 1
+        let (_ , uniqN) = appLI pc fli
+            pieceId = unemerate pc + 1
             vfg = show (pieceId + 4)
             
             colId = if nm == "loop₁" then uniqN else pieceId            
@@ -203,9 +250,9 @@ makeGCD (ee , ctx0) gccGS i (defName , ct) =
  
       ( newGCCGS , newGCD) =  mapAccumL visitCorner gccGS (toListFLI crnrs)
       
-  in ( newGCCGS ,
-          GCData defName $
-            (FromLI n (\pc -> (1 , 1 , pc))))
+  in ( newGCCGS ,  GCData defName $ fromListFLI n newGCD)
+          -- GCData defName $
+          --   (FromLI n (\pc -> (1 , 1 , pc))))
 
 initGCContext :: (Env , Context) -> GCContext
 initGCContext (ee , Context l _) =
@@ -216,7 +263,7 @@ initGCContext (ee , Context l _) =
        ) & snd
 
 
-instance DiaDegPiece (Int, Int, Piece) where
+instance DiaDegPiece (Int, Int) where
   pieceAppNegs _ = id
   
   pieceAppDiags _ = id

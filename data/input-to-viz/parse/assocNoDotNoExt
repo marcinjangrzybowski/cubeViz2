@@ -1,0 +1,69 @@
+Goal: A
+Elaborates to: hcomp {ℓ} {A} {i ∨ ~ i}
+               (λ j →
+                  primPOr {ℓ} i (~ i) {λ p₁ → A}
+                  (λ ._ →
+                     hcomp {ℓ} {A} {~ j ∨ j ∨ k}
+                     (λ k₁ →
+                        primPOr {ℓ} (~ j) (j ∨ k) {λ .p₁ → A} (λ _ → q k)
+                        (primPOr {ℓ} j k {λ .p₁ → A} (λ _ → r k₁) (λ _ → r (j ∧ k₁))))
+                     (q (j ∨ k)))
+                  (λ ._ → x))
+               (hcomp {ℓ} {A} {(i ∨ ~ i) ∨ ~ k}
+                (λ j →
+                   primPOr {ℓ} (i ∨ ~ i) (~ k) {λ p₁ → A}
+                   (primPOr {ℓ} i (~ i) {λ p₁ → A} (λ _ → q (k ∧ j)) (λ _ → x))
+                   (λ ._ → p i))
+                (p i))
+———— Boundary ——————————————————————————————————————————————
+k = i0 ⊢ hcomp {ℓ} {A} {i ∨ ~ i}
+         (λ j →
+            primPOr {ℓ} i (~ i) {λ p₁ → A}
+            (λ _ →
+               hcomp {ℓ} {A} {j ∨ ~ j}
+               (λ j₁ → primPOr {ℓ} j (~ j) {λ p₁ → A} (λ _ → r j₁) (λ _ → y))
+               (q j))
+            (λ _ → x))
+         (p i)
+k = i1 ⊢ hcomp {ℓ} {A} {i ∨ ~ i}
+         (λ j → primPOr {ℓ} i (~ i) {λ p₁ → A} (λ _ → r j) (λ _ → x))
+         (hcomp {ℓ} {A} {i ∨ ~ i}
+          (λ j → primPOr {ℓ} i (~ i) {λ p₁ → A} (λ _ → q j) (λ _ → x))
+          (p i))
+i = i0 ⊢ x
+i = i1 ⊢ w
+————————————————————————————————————————————————————————————
+i : I
+k : I
+r : _≡_ {ℓ} {A} z w
+q : _≡_ {ℓ} {A} y z
+p : _≡_ {ℓ} {A} x y
+w : A   
+z : A   
+y : A   
+x : A
+A : Type ℓ
+ℓ : Level
+———— Constraints ———————————————————————————————————————————
+w = ?0 (i = i1) : A (blocked on _404)
+x = ?0 (i = i0) : A (blocked on _404)
+hcomp {ℓ} {A} {i ∨ ~ i}
+(λ j → primPOr {ℓ} i (~ i) {λ p₁ → A} (λ _ → r j) (λ _ → x))
+(hcomp {ℓ} {A} {i ∨ ~ i}
+ (λ j → primPOr {ℓ} i (~ i) {λ p₁ → A} (λ _ → q j) (λ _ → x))
+ (p i))
+  = ?0 (k = i1)
+  : A
+  (blocked on _404)
+hcomp {ℓ} {A} {i ∨ ~ i}
+(λ j →
+   primPOr {ℓ} i (~ i) {λ p₁ → A}
+   (λ _ →
+      hcomp {ℓ} {A} {j ∨ ~ j}
+      (λ j₁ → primPOr {ℓ} j (~ j) {λ p₁ → A} (λ _ → r j₁) (λ _ → y))
+      (q j))
+   (λ _ → x))
+(p i)
+  = ?0 (k = i0)
+  : A
+  (blocked on _404)

@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveGeneric #-}
 module ShowExpWeb where
 import Control.Monad.Reader      (ReaderT , ask , reader)
 import Control.Monad.Writer      (WriterT , tell , mapWriterT , listen)
@@ -18,6 +19,8 @@ import GHC.IO.Handle
 import qualified GHC.IO.FD as Fd
 
 import System.Environment
+import System.Directory
+import System.Process
 import Data.Time.Clock
 
 -- import qualified Graphics.Rendering.OpenGL as GL
@@ -74,11 +77,16 @@ import Layout
 
 import Data.Bits
 
+import Data.Aeson
+import GHC.Generics
+
+
 data Msg =
     LoadFile String
   | LoadGrid
   | TermInput
  deriving (Show)
+
 
 
 data DisplayPreferences = DisplayPreferences
@@ -149,54 +157,86 @@ main =
 
      let peristentPrintH = stdout
 
-     case mbInitialSessionState of
-       Right initialSessionState -> do
-         let (ee , expr) = ssEnvExpr initialSessionState
-             cub = toClCub ee expr 
-             ap = AppState
-                    { fileName          = mbFName
-                    , asViewport        =
-                        Viewport
-                          { vpAlpha = 1/5
-                          , vpBeta = 0
-                          , vpGamma = -0.1
-                          , vpScale = 0.5
-                          , vpScreenDelta = (0.0,0.0)
-                          }
-                    , asDrawMode        = Scaffold -- Stripes --   --head drawExprModes
-                    , asDragStartVP     = Nothing
-                    , asSession         = initialSessionState
-                    , asCub             = cub
-                    , asAddress2PointMap = mkAddress2PointMap cub 
-                    , asUserMode        = Idle --umNavigation (rootAddress (getDim ee))
-                    , asKeyPressed      = False
-                    , asMessage         = ""
-                    , asDisplayPreferences = defaultDisplayPreferences
-                    , asTime            = currTime
-                    , asMarkedCAddresses = []
-                    , asDragStartAddress = Nothing
-                    , asLastMousePos = (0,0)
-                    , asPeristentConsolePrint = \x -> hPutStr peristentPrintH x >> hPutChar peristentPrintH '\n'
-                    , asPeristentHandle = peristentPrintH
-                    , asParentAppState = Nothing
-                    , asMainRenderables = []
-                    }
-         updateGL ap >>= printDescriptors
-       Left errorMsg -> do
-          liftIO $ putStrLn errorMsg
-          return ()
+     r <- case mbInitialSessionState of
+          Right initialSessionState -> do
+            let (ee , expr) = ssEnvExpr initialSessionState
+                cub = toClCub ee expr 
+                ap = AppState
+                       { fileName          = mbFName
+                       , asViewport        =
+                           Viewport
+                             { vpAlpha = 1/5
+                             , vpBeta = 0
+                             , vpGamma = -0.1
+                             , vpScale = 0.5
+                             , vpScreenDelta = (0.0,0.0)
+                             }
+                       , asDrawMode        = Scaffold -- Stripes --   --head drawExprModes
+                       , asDragStartVP     = Nothing
+                       , asSession         = initialSessionState
+                       , asCub             = cub
+                       , asAddress2PointMap = mkAddress2PointMap cub 
+                       , asUserMode        = Idle --umNavigation (rootAddress (getDim ee))
+                       , asKeyPressed      = False
+                       , asMessage         = ""
+                       , asDisplayPreferences = defaultDisplayPreferences
+                       , asTime            = currTime
+                       , asMarkedCAddresses = []
+                       , asDragStartAddress = Nothing
+                       , asLastMousePos = (0,0)
+                       , asPeristentConsolePrint = \x -> hPutStr peristentPrintH x >> hPutChar peristentPrintH '\n'
+                       , asPeristentHandle = peristentPrintH
+                       , asParentAppState = Nothing
+                       , asMainRenderables = []
+                       }
+            updateGL ap >>=
+                   (\l -> return $ Right
+                               (WebFrontendDescriptor
+                                 -- l
+                                 (filter (\x -> dPrimitiveMode x == Triangles) l)
+                                 (getDim $ asCub ap)))
+          Left errorMsg -> putStrLn errorMsg >> (return $ Left errorMsg)
+             
+     printDescriptors r
+     
+data WebFrontendDescriptor = WebFrontendDescriptor
+  { webGlDescriptors :: [WebGlDescriptor]
+  , exprDim :: Int
+  }
+  deriving (Generic,Show)
 
-printDescriptors :: [WebGlDescriptor] -> IO ()
+instance FromJSON WebFrontendDescriptor
+instance ToJSON WebFrontendDescriptor
+
+
+printDescriptors :: Either String WebFrontendDescriptor -> IO ()
 printDescriptors l = do
-  let dJson = SC.toString (encode l) 
-  writeFile "web/cvd.js" ("var cvd = " ++ dJson ++ ";")
+  
+  let dJson = SC.toString (encode l)
+  case l of
+    Left err -> putStrLn err
+    Right wfd -> putStrLn $
+      unlines (intersperse "" (map webGlDescriptorStats (webGlDescriptors wfd)))
+       
+  (_ , _ , _ , ph) <- createProcess
+    (shell
+      "rm -rf /tmp/cubeViz2Web ; cp -fR web /tmp/cubeViz2Web")
+         { cwd = Just "/Users/marcin/cubeViz2" }
+  waitForProcess ph
+  writeFile "/tmp/cubeViz2Web/cvd.js" ("var cvdR = " ++ dJson ++ ";")
+  _ <- createProcess
+    (shell
+      "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome  --headless --screenshot file:///tmp/cubeViz2Web/index.html") { cwd = Just "/Users/marcin/" }
+  putStrLn "done" 
 
+
+  
 loadFile :: String -> IO (Either String SessionState)
 loadFile fName =
    liftIO $ do
        handle <- openFile fName ReadMode
        contents <- hGetContents handle
-       return $ parseInteractive contents
+       return $ parseInteractive' contents
 
 usualVFG = 1
 

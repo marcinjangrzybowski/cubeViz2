@@ -6,17 +6,27 @@
 		<!-- <title>CubeViz2Web</title>  -->
 		
 		<style> 
-			/* html, body { */
-			/* 	background-color: #000000; */
-			/* 	margin: 0px; */
-			/* 	overflow: hidden; */
-			/* 	width: 100%; */
-			/* 	height: 100%; */
-			/* } */
-			/* canvas { */
-			/* 	width: 100%; */
-			/* 	height: 100%; */
-			/* } */
+			html, body {
+				/* background-color: #000000; */
+				margin: 0px;
+				overflow: hidden;
+				width: 100%;
+				height: 100%;
+			}
+			canvas {
+				/* width: 100%; */
+				max-height: 100vh;
+			}
+			pre {
+			    position : absolute;
+				top: 0;
+			    left: 0;
+			}
+			#slice {
+			    height : 600px;
+			    position: absolute;
+			    appearance: slider-vertical;
+			}
 		</style> 
 	</head> 
 	<body> 
@@ -29,7 +39,8 @@
 		<script src="m4.js"></script>
 		<script src="cvd.js"></script>
 		<canvas id="canvas" width="1024" height="1024"> </canvas>
-
+<input type="range" id="slice"
+         min="0" max="100" value="50">
  <script>
 
 var vs = `#version 300 es
@@ -193,6 +204,7 @@ in vec3 screenPos;
 
 uniform float time;
 uniform float shade;
+uniform float slice;
 
 float checker(vec3 uvw, float repeats) 
 {
@@ -294,6 +306,14 @@ main()
    } else {
 	finalRGB = preRGB * allLightFactor * (ambient + boost * 0.5);
    }
+   //
+   // if(abs (worldPos.y - slice) > 0.02) {
+   //   discard;
+   // }
+
+   if(worldPos.x > slice) {
+     discard;
+   }
 
 
    // if (dotter(worldPos , 1000.0 ) < 0.5)
@@ -303,26 +323,30 @@ main()
    //fColor = vec4(0.5,0.5,0.5,1.0);
    fColor = vec4(
       //vCol.rgb
-      finalRGB   
+      finalRGB
      , vCol.a);
 }`;
 
-function main() {
+
+				       
+function main(cvd) {
   // Get A WebGL context
   /** @type {HTMLCanvasElement} */
   var canvas = document.querySelector("#canvas");
+  var sliceSlider = document.querySelector("#slice");				       
   var gl = canvas.getContext("webgl2");
   if (!gl) {
     return;
   }
 
+  
+				       
   // setup GLSL program
   var program = webglUtils.createProgramFromSources(gl, [vs, fs]);
   gl.useProgram(program);
   uLoc = {};
   aLoc = {};
 
-  console.log(Object.keys(cvd[0]));
 
 
   getLoc = function(n){aLoc[n]=gl.getAttribLocation(program, n);} 
@@ -332,12 +356,12 @@ function main() {
 
   getULoc = function(n){uLoc[n]=gl.getUniformLocation(program, n);} 
 
-  unis = ["euler","screen","shade","scaleG","screenDelta","VisF"];
+  unis = ["euler","screen","shade","scaleG","screenDelta","VisF","slice"];
   unis.map(getULoc);
 
   
 				       
-  const initiated = cvd.map(function(d){
+  const initiated = cvd.webGlDescriptors.map(function(d){
 	var buf = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, buf);
         var buffData = new Float32Array(d.dvertexData);
@@ -356,8 +380,20 @@ function main() {
     let vpGamma = -0.1;
     let vpScale = 0.5;
 
+
+				     
     let VisF = 1;
 
+	let sliceVal = 0.5;
+    // if (cvd.exprDim == 2) {
+
+       vpAlpha = 0;
+       vpBeta = 0;
+       vpGamma = 0;
+       vpScale = 0.8;
+				       
+    // }
+				       
     
     toggleVisGroup = function(k){
         VisF = (VisF ^ 1<<(4+k));
@@ -369,6 +405,11 @@ function main() {
     // [3,4].forEach(toggleVisGroup);
     // vpAlpha = 0;
     // toggleVisGroup(7);
+
+	sliceSlider.addEventListener("input",function(e){
+		sliceVal = parseFloat(e.target.value)/100;
+	});
+
     document.body.addEventListener("keydown",function(e){
 	if(e.code.slice(0,5)=="Digit")
 	{
@@ -413,6 +454,7 @@ function main() {
           gl.drawArrays(gl[i.d.dPrimitiveMode.toUpperCase()], i.d.StartIndex,
 	   i.d.dElemNum
           )
+	  gl.uniform1fv(uLoc["slice"], [sliceVal]);
           }
 
   const draw = function(){
@@ -526,8 +568,24 @@ function step(timestamp) {
 //   }
 }
 
+function createPreTag(content) {
+  // Create a new <pre> element
+  const preElement = document.createElement('pre');
 
- main();
+  // Set the content of the <pre> element
+  preElement.textContent = content;
+
+  // Append the <pre> element to the body
+  document.body.appendChild(preElement);
+}
+
+			     
+ if(cvdR.Right){
+    main(cvdR.Right);
+			     }else{
+			     
+   createPreTag(cvdR.Left);	     
+ }
    
 		</script> 
 

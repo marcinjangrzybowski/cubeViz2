@@ -13,6 +13,7 @@ import Data.List
 import Data.Bool
 import Data.Either
 import Data.Maybe
+import Data.Char
 
 import Syntax
 
@@ -48,11 +49,13 @@ parseContextRaw = first show . (runParser parseDefs [] "")
 
 
 parseDef2 :: (String , String) -> (Env , Context) ->  Either String (Env , Context)
-parseDef2 (name , "Level") = Right . first (flip addLevelToEnv name)
-parseDef2 (name , "I") = Right . second (flip addDimToContext (Just name))
+parseDef2 (name , 'L':'e':'v':'e':'l' : _) = Right . first (flip addLevelToEnv name)
+parseDef2 (name , 'I':[]) = Right . second (flip addDimToContext (Just name))
+parseDef2 (name , 'I':' ':_) = Right . second (flip addDimToContext (Just name))
 parseDef2 (name , rawDef) 
      | isPrefixOf "Type" rawDef = 
-         let z = (T.unpack $ T.strip $ T.pack (drop 5 rawDef) )
+         let z' = (T.strip $ T.pack (drop 5 rawDef) )
+             z = T.unpack $ T.takeWhile (not . isSpace) z'
          in \(env , ctx) ->
                (maybe (Left ("not a level: " ++ z)) (Right . (,ctx) . addBTyToEnv env name  ))
                   $ lookupLevel env z
@@ -70,10 +73,16 @@ parseDef2 (name , rawDef)
     --      )
   
 
+addErrCtx :: String -> Either String a -> Either String a 
+addErrCtx _ (Right x) = Right x
+addErrCtx i (Left x) = Left (i ++ "\n" ++ x) 
+  
 parseContext :: String -> Either String (Env , Context) 
 parseContext s =
   do rawDefs <- parseContextRaw s
-     foldl (flip $ flip (>>=) . parseDef2) (Right (emptyEnv , emptyCtx)) rawDefs
+     addErrCtx "while parsing context:" $
+        foldl (flip $ flip (>>=) .
+            (\x y -> addErrCtx ("on: " ++ show x) (parseDef2 x y))) (Right (emptyEnv , emptyCtx)) rawDefs
      
   --Right [("a","1"),("a","1"),("a","1")]
 
@@ -100,9 +109,7 @@ cTypeParserId :: (Env , Context) -> Parsec String (Env , Context) CType
 cTypeParserId (env , ctx) = 
   do string "_≡_"
      spaces
-     char '{'
-     char 'ℓ'
-     char '}'
+     implArg (levelP)
      spaces
      char '{'
      spaces
@@ -134,14 +141,12 @@ cTypeParserId (env , ctx) =
 
 
 
-
+-- ℓ
 cTypeParserPathP :: (Env , Context) -> Parsec String (Env , Context) CType
 cTypeParserPathP (env , ctx) = 
   do string "PathP"
      spaces
-     char '{'
-     char 'ℓ'
-     char '}'
+     implArg (levelP)
      spaces
      char '('
      spaces
@@ -180,6 +185,7 @@ cTypeParser =
        <|> (cTypeParserDim0 (env , ctx))
       )
        <* spaces
+       <* optional (string "(not in scope)")
        <* eof)
      
        

@@ -382,8 +382,14 @@ fromLIppK f (FromLI n g) = FromLI n (\x -> f x $ g x)
 toListFLI :: ListInterpretable a b =>  FromLI a c -> [c]
 toListFLI (FromLI n g) = map g $ genAllLI n
 
+
+reportLook :: [a] -> Int -> a 
+reportLook (x : _) 0 = x
+reportLook (_ : xs) k = reportLook (xs) (k - 1)
+reportLook _ _ = error "reportLook fail"
+
 fromListFLI :: ListInterpretable a b => Int -> [c] -> FromLI a c
-fromListFLI n l = FromLI n ((!!) l . unemerate)
+fromListFLI n l = FromLI n ((reportLook) l . unemerate)
 
 
 toMapFLI :: ListInterpretable a b =>  FromLI a c -> Map.Map a c

@@ -7,6 +7,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
 module ExprParser where
 
@@ -21,6 +22,13 @@ import Data.Either
 import Data.Maybe
 
 import Data.Bifunctor
+
+import Data.Functor
+
+import Control.Monad
+
+import qualified Data.Map as Map
+import qualified Data.Map as Set
 
 import Syntax
 
@@ -55,15 +63,18 @@ changeState forward backward = mkPT . transform . runParsecT
 parsecSnd :: a -> Parsec String b z -> Parsec String (a , b) z
 parsecSnd a = changeState (a,) snd
   
-implArg :: Parsec String Context z -> Parsec String Context z
+implArg :: Parsec String c z -> Parsec String c z
 implArg z = spaces *> (between (char '{') (spaces *> char '}')) z
 
-notAbs :: Parsec String Context z -> Parsec String Context z
-notAbs x = string "λ _ →" *> space  *> x
+-- notAbs :: Parsec String Context z -> Parsec String Context z
+-- notAbs x = string "λ _ →" *> space  *> x
 
 faceAbs :: FExpr -> Parsec String Context z -> Parsec String Context z
 faceAbs ie x =
-  do string "λ _ →"
+  do string "λ "
+     optional (char '.')
+     mbName <- (fmap Just agdaName) <|> (fmap (const Nothing) (string "_"))
+     string " →"
      space
      -- ctx <- getState
      -- setState $ addSFConstraintToContext ctx undefined
@@ -75,9 +86,22 @@ abstT :: (Maybe String -> c -> c) -> Parsec String c z -> Parsec String c (Maybe
 abstT f p =
   do spaces
      string "λ "
+     optional (char '.')
      ctx <- getState
      mbName <- (fmap Just agdaName) <|> (fmap (const Nothing) (string "_"))
      string " →"
+     space
+     setState (f mbName ctx)
+     x <- p
+     setState ctx 
+     return (mbName , x)
+
+abstExtLam :: (Maybe String -> c -> c) -> Parsec String c z -> Parsec String c (Maybe String , z)
+abstExtLam f p =
+  do spaces
+     optional (char '.')
+     ctx <- getState
+     mbName <- (fmap Just agdaName) <|> (fmap (const Nothing) (string "_"))
      space
      setState (f mbName ctx)
      x <- p
@@ -184,27 +208,128 @@ var0 = spaces *>  ((try var1) <|> (((flip Var) []) <$> (varIdentifier)))
 var :: Parsec String Context Expr
 var = var0 <* spaces  <* eof
 
-typeP :: Parsec String Context ()
+typeP :: Parsec String c ()
 typeP = agdaName *> (pure ())
 
-levelP :: Parsec String Context ()
+levelP :: Parsec String c ()
 levelP = agdaName *> (pure ())
 
+
+-- type PartialExtLamAppliedClause = () 
+
+partialExtLamAppliedClause :: Parsec String Context (IExpr , Partial)
+partialExtLamAppliedClause =  
+   do (optional spaces)
+      (char '(')
+      iE' <- iExprArg
+      (string " = ")
+      fe <- try ((string "i0" >> return neg)) <|> (string "i1" >> return id)
+      (char ')')
+      -- optional (try (do
+      --  optional spaces                   
+      --  (char '(')
+      --  _ <- iExprArg
+      --  (string " = ")
+      --  _ <- try ((string "i0" >> return neg)) <|> (string "i1" >> return id)
+      --  (char ')')))
+      let iE = fe iE'
+      spaces
+      (char '→')
+      y <- fmap (partialConst iE) expr0
+      return (iE , y)
+
+allEqual :: Eq a => [a] -> Bool
+allEqual [] = True  -- an empty list is always all equal
+allEqual (x:xs) = all (== x) xs -- check if all elements in `xs` are equal to `x`
+
+partialExtLamAppliedClauses :: IExpr -> Parsec String Context (Maybe String , Partial)
+partialExtLamAppliedClauses ie =
+   sepBy
+     ((abstExtLam (flip addDimToContext) partialExtLamAppliedClause))
+     (try (spaces *> char ';'))
+   >>= mergeClauses
+
+
+ where
+  mergeClauses :: [(Maybe String , (IExpr , Partial))] ->
+    Parsec String Context  (Maybe String , Partial)
+  mergeClauses l | allEqual (map fst l) =
+     foldM (\(mbS , p) (mbS' , p') ->
+               return (mbS' , (Map.union p p')))
+           (Nothing , Map.empty)
+           (map (\(x , (_ , y)) -> (x , y)) l)
+  mergeClauses _ = error "not-implementerd - exprParser.hs mergeClauses"
+     
+partialExtLamApplied :: IExpr -> Parsec String Context (Maybe String , Partial)
+partialExtLamApplied ie = 
+  do optional spaces
+     char 'λ'
+     optional spaces
+     -- string "{ }"
+     -- return (Nothing , Map.empty)
+     between (char '{') (char '}')
+       -- ((string "") >> return (Nothing , Map.empty))
+      (partialExtLamAppliedClauses ie)
+
+partialExtLamClause :: Parsec String Context (IExpr , Partial)
+partialExtLamClause =  
+   do optional spaces
+      (char '(')
+      iE' <- iExprArg
+      (string " = ")
+      fe <- try ((string "i0" >> return neg)) <|> (string "i1" >> return id)
+      (char ')')
+      let iE = fe iE'
+      spaces
+      (char '→')
+      y <- fmap (partialConst iE) expr0
+      return (iE , y)
+      
+partialExtLamClauses :: IExpr -> Parsec String Context (Partial)
+partialExtLamClauses ie =
+   sepBy
+     (partialExtLamClause)
+     (try (spaces *> char ';'))
+   >>= mergeClauses
+
+
+ where
+  mergeClauses :: [((IExpr , Partial))] ->
+    Parsec String Context  (Partial)
+  mergeClauses = return . Map.unions . fmap snd
+     -- foldM (\(mbS , p) (mbS' , p') ->
+     --           return (mbS' , (Map.union p p')))
+     --       (Nothing , Map.empty)
+     --       (map (\(x , (_ , y)) -> (x , y)) l)
+  -- mergeClauses _ = error "not-implementerd - exprParser.hs mergeClauses"
+
+
+partialExtLam :: IExpr -> Parsec String Context (Partial)
+partialExtLam ie = 
+  do optional spaces
+     char 'λ'
+     spaces
+     -- string "{ }"
+     -- return (Nothing , Map.empty)
+     between (char '{') (spaces *> char '}')
+       -- ((string "") >> return (Nothing , Map.empty))
+      (partialExtLamClauses ie)
+     
 
 partialPrimPOr :: IExpr -> Parsec String Context Partial
 partialPrimPOr x =
   do string "primPOr"
-     space
+     spaces
      implArg levelP
-     space
+     spaces
      ia1 <- iExprArg
-     space
+     spaces
      ia2 <- iExprArg
-     space
-     implArg (notAbs typeP)
-     space
+     spaces
+     implArg (abstT (\ _ x -> x) (typeP))
+     spaces
      p1 <- partialArg ia1
-     space
+     spaces
      p2 <- partialArg ia2
      (either unexpected return (primPOr x ia1 ia2 p1 p2))
 
@@ -222,9 +347,9 @@ everyP (x : xs) =
 
 partial0 :: IExpr -> Parsec String Context Partial
 partial0 x =
-      do spaces
+      do optional spaces
          -- ctx <- getState
-         ((partialPrimPOr x) <|> (partialConst x <$> faceAbs (toSubFace2 x) expr0))
+         try (partialExtLam x) <|> try (partialPrimPOr x) <|> (partialConst x <$> faceAbs (toSubFace2 x) expr0)
       
 partialArg :: IExpr -> Parsec String Context Partial
 partialArg x = spaces *> between (char '(') (spaces *> char ')') (partial0 x)
@@ -232,19 +357,36 @@ partialArg x = spaces *> between (char '(') (spaces *> char ')') (partial0 x)
 partial :: IExpr -> Parsec String Context Partial
 partial x = partial0 x <* spaces <* eof
 
+
+-- anything with maching parenthesis
+anythingWMP :: Parsec String Context ()
+anythingWMP =
+     void $ many1 (
+     (void $ space)
+  <|> (void $ agdaName)
+  <|> (void $ string "hcomp")
+  <|> (void $ string "λ")
+  <|> (void $ string "→")
+  <|> (void $ string "_")
+  )
+  
 hcomp :: Parsec String Context Expr
 hcomp =
-  do string "hcomp"
+  do optional spaces
+     string "hcomp" 
      space
-     implArg (levelP)
+     implArg (levelP) <?> "unable to Parse Level"
      space
-     implArg (typeP)
+     implArg (typeP) <?> "unable to Parse Type"
      space
-     ie <- implArg (iExpr0)
+     ie <- implArg (iExpr0)  <?> "unable to Parse phi"
      space
-     (v , x) <- (spaces *> between (char '(') (spaces *> char ')') (abstr (partial0 ie)))
-     space
-     y <- exprArg
+     (v , x) <- (spaces *> between (char '(') (spaces *> char ')')
+                  ((try ((partialExtLamApplied ie))) <|>
+                     (abstr (partial0 ie)))
+                )  <?> "unable to Parse sides"
+     spaces
+     y <- exprArg <?> "unable to Parse cap"
      return (HComp (v) x y)
 
 hole :: Parsec String Context Expr
@@ -253,15 +395,15 @@ hole =
      return (Hole 0)
 
 expr0 :: Parsec String Context Expr
-expr0 = spaces *> ((try hcomp) <|> var0 <|> hole )
+expr0 = ((try hcomp) <|> (try var0) <|> hole )
 
 expr :: Parsec String Context Expr
 expr = expr0 <* spaces <* eof
 
 exprArg :: Parsec String Context Expr
-exprArg = spaces *>  ((between (char '(') (spaces *> char ')') expr0))
+exprArg = (try ((between (char '(') (spaces *> char ')') expr0))
             <|>
-            ((((flip Var) []) <$> varIdentifier))
+            ((((flip Var) []) <$> varIdentifier)))
 
 pathAbstrExpr0 ::  Parsec String Context LExpr
 pathAbstrExpr0 = spaces *> (
@@ -277,4 +419,7 @@ pathAbstrExprArg =
 
   
 parseExpr :: Context -> String -> Either ParseError Expr
-parseExpr c = runParser expr c ""
+parseExpr c = runParser expr c "" .
+   map (\case
+           '\n' -> ' '
+           x -> x)

@@ -1,24 +1,9 @@
 Goal: A
-Elaborates to: hcomp {ℓ} {A} {(~ i ∨ i) ∨ ~ j ∨ j ∨ ~ k ∨ k} (λ l → primPOr {ℓ} (~ i ∨ i) (~ j ∨ j ∨ ~ k ∨ k) {λ _ → A} (primPOr {ℓ} (~ i) i {λ _ → A} (λ _ → s (l ∨ j) k) (λ _ → s (~ l ∧ j) k)) (primPOr {ℓ} (~ j ∨ j) (~ k ∨ k) {λ _ → A} (primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → s (l ∨ i) k) (λ _ → s (~ l ∧ i) k)) (λ _ → a))) (hcomp {ℓ} {A} {(~ i ∨ i) ∨ ~ j ∨ j ∨ ~ k ∨ k} (λ l → primPOr {ℓ} (~ i ∨ i) (~ j ∨ j ∨ ~ k ∨ k) {λ _ → A} (λ _ → s j (k ∧ l)) (primPOr {ℓ} (~ j ∨ j) (~ k ∨ k) {λ _ → A} (λ _ → s i k) (primPOr {ℓ} (~ k) k {λ _ → A} (λ _ → a) (λ _ → s j l)))) (s i k))
-———— Boundary ——————————————————————————————————————————————
-i = i0 ⊢ a
-i = i1 ⊢ a
-j = i0 ⊢ a
-j = i1 ⊢ a
-k = i0 ⊢ a
-k = i1 ⊢ a
+Elaborates to: s i j
 ————————————————————————————————————————————————————————————
-k : I
 j : I
 i : I
 s : _≡_ {ℓ} {_≡_ {ℓ} {A} a a} (λ _ → a) (λ _ → a)
 a : A
 A : Type ℓ
 ℓ : Level
-———— Constraints ———————————————————————————————————————————
-a = ?0 (k = i1) : A (blocked on _105)
-a = ?0 (k = i0) : A (blocked on _105)
-a = ?0 (j = i1) : A (blocked on _105)
-a = ?0 (j = i0) : A (blocked on _105)
-a = ?0 (i = i1) : A (blocked on _105)
-a = ?0 (i = i0) : A (blocked on _105)

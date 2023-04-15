@@ -60,29 +60,31 @@ library
   hs-source-dirs:
       src
   build-depends:
-      aeson
-    , ansi-terminal
-    , base >=4.7 && <5
-    , bytestring
-    , containers
-    , extra
-    , finite-typelits
-    , lattices
-    , mtl
-    , nonempty-containers
-    , parsec
-    , pretty
-    , pretty-terminal
-    , raw-strings-qq
-    , singletons
-    , sort
-    , split
-    , stm
-    , text
-    , time
-    , transformers
-    , type-iso
-    , string-class
+                      aeson
+                , ansi-terminal
+                , base >=4.7 && <5
+                , bytestring
+                , containers
+                , directory >= 1.3.6.0
+                , extra
+                , finite-typelits
+                , lattices
+                , mtl
+                , nonempty-containers
+                , parsec
+                , pretty
+                , pretty-terminal
+                , process >= 1.6.13.2
+                , raw-strings-qq
+                , singletons
+                , sort
+                , split
+                , stm
+                , string-class
+                , text
+                , time
+                , transformers
+                , type-iso
   default-language: Haskell2010
 
 executable cubeViz2-exe
@@ -93,29 +95,31 @@ executable cubeViz2-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
-    , ansi-terminal
-    , base >=4.7 && <5
-    , bytestring
-    , containers
-    , cubeViz2
-    , extra
-    , finite-typelits
-    , lattices
-    , mtl
-    , nonempty-containers
-    , parsec
-    , pretty
-    , pretty-terminal
-    , raw-strings-qq
-    , singletons
-    , sort
-    , split
-    , stm
-    , text
-    , time
-    , transformers
-    , type-iso
+                      aeson
+                , ansi-terminal
+                , base >=4.7 && <5
+                , bytestring
+                , containers
+                , cubeViz2
+                , directory >= 1.3.6.0
+                , extra
+                , finite-typelits
+                , lattices
+                , mtl
+                , nonempty-containers
+                , parsec
+                , pretty
+                , pretty-terminal
+                , process >= 1.6.13.2
+                , raw-strings-qq
+                , singletons
+                , sort
+                , split
+                , stm
+                , text
+                , time
+                , transformers
+                , type-iso
   default-language: Haskell2010
 
 test-suite cubeViz2-test
@@ -127,27 +131,29 @@ test-suite cubeViz2-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
-    , ansi-terminal
-    , base >=4.7 && <5
-    , bytestring
-    , containers
-    , cubeViz2
-    , extra
-    , finite-typelits
-    , lattices
-    , mtl
-    , nonempty-containers
-    , parsec
-    , pretty
-    , pretty-terminal
-    , raw-strings-qq
-    , singletons
-    , sort
-    , split
-    , stm
-    , text
-    , time
-    , transformers
-    , type-iso
+                      aeson
+                , ansi-terminal
+                , base >=4.7 && <5
+                , bytestring
+                , containers
+                , cubeViz2
+                , directory >= 1.3.6.0
+                , extra
+                , finite-typelits
+                , lattices
+                , mtl
+                , nonempty-containers
+                , parsec
+                , pretty
+                , pretty-terminal
+                , process >= 1.6.13.2
+                , raw-strings-qq
+                , singletons
+                , sort
+                , split
+                , stm
+                , text
+                , time
+                , transformers
+                , type-iso
   default-language: Haskell2010

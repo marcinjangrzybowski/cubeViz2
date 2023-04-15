@@ -1,12 +1,5 @@
 Goal: A
 Elaborates to: hcomp {ℓ} {A} {(~ i ∨ i) ∨ ~ j ∨ j ∨ ~ k ∨ k} (λ l → primPOr {ℓ} (~ i ∨ i) (~ j ∨ j ∨ ~ k ∨ k) {λ _ → A} (primPOr {ℓ} (~ i) i {λ _ → A} (λ _ → hcomp {ℓ} {A} {(~ l ∨ l) ∨ ~ k ∨ k ∨ ~ j ∨ j} (λ l₁ → primPOr {ℓ} (~ l ∨ l) (~ k ∨ k ∨ ~ j ∨ j) {λ _ → A} (primPOr {ℓ} (~ l) l {λ _ → A} (λ _ → s (~ l₁) (k ∨ j)) (λ _ → a)) (primPOr {ℓ} (~ k ∨ k) (~ j ∨ j) {λ _ → A} (primPOr {ℓ} (~ k) k {λ _ → A} (λ _ → s (~ l₁) (~ l ∧ j)) (λ _ → a)) (primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → s (l ∨ ~ l₁) k) (λ _ → s (k ∨ ~ l₁) (~ l))))) a) (λ _ → hcomp {ℓ} {A} {(l ∨ ~ l) ∨ k ∨ ~ k ∨ j ∨ ~ j} (λ l₁ → primPOr {ℓ} (l ∨ ~ l) (k ∨ ~ k ∨ j ∨ ~ j) {λ _ → A} (primPOr {ℓ} l (~ l) {λ _ → A} (λ _ → s (~ l₁) (~ k ∨ ~ j)) (λ _ → a)) (primPOr {ℓ} (k ∨ ~ k) (j ∨ ~ j) {λ _ → A} (primPOr {ℓ} k (~ k) {λ _ → A} (λ _ → s (~ l₁) (l ∧ ~ j)) (λ _ → a)) (primPOr {ℓ} j (~ j) {λ _ → A} (λ _ → s (~ l ∨ ~ l₁) (~ k)) (λ _ → s (~ k ∨ ~ l₁) l)))) a)) (primPOr {ℓ} (~ j ∨ j) (~ k ∨ k) {λ _ → A} (primPOr {ℓ} (~ j) j {λ _ → A} (λ _ → hcomp {ℓ} {A} {(k ∨ ~ k) ∨ ~ l ∨ l ∨ i ∨ ~ i} (λ l₁ → primPOr {ℓ} (k ∨ ~ k) (~ l ∨ l ∨ i ∨ ~ i) {λ _ → A} (primPOr {ℓ} k (~ k) {λ _ → A} (λ _ → s (~ l₁) (l ∨ ~ i)) (λ _ → a)) (primPOr {ℓ} (~ l ∨ l) (i ∨ ~ i) {λ _ → A} (primPOr {ℓ} (~ l) l {λ _ → A} (λ _ → s (~ l₁) (k ∧ ~ i)) (λ _ → a)) (primPOr {ℓ} i (~ i) {λ _ → A} (λ _ → s (~ k ∨ ~ l₁) l) (λ _ → s (l ∨ ~ l₁) k)))) a) (λ _ → hcomp {ℓ} {A} {(~ k ∨ k) ∨ l ∨ ~ l ∨ ~ i ∨ i} (λ l₁ → primPOr {ℓ} (~ k ∨ k) (l ∨ ~ l ∨ ~ i ∨ i) {λ _ → A} (primPOr {ℓ} (~ k) k {λ _ → A} (λ _ → s (~ l₁) (~ l ∨ i)) (λ _ → a)) (primPOr {ℓ} (l ∨ ~ l) (~ i ∨ i) {λ _ → A} (primPOr {ℓ} l (~ l) {λ _ → A} (λ _ → s (~ l₁) (~ k ∧ i)) (λ _ → a)) (primPOr {ℓ} (~ i) i {λ _ → A} (λ _ → s (k ∨ ~ l₁) (~ l)) (λ _ → s (~ l ∨ ~ l₁) (~ k))))) a)) (λ _ → a))) a
-———— Boundary ——————————————————————————————————————————————
-i = i0 ⊢ a
-i = i1 ⊢ a
-j = i0 ⊢ a
-j = i1 ⊢ a
-k = i0 ⊢ a
-k = i1 ⊢ a
 ————————————————————————————————————————————————————————————
 k : I
 j : I
@@ -15,10 +8,3 @@ s : _≡_ {ℓ} {_≡_ {ℓ} {A} a a} (λ _ → a) (λ _ → a)
 a : A
 A : Type ℓ
 ℓ : Level
-———— Constraints ———————————————————————————————————————————
-a = ?0 (k = i1) : A (blocked on _77)
-a = ?0 (k = i0) : A (blocked on _77)
-a = ?0 (j = i1) : A (blocked on _77)
-a = ?0 (j = i0) : A (blocked on _77)
-a = ?0 (i = i1) : A (blocked on _77)
-a = ?0 (i = i0) : A (blocked on _77)

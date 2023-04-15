@@ -200,7 +200,7 @@ renderNamedCell "loop₂" = Just $
 renderNamedCell "loop₁" = Just $
    renderGCD'
     (par1Loop2 , par2Loop2 , parTranslateLoop2)
-    (GCData "" $ FromLI 1 (\pc -> (unemerate pc , (unemerate pc + 1) , pc)))
+    (GCData "loop₁" $ FromLI 1 (\pc -> (unemerate pc , (unemerate pc + 1))))
   where
    par1Loop2 = 0.2
    par2Loop2 = 0.3
