@@ -1,49 +1,108 @@
-<!DOCTYPE HTML> 
-<html> 
-	<head> 
-		<meta charset="utf-8"> 
-		<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-		<!-- <title>CubeViz2Web</title>  -->
-		
-		<style> 
-			html, body {
-				/* background-color: #000000; */
-				margin: 0px;
-				overflow: hidden;
-				width: 100%;
-				height: 100%;
-			}
-			canvas {
-				/* width: 100%; */
-				max-height: 100vh;
-			}
-			pre {
-			    position : absolute;
-				top: 0;
-			    left: 0;
-			}
-			#slice {
-			    height : 600px;
-			    position: absolute;
-			    appearance: slider-vertical;
-			}
-		</style> 
-	</head> 
-	<body> 
- 
+<!DOCTYPE HTML>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <!-- <title>CubeViz2Web</title>  -->
 
-		<script src="webgl-utils.js"></script>
-		<script src="lessons-helper.js"></script>
-		<script src="webgl-lessons-ui.js"></script>
-		<script src="m3.js"></script>
-		<script src="m4.js"></script>
-		<script src="cvd.js"></script>
-		<canvas id="canvas" width="1024" height="1024"> </canvas>
+    <style>
+        html, body {
+            /* background-color: #000000; */
+            margin: 0px;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+        }
+
+        canvas {
+            /*width: 50vw;*/
+            max-width: 100vh;
+        }
+
+        .showCode canvas {
+            width: 50vw;
+            max-width: none;
+        }
+
+        pre {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        pre#term {
+            display: none;
+            user-select: none;
+        }
+
+        pre#term span.hasCells {
+           font-weight: bold;
+           cursor: pointer;
+
+        }
+
+        pre#term:hover {
+           color : #999;
+
+        }
+
+        pre#term:hover span {
+           color : #999;
+
+        }
+
+        pre#term:hover span:hover {
+           color : #000;
+
+        }
+
+
+        .showCode pre#term {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 50vw;
+            width: 50vw;
+            padding: 5px;
+            margin: 0;
+            overflow: scroll;
+        }
+
+        #slice {
+            height: 600px;
+            position: absolute;
+            appearance: slider-vertical;
+            display: none;
+        }
+
+		#cellCntrl {
+			position: fixed;
+			z-index: 20;
+			bottom:0;
+			max-height: 30vh;
+			overflow: scroll;
+		}
+    </style>
+</head>
+<body class="showCode">
+
+
+<script src="webgl-utils.js"></script>
+<script src="lessons-helper.js"></script>
+<script src="webgl-lessons-ui.js"></script>
+<script src="m3.js"></script>
+<script src="m4.js"></script>
+<script src="cvd.js"></script>
+<canvas id="canvas" width="1024" height="1024"></canvas>
 <input type="range" id="slice"
-         min="0" max="100" value="50">
- <script>
+       min="0" max="100" value="50">
+<pre id="term"></pre>
 
-var vs = `#version 300 es
+<div id="cellCntrl"></div>
+
+<script>
+
+    var vs = `#version 300 es
 
 in vec4 vPosition;
 in vec3 Normal;
@@ -183,13 +242,13 @@ main()
 
    worldPos = vPosition.xyz;
    screenPos = (gl_Position.xyz)/gl_Position.w;
-   
+
 
    gl_PointSize = 5.0+ObjGroup;
 }
 `;
 
-var fs = `#version 300 es
+    var fs = `#version 300 es
 precision highp float;
 in vec4 vCol;
 
@@ -206,25 +265,25 @@ uniform float time;
 uniform float shade;
 uniform float slice;
 
-float checker(vec3 uvw, float repeats) 
+float checker(vec3 uvw, float repeats)
 {
   float cx = floor(repeats * uvw.x);
   float cy = floor(repeats * uvw.y);
-  float cz = floor(repeats * uvw.z); 
+  float cz = floor(repeats * uvw.z);
   float result = mod(cx + cz + cy, 2.0);
   return sign(result);
 }
 
-float dotter(vec3 uvw, float repeats) 
+float dotter(vec3 uvw, float repeats)
 {
   float cx = mod(floor(repeats * uvw.x) , 2.0);
   float cy = mod(floor(repeats * uvw.y) , 2.0);
-  float cz = mod(floor(repeats * uvw.z) , 2.0); 
+  float cz = mod(floor(repeats * uvw.z) , 2.0);
   float result = cx * cz * cy;
   return sign(result);
 }
 
-float stripper(vec3 uvw, float repeats, float fill , float delta) 
+float stripper(vec3 uvw, float repeats, float fill , float delta)
 {
   float phase = mod(repeats * (uvw.x + uvw.y + uvw.z + delta) , 1.0);
 
@@ -252,7 +311,7 @@ main()
 
    vec3 preRGB;
    vec3 finalRGB;
-   
+
    preRGB = vCol.rgb;
 
    if(vMode == 0.0){
@@ -302,7 +361,7 @@ main()
    }
 
    if (shade > 0.5){
-	finalRGB = preRGB * allLightFactor * (ambient + boost * abs(dot(lightDir,normal)));  
+	finalRGB = preRGB * allLightFactor * (ambient + boost * abs(dot(lightDir,normal)));
    } else {
 	finalRGB = preRGB * allLightFactor * (ambient + boost * 0.5);
    }
@@ -311,9 +370,9 @@ main()
    //   discard;
    // }
 
-   if(worldPos.x > slice) {
-     discard;
-   }
+   // if(worldPos.x > slice) {
+   //   discard;
+   // }
 
 
    // if (dotter(worldPos , 1000.0 ) < 0.5)
@@ -327,155 +386,300 @@ main()
      , vCol.a);
 }`;
 
+	function renderCheckboxesForObject(obj, parentNode) {
+		// Function to set all other checkboxes to false except for the target one
+		function setOnlyThisVisible(targetKey) {
+			for (const key in obj) {
+				if (obj.hasOwnProperty(key) && obj[key].hasOwnProperty("visible")) {
+					obj[key].visible = key === targetKey;
+				}
+			}
+		}
 
-				       
-function main(cvd) {
-  // Get A WebGL context
-  /** @type {HTMLCanvasElement} */
-  var canvas = document.querySelector("#canvas");
-  var sliceSlider = document.querySelector("#slice");				       
-  var gl = canvas.getContext("webgl2");
-  if (!gl) {
-    return;
-  }
+		// Create a button to set all fields to true
+		const allVisibleButton = document.createElement("button");
+		allVisibleButton.textContent = "Set All Fields to True";
+		allVisibleButton.addEventListener("click", function () {
+			for (const key in obj) {
+				if (obj.hasOwnProperty(key) && obj[key].hasOwnProperty("visible")) {
+					obj[key].visible = true;
+				}
+			}
+		});
 
-  
-				       
-  // setup GLSL program
-  var program = webglUtils.createProgramFromSources(gl, [vs, fs]);
-  gl.useProgram(program);
-  uLoc = {};
-  aLoc = {};
+		// Add the allVisibleButton to the parentNode
+		parentNode.appendChild(allVisibleButton);
+		parentNode.appendChild(document.createElement("br"));
+
+		// Iterate through each property in the object
+		for (const key in obj) {
+			if (obj.hasOwnProperty(key) && obj[key].hasOwnProperty("visible")) {
+				const label = document.createElement("label");
+				label.textContent = key;
+
+				const checkbox = document.createElement("input");
+				checkbox.type = "checkbox";
+				checkbox.name = key;
+				checkbox.checked = obj[key].visible;
+
+				checkbox.addEventListener("change", function () {
+					obj[key].visible = this.checked;
+				});
+
+				// Create a small button to set only this field's value to true
+				const setOnlyThisVisibleButton = document.createElement("button");
+				setOnlyThisVisibleButton.textContent = "Set Only This Field to True";
+				setOnlyThisVisibleButton.addEventListener("click", function () {
+					setOnlyThisVisible(key);
+				});
+
+				parentNode.appendChild(checkbox);
+				parentNode.appendChild(label);
+				parentNode.appendChild(setOnlyThisVisibleButton);
+				parentNode.appendChild(document.createElement("br"));
+			}
+		}
+	}
+
+    function main(cvd) {
+        // Get A WebGL context
+        /** @type {HTMLCanvasElement} */
+        var canvas = document.querySelector("#canvas");
+        var sliceSlider = document.querySelector("#slice");
+        var gl = canvas.getContext("webgl2");
+        if (!gl) {
+            return;
+        }
+        var termPre = document.querySelector("#term");
+
+
+        // setup GLSL program
+        var program = webglUtils.createProgramFromSources(gl, [vs, fs]);
+        gl.useProgram(program);
+        uLoc = {};
+        aLoc = {};
+
+
+        getLoc = function (n) {
+            aLoc[n] = gl.getAttribLocation(program, n);
+        }
+        attrs = ["vPosition", "Normal", "Color", "Mode", "VisFlagF"];
+        attrs.map(getLoc);
+
+
+        getULoc = function (n) {
+            uLoc[n] = gl.getUniformLocation(program, n);
+        }
+
+        unis = ["euler", "screen", "shade", "scaleG", "screenDelta", "VisF", "slice"];
+        unis.map(getULoc);
+
+		const cells = {};
+
+    function setOnlyThisVisible(targetKey) {
+			for (const key in cells) {
+				if (cells.hasOwnProperty(key) && cells[key].hasOwnProperty("visible")) {
+					cells[key].visible = key === targetKey;
+				}
+			}
+		}
 
 
 
-  getLoc = function(n){aLoc[n]=gl.getAttribLocation(program, n);} 
-  attrs = ["vPosition","Normal","Color","Mode","VisFlagF"];
-  attrs.map(getLoc);
+        const initiated = cvd.webGlDescriptors.map(function (d) {
+            var buf = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+            var buffData = new Float32Array(d.dvertexData);
+            gl.bufferData(gl.ARRAY_BUFFER,
+                buffData,
+                gl.STATIC_DRAW);
+            var f = new Function("program", "webgl", "w", "h", "uLoc", "aLoc", d.dInitCommands
+                + d.dDrawCommands
+            );
 
 
-  getULoc = function(n){uLoc[n]=gl.getUniformLocation(program, n);} 
 
-  unis = ["euler","screen","shade","scaleG","screenDelta","VisF","slice"];
-  unis.map(getULoc);
+			d.dAddrMap.forEach(function (cell, cellK) {
+				const cellAddr = cell[0];
+				const fstV = cell[1][0];
+				const countV = cell[1][1];
 
-  
-				       
-  const initiated = cvd.webGlDescriptors.map(function(d){
-	var buf = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-        var buffData = new Float32Array(d.dvertexData);
-	gl.bufferData(gl.ARRAY_BUFFER,
-                     buffData,
-                      gl.STATIC_DRAW);
-				       var f = new Function("program","webgl","w","h","uLoc","aLoc", d.dInitCommands
-				       +d.dDrawCommands
-				       );
-        return {buf : buf , f : f , d : d , buffData : buffData};
-    });
+				cells[cellAddr] = {visible : true};
+
+			});
 
 
-    let vpAlpha = 1/5;
-    let vpBeta = 0;
-    let vpGamma = -0.1;
-    let vpScale = 0.5;
+
+            return {buf: buf, f: f, d: d, buffData: buffData};
 
 
-				     
-    let VisF = 1;
+        });
 
-	let sliceVal = 0.5;
-    // if (cvd.exprDim == 2) {
+		// renderCheckboxesForObject(cells,document.getElementById("cellCntrl"));
 
-       vpAlpha = 0;
-       vpBeta = 0;
-       vpGamma = 0;
-       vpScale = 0.8;
-				       
-    // }
-				       
-    
-    toggleVisGroup = function(k){
-        VisF = (VisF ^ 1<<(4+k));
+
+        let vpAlpha = 1 / 5;
+        let vpBeta = 0;
+        let vpGamma = -0.1;
+        let vpScale = 0.5;
+
+
+        let VisF = 1;
+
+        let sliceVal = 0.5;
+        if (cvd.exprDim == 2) {
+
+            vpAlpha = 0;
+            vpBeta = 0;
+            vpGamma = 0;
+            vpScale = 0.8;
+
+        }
+
+        termPre.innerHTML = cvd.exprString;
+
+        document.querySelectorAll(".addrWrapper").forEach(function(x){
+          const addr = x.id.slice(10);
+
+          if(addr in cells){
+            x.classList.add("hasCells");
+             // console.log("isIn",addr);
+             x.addEventListener("click",function(e){
+
+               if (e.shiftKey){
+                 e.preventDefault();
+                  cells[addr].visible = !(cells[addr].visible);
+               }else {
+                  setOnlyThisVisible(addr);
+               }
+
+           })
+          }else{
+                     // console.log("notIn",addr);
+          }
+        });
+
+        toggleVisGroup = function (k) {
+            VisF = (VisF ^ 1 << (4 + k));
 //	console.log(VisF);
-    };
+        };
 
-    [1,2,3,4,5,6,7,8].forEach(toggleVisGroup);
+        [1, 2, 3, 4, 5, 6, 7, 8].forEach(toggleVisGroup);
 
-    // [3,4].forEach(toggleVisGroup);
-    // vpAlpha = 0;
-    // toggleVisGroup(7);
+        // [3,4].forEach(toggleVisGroup);
+        // vpAlpha = 0;
+        // toggleVisGroup(7);
 
-	sliceSlider.addEventListener("input",function(e){
-		sliceVal = parseFloat(e.target.value)/100;
-	});
+        sliceSlider.addEventListener("input", function (e) {
+            sliceVal = parseFloat(e.target.value) / 100;
+        });
 
-    document.body.addEventListener("keydown",function(e){
-	if(e.code.slice(0,5)=="Digit")
-	{
-	    let k = parseInt(e.code.slice(5,6));
-	    if (e.shiftKey){
+        function handleScroll(event) {
+            // Get the scroll delta
+            const delta = Math.sign(event.deltaY);
 
-	    
-	    VisF = 1;
-		
-	    }
-	    toggleVisGroup(k);
-	}
-    });
+            // Update the vpScale (zoom) according to the scroll direction
+            if (delta < 0) {
+                // Zoom in
+                vpScale *= 1.1;
+            } else {
+                // Zoom out
+                vpScale *= 0.9;
+            }
+
+            // Limit the zoom level to a reasonable range
+            vpScale = Math.max(0.5, Math.min(vpScale, 10));
+
+        }
+
+// Add the event listener for the 'wheel' event on the canvas DOM element
+        canvas.addEventListener('wheel', handleScroll, {passive: true});
+
+        document.body.addEventListener("keydown", function (e) {
+            if (e.code.slice(0, 5) == "Digit") {
+                let k = parseInt(e.code.slice(5, 6));
+                if (e.shiftKey) {
 
 
-    
-    
-    canvas.addEventListener("mousemove",function(e){
-	if(e.buttons == 1){
-	    vpAlpha=
-		Math.min(Math.max(vpAlpha+(((e.movementY)/1024)*-0.3) , 0),0.5);
-	    
-	vpGamma+=(e.movementX/1024)*0.3;
-	}
-	
-    });
-	
-  gl.enable(gl.DEPTH_TEST);  
-  const drawPrimitives = function(i){
-          if(i.d.dElemNum<1) return;
-          gl.bindBuffer(gl.ARRAY_BUFFER, i.buf);
-      i.f(program,gl,gl.canvas.clientWidth, gl.canvas.clientHeight,uLoc,aLoc);
+                    VisF = 1;
+
+                }
+                toggleVisGroup(k);
+            }
+            console.log(e.code);
+            if (e.code == "KeyC") {
+                document.body.classList.toggle("showCode");
+            }
+        });
+
+
+        canvas.addEventListener("mousemove", function (e) {
+            if (e.buttons == 1) {
+                vpAlpha =
+                    Math.min(Math.max(vpAlpha + (((e.movementY) / 1024) * -0.3), 0), 0.5);
+
+                vpGamma += (e.movementX / 1024) * 0.3;
+            }
+
+        });
+
+        gl.enable(gl.DEPTH_TEST);
+        const drawPrimitives = function (i) {
+            if (i.d.dElemNum < 1) return;
+            gl.bindBuffer(gl.ARRAY_BUFFER, i.buf);
+            i.f(program, gl, gl.canvas.clientWidth, gl.canvas.clientHeight, uLoc, aLoc);
 
             let vMat = [(vpAlpha * 360)
-                 ,(vpBeta * 360)
-                 ,(vpGamma * 360)
-			,(vpScale)];
-      
-      gl.uniform4fv(uLoc["euler"], vMat);
-       gl.uniform1fv(uLoc["VisF"], [VisF]);
-          //console.log(i.d.dElemNum, i.buffData.length);
-          gl.drawArrays(gl[i.d.dPrimitiveMode.toUpperCase()], i.d.StartIndex,
-	   i.d.dElemNum
-          )
-	  gl.uniform1fv(uLoc["slice"], [sliceVal]);
-          }
+                , (vpBeta * 360)
+                , (vpGamma * 360)
+                , (vpScale)];
 
-  const draw = function(){
-    initiated.forEach(drawPrimitives);
-     }
-  gl.clearColor(0, 0, 0, 1)
-			     // gl.clear(gl.COLOR_BUFFER_BIT)
-			     //gl.cullFace(gl.BACK);
-  //draw();
+            gl.uniform4fv(uLoc["euler"], vMat);
+            gl.uniform1fv(uLoc["VisF"], [VisF]);
+            //console.log(i.d.dElemNum, i.buffData.length);
+            //    gl.drawArrays(gl[i.d.dPrimitiveMode.toUpperCase()], i.d.StartIndex,
+            // i.d.dElemNum
+            //    )
 
 
-function step(timestamp) {
+            i.d.dAddrMap.forEach(function (cell, cellK) {
+                const cellAddr = cell[0];
+                const fstV = cell[1][0];
+                const countV = cell[1][1];
 
-      draw();
-      window.requestAnimationFrame(step);
-   
-}
+                if(cells[cellAddr].visible) {
+					gl.drawArrays(gl[i.d.dPrimitiveMode.toUpperCase()]
+							, fstV
+							, countV
+					)
+				}
 
-		step();
-		
-  //  drawPrimitives(initiated[0]);
+
+            });
+
+            gl.uniform1fv(uLoc["slice"], [sliceVal]);
+        }
+
+        const draw = function () {
+            initiated.forEach(drawPrimitives);
+            gl.clearColor(0, 0, 0, 1);
+        }
+        gl.clearColor(0, 0, 0, 1)
+        // gl.clear(gl.COLOR_BUFFER_BIT)
+        //gl.cullFace(gl.BACK);
+        //draw();
+
+
+        function step(timestamp) {
+
+            draw();
+            window.requestAnimationFrame(step);
+
+        }
+
+        step();
+
+        //  drawPrimitives(initiated[0]);
 
 //   // look up where the vertex data needs to go.
 //   var positionLocation = gl.getAttribLocation(program, "a_position");
@@ -566,29 +770,29 @@ function step(timestamp) {
 //     var count = 3;
 //     gl.drawArrays(gl.TRIANGLES, offset, count);
 //   }
-}
+    }
 
-function createPreTag(content) {
-  // Create a new <pre> element
-  const preElement = document.createElement('pre');
+    function createPreTag(content) {
+        // Create a new <pre> element
+        const preElement = document.createElement('pre');
 
-  // Set the content of the <pre> element
-  preElement.textContent = content;
+        // Set the content of the <pre> element
+        preElement.textContent = content;
 
-  // Append the <pre> element to the body
-  document.body.appendChild(preElement);
-}
+        // Append the <pre> element to the body
+        document.body.appendChild(preElement);
+    }
 
-			     
- if(cvdR.Right){
-    main(cvdR.Right);
-			     }else{
-			     
-   createPreTag(cvdR.Left);	     
- }
-   
-		</script> 
 
- 
-	</body> 
+    if (cvdR.Right) {
+        main(cvdR.Right);
+    } else {
+
+        createPreTag(cvdR.Left);
+    }
+
+</script>
+
+
+</body>
 </html>

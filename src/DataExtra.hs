@@ -225,3 +225,39 @@ mkFlag = foldl setBit 0
 
 mkFlag1 :: [Int] -> Int
 mkFlag1 = foldl setBit 1
+
+
+data Mapped a b = Mapped [a] (Map.Map b (Int , Int))
+
+emptyMapped :: Mapped a b
+emptyMapped = Mapped [] Map.empty
+
+mkMappable :: Ord b => (a -> b) -> [a] -> Mapped a b
+mkMappable f l = Mapped l'' m
+
+
+ where
+
+  h = Map.toList . (foldr
+     (\a ->
+       Map.alter
+         (\case
+            Nothing -> Just [a]
+            Just xs -> Just (a : xs))
+         (f a)
+        )
+     (Map.empty))
+
+  l' = h l
+
+
+  (l'' , _ , m)  =
+     foldl
+      (\(x , y , z) (b , xs) ->
+           (x ++ xs , y + length xs , Map.insert b (y , length xs) z))
+      ([] , 0 , Map.empty)
+      l'
+  -- hh :H 
+  
+  -- h :: [a] -> Map.Map b (Int , Int)
+  -- h = undefined

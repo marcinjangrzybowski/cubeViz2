@@ -58,49 +58,49 @@ data GCData = GCData String (FromLI Piece (Int , Int))
 
 
 renderGCD' :: (Float , Float , Float) -> GCData -> ZDrawing ColorType
-renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n@1 f)) =
-   FromLI n (\pc@(sbst , prm) ->
-        let (vertN , uniqN ) = appLI pc fli
-            pieceId = unemerate pc + 1
-            vfg = show (pieceId + 4)
+-- renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n@1 f)) =
+--    FromLI n (\pc@(sbst , prm) ->
+--         let (vertN , uniqN ) = appLI pc fli
+--             pieceId = unemerate pc + 1
+--             vfg = show (pieceId + 4)
             
-            colId = if nm == "loop₁" then uniqN else vertN
-            -- colId = vertN
+--             colId = if nm == "loop₁" then uniqN else vertN
+--             -- colId = vertN
             
-            mainSmplx = primitivePiece (par1 , par2) pc
-            bdSmplxs = primitivePieceBd (par1 , par2) pc
-            -- mainStyle = if n == 0 then [ExtrudeLines] else []
-            -- TODO maybe vary color by permutation?
-            color = nthColor colId
-        in (
-               ([(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) ] ++
+--             mainSmplx = primitivePiece (par1 , par2) pc
+--             bdSmplxs = primitivePieceBd (par1 , par2) pc
+--             -- mainStyle = if n == 0 then [ExtrudeLines] else []
+--             -- TODO maybe vary color by permutation?
+--             color = nthColor colId
+--         in (
+--                ([(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) ] ++
 
-               [(x  , ((["m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) | x <- bdSmplxs ])))
+--                [(x  , ((["m"++(show n), "piece"++(show pieceId), "gcd","vfgT"++vfg, "vfgF0"] , Basic) , color)) | x <- bdSmplxs ])))
 
- where
-   primitivePiece :: (Float , Float) -> Piece -> Smplx
-   primitivePiece (distCorner , distCenter) (su , pm) =
-     let crnr = toListLI su
-         n = length crnr
-         ptCrnr = map (bool (0.0 + distCorner) (1.0 - distCorner)) crnr
-         ptCenter = map (bool (0.0 + distCenter) (1.0 - distCenter)) crnr
-         restPts :: ([Float] , [[Float]] )
-         restPts = mapAccumL
-                         (  fmap dupe . (\ pt k -> updateAt (ptCenter !! k ) k pt) )
-                         ptCrnr
-                         (toListLI $ invPerm pm)
-         pt = ptCrnr : snd restPts
-         cornerVector = [if k == unemerate pm then 0 else (if b then 1 else -1) | (k, b) <- zip [0..n-1] crnr]
-         mean pts = map (\x -> x / fromIntegral (length pts)) (map sum (transpose pts))
-         middle = translatePar cornerVector parTranslate (mean [ptCrnr, ptCenter])
-         translatedPt = translatePar cornerVector parTranslate pt
+--  where
+--    primitivePiece :: (Float , Float) -> Piece -> Smplx
+--    primitivePiece (distCorner , distCenter) (su , pm) =
+--      let crnr = toListLI su
+--          n = length crnr
+--          ptCrnr = map (bool (0.0 + distCorner) (1.0 - distCorner)) crnr
+--          ptCenter = map (bool (0.0 + distCenter) (1.0 - distCenter)) crnr
+--          restPts :: ([Float] , [[Float]] )
+--          restPts = mapAccumL
+--                          (  fmap dupe . (\ pt k -> updateAt (ptCenter !! k ) k pt) )
+--                          ptCrnr
+--                          (toListLI $ invPerm pm)
+--          pt = ptCrnr : snd restPts
+--          cornerVector = [if k == unemerate pm then 0 else (if b then 1 else -1) | (k, b) <- zip [0..n-1] crnr]
+--          mean pts = map (\x -> x / fromIntegral (length pts)) (map sum (transpose pts))
+--          middle = translatePar cornerVector parTranslate (mean [ptCrnr, ptCenter])
+--          translatedPt = translatePar cornerVector parTranslate pt
          
-     in translatedPt
+--      in translatedPt
 
-   primitivePieceBd :: (Float , Float) -> Piece -> [Smplx]
-   primitivePieceBd x y | (getDim y == 0) = []
-                        | otherwise =
-     [ init (primitivePiece x y) , tail (primitivePiece x y) ]
+--    primitivePieceBd :: (Float , Float) -> Piece -> [Smplx]
+--    primitivePieceBd x y | (getDim y == 0) = []
+--                         | otherwise =
+--      [ init (primitivePiece x y) , tail (primitivePiece x y) ]
 
    
 renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n f)) =
@@ -249,8 +249,11 @@ makeGCD (ee , ctx0) gccGS i (defName , ct) =
 
  
       ( newGCCGS , newGCD) =  mapAccumL visitCorner gccGS (toListFLI crnrs)
+
+      (FromLI _ f) = (fromListFLI n newGCD)
+      newGCD' = FromLI n (f . fst) 
       
-  in ( newGCCGS ,  GCData defName $ fromListFLI n newGCD)
+  in ( newGCCGS ,  GCData defName $  newGCD')
           -- GCData defName $
           --   (FromLI n (\pc -> (1 , 1 , pc))))
 

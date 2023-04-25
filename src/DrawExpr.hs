@@ -53,6 +53,8 @@ import Debug.Trace
 
 import Data.Bits
 
+import Safe (readMay)
+
 defaultCompPar = 0.3
 
 type CellPainter b =
@@ -196,7 +198,7 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
 
   cellStyleProcess :: d -> a -> Int -> Address
                               -> Maybe CellExpr -> Drawing b -> Drawing b
-  cellStyleProcess _ _ _ _ _ = id
+  cellStyleProcess _ _ _ addr _ = id
 
   nodeStyleProcess :: d -> a -> Int -> Address
                               -> Drawing b -> Drawing b
@@ -297,10 +299,12 @@ instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) Default
       Nothing -> drw
 
   cellStyleProcess spt ee n addr _ drw' =
-    let drw =
-           filter
+    let addrStr = show addr
+        drw =
+           (mapStyle (addTag ("addrTag-" ++ addrStr)))
+           (filter
             ((\((tags , em) , color) -> not ("ms0" `elem` tags && n == 2)) . snd)
-             drw'
+             drw')
            -- if n == 2 then [] else drw'
     in case dptCursorAddress spt of
            Just ca ->
@@ -369,6 +373,12 @@ instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) Default
      . fillP
      . selectP
 
+extractAddrFromTags :: [String] -> Maybe Address
+extractAddrFromTags [] = Nothing
+extractAddrFromTags (x : xs) =
+   case readMay (drop 8 x) of
+     Nothing -> extractAddrFromTags xs
+     Just y -> Just y
 
 
 instance Shadelike ColorType where
@@ -402,7 +412,7 @@ instance Shadelike ColorType where
           Shade { shadeColor = c
                 , shadeMode = shadeMode
                 , shadeModeVFG = vfg'
-                     
+                , shadeMbAddress = extractAddrFromTags (reverse tags)      
                 }
 
 data ScaffoldPT = ScaffoldPT

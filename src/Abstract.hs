@@ -40,7 +40,7 @@ import qualified Data.Set as Set
 
 import DataExtra
 
-import Reorientable
+-- import Reorientable
 
 import Debug.Trace
 import Data.Either (fromRight)
@@ -90,9 +90,9 @@ isHoleFreeBd = all isHoleFreeO . bdCub
 
 
 data AddressPart = AOnCylinder SubFace | AOnBottom SubFace
-  deriving (Show , Eq , Ord)
+  deriving (Show , Eq , Ord,Read)
 data Address = Address SubFace [AddressPart]
-  deriving (Show , Eq, Ord)
+  deriving (Show , Eq, Ord,Read)
 
 
 -- this is not only Set of Addresses, it should be quaranted to be valid in some ClCub , and NOT EMPTY!!!

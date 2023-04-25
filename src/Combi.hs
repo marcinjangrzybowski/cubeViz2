@@ -77,7 +77,7 @@ instance Show Face where
 
 
 data SubFace = SubFace Int (Map.Map Int Bool)
-  deriving (Eq , Ord)
+  deriving (Eq , Ord , Show, Read)
 
 
 
@@ -286,13 +286,13 @@ instance ListInterpretable SubFace (Maybe Bool) where
 
   fromListLI l = SubFace (length l) $ Map.fromList $ mapMaybe (\(i , x) -> fmap (i,) x) (zip [0..] l)
 
-instance Show SubFace where
-  show sf =
-    intercalate "|"
-    $ zipWith (curry (uncurry (++) . Bf.bimap show (maybe "_" (bool "-" "+")))) [0..] (toListLI sf)
-    -- concat
-    -- -- $ map (uncurry (++))
-    -- -- $ map (Bf.bimap show (bool "-" "+")) $ Map.toList x
+-- instance Show SubFace where
+--   show sf =
+--     intercalate "|"
+--     $ zipWith (curry (uncurry (++) . Bf.bimap show (maybe "_" (bool "-" "+")))) [0..] (toListLI sf)
+--     -- concat
+--     -- -- $ map (uncurry (++))
+--     -- -- $ map (Bf.bimap show (bool "-" "+")) $ Map.toList x
 
 
 instance Show Subset where

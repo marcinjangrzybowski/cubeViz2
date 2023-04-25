@@ -119,3 +119,65 @@ printClOutOfCtx :: ClCub a -> String
 printClOutOfCtx clCub =
   let ee = makeFakeCtx clCub
   in printCub ee (CubPrintData Nothing Nothing) clCub
+
+
+
+
+printCub' :: (Env , Context) -> CubPrintData ->  ClCub b -> String 
+printCub' (ee , c) cpd x =
+  printCubO' (ee , c) cpd (rootAddress (getDim x)) $ clInterior x
+
+
+wrapInAddrSpan :: Address -> String -> String 
+wrapInAddrSpan addr s =
+     "<span class=\\\"addrWrapper\\\" id=\\\""
+   ++ "addr-wrap-" ++ show (Just addr)
+   ++ "\\\">"
+   ++ s
+   ++ "</span>"
+  
+printCubO' :: (Env , Context) -> CubPrintData -> Address -> OCub b -> String 
+printCubO' (ee , c) cpd addr (Cub _ _ a) = 
+  let
+      isSelectedNode = Just addr == cpdCursorAddress cpd
+      ifSel = id
+
+      clStr (CellExpr (VarIndex k) tl) =
+         let sym = fromRight (error "!!") $ getVarSymbol c k
+             tailStr = concat $ intersperse (ifSel " ") $
+                       zipWith (\i eI ->
+                                  let ss' = toString (ee , c) $ (remapIExpr (fromDimI c )) $ eI
+                                      ss = "("++ss'++")"
+                                  in ss
+                                  
+                               ) [0..] tl
+         in "(" ++ sym ++  tailStr ++ ")"
+         
+      s = (maybe ("{!!}") clStr a)
+
+  in wrapInAddrSpan addr (ifSel s)
+  
+printCubO' (ee , c) cpd addr (Hcomp _ nm pa a) = 
+  let c' = addDimToContext c nm
+      nm' = head (withPlaceholdersDimSymbols c')
+      sides = Map.toList (Map.mapMaybe id $ toMapFLI $ cylCub pa)
+         & map (\(sf@(SubFace _ m) , e) -> let
+                                sf2 = Map.mapKeys (fromDimI c) m
+                                
+                                c2 = addSF2ConstraintToContext sf2 c'               
+                                bo = printCubO' (ee , c2) cpd (onCyl addr sf) e
+                                fc = either id id (toCode (ee , c) sf2)
+                            in
+                              if isCoveredIn (occupiedCylCells pa) sf
+                              then Nothing
+                              else Just ( (parr $ parr fc ++ " = i1") ++ " → " ++ bo ++ "\n")
+                       )
+         & catMaybes
+         & intercalate ";"
+
+  
+      y = (printCubO' (ee , c) cpd (onBottom addr (fullSF (getDim a))) (clInterior a))
+        
+ 
+      s = ("hcomp " ++ "(λ " ++ (nm') ++ " → λ  { " ++ (indent 5 ("\n" ++ sides)) ++ "})\n" ++ parr y )      
+  in wrapInAddrSpan addr s

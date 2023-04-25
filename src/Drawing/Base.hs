@@ -1,6 +1,5 @@
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE LambdaCase #-}
 
 {-# LANGUAGE FlexibleInstances #-}
 
@@ -18,6 +17,8 @@ import Data.Bool
 import PiecesEval
 
 import Combi
+
+import Abstract
 
 import Drawing.Color
 
@@ -116,7 +117,7 @@ toRenderableForce l =
 
 data DrawingInterpreter a =
   DrawingInterpreter
-   { ifEmpty :: Renderables
+   { ifEmpty :: Mapped (Renderable,Shade) (Maybe Address)
    , fromDrawing :: Int -> Maybe (Drawing a -> Renderables)
    }
 
@@ -133,13 +134,24 @@ traceDim x = trace
     ("zz: " ++ show (fmap (simplexDim . fst) x))
     x
 
-toRenderableDI :: Shadelike a => DrawingInterpreter a -> Drawing a -> Either String (Maybe Int , Renderables)
+toRenderableDI :: Shadelike a => DrawingInterpreter a -> Drawing a
+            -> Either String
+                      (Maybe Int , Mapped (Renderable,Shade) (Maybe Address))
 toRenderableDI di dr =
   case ensureFold (length . head . fst) dr of
     EFREmpty -> Right (Nothing , ifEmpty di)
     EFREvery dim -> case fromDrawing di dim <*> pure dr of
                        Nothing -> Left ("not implementedDimInDrawingInterpreter " ++ show dim)
-                       Just re -> Right (Just dim , re)
+                       Just re' ->
+                         let re = filter
+                                   (\case
+                                       (Triangle _ , _) -> True
+                                       _ -> False)
+                                   re'
+                         in Right (Just dim ,
+                                          mkMappable
+                                           (shadeMbAddress . snd)
+                                           re)
     _ -> error "mixed dimensions drawing"
 
 mapStyle :: (a -> a) -> Drawing a -> Drawing a

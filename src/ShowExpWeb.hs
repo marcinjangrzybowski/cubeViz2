@@ -80,6 +80,12 @@ import Data.Bits
 import Data.Aeson
 import GHC.Generics
 
+import Data.Text (Text , pack)
+import Data.Text.Encoding (encodeUtf8)
+import Data.ByteString (ByteString)
+
+import Data.List.Split
+
 
 data Msg =
     LoadFile String
@@ -190,11 +196,16 @@ main =
                        , asMainRenderables = []
                        }
             updateGL ap >>=
-                   (\l -> return $ Right
-                               (WebFrontendDescriptor
-                                 -- l
-                                 (filter (\x -> dPrimitiveMode x == Triangles) l)
-                                 (getDim $ asCub ap)))
+                   (\l -> do return $ Right
+                               ((printCub' ee
+                                    (CubPrintData Nothing Nothing)
+                                    cub) , WebFrontendDescriptor
+                                 -- []
+                                 l
+                                 --(filter (\x -> dPrimitiveMode x == Triangles) l)
+                                 (getDim $ asCub ap)
+                                 "[*exprplaceholder*]"
+                               ))
           Left errorMsg -> putStrLn errorMsg >> (return $ Left errorMsg)
              
      printDescriptors r
@@ -202,22 +213,42 @@ main =
 data WebFrontendDescriptor = WebFrontendDescriptor
   { webGlDescriptors :: [WebGlDescriptor]
   , exprDim :: Int
+  , exprString :: String
   }
   deriving (Generic,Show)
 
-instance FromJSON WebFrontendDescriptor
+
 instance ToJSON WebFrontendDescriptor
 
 
-printDescriptors :: Either String WebFrontendDescriptor -> IO ()
-printDescriptors l = do
+escapeNlns :: String -> String
+escapeNlns = concatMap (\case
+                     '\n' -> ['\\','n']
+                     x -> [x]
+                 )
+
+printDescriptors :: Either String (String , WebFrontendDescriptor) -> IO ()
+printDescriptors l' = do
   
-  let dJson = SC.toString (encode l)
+  let l = fmap snd l'
+      dJson' = SC.toString (encode l)
+      
   case l of
     Left err -> putStrLn err
     Right wfd -> putStrLn $
       unlines (intersperse "" (map webGlDescriptorStats (webGlDescriptors wfd)))
-       
+
+
+  let dJson =
+         case l' of
+           Left _ -> dJson'
+           Right (e , _) ->
+             let [s0,s1] = splitOn "[*exprplaceholder*]" dJson'
+             in s0 ++ (escapeNlns e) ++ s1
+          
+  -- putStrLn dJson
+  
+      
   (_ , _ , _ , ph) <- createProcess
     (shell
       "rm -rf /tmp/cubeViz2Web ; cp -fR web /tmp/cubeViz2Web")
@@ -248,10 +279,10 @@ updateGL appState =
       let tryToRen = toRenderableDI drawingInterpreter drawings
       case tryToRen of
            Left msg -> error msg
-           Right rens -> 
+           Right (_ , rens) -> 
              return (
                   onDisplayAll usualVFG (asViewport appState)
-                      (initResources $ snd rens))
+                      (initResources $ rens))
 
 asExpression = ssEnvExpr . asSession
 
@@ -360,7 +391,7 @@ drawExpr as DebugDEM ee e =
 
 drawingInterpreter :: Shadelike a => DrawingInterpreter a
 drawingInterpreter =
-  DrawingInterpreter []
+  DrawingInterpreter emptyMapped
    (\case
       0 -> Just (toRenderablesIgnore . embed 2 (const 0) . embed 1 (const 0.5) . embed 0 (const 0.5))
       1 -> Just (toRenderablesIgnore . embed 2 (const 0) . embed 1 (const 0.5))
@@ -877,7 +908,7 @@ drawingInterpreter =
 -- --      --   Just (a , cub') ->
 -- --      --      let ee' = (fst ee , contextAt (snd ee) a cub) 
 -- --      --      in persistentPrint $
--- --      --             (printCub ee'
+-- --      --             ( ee'
 -- --      --                 (CubPrintData
 -- --      --                    { cpdCursorAddress = Nothing
 -- --      --                    , cpdTailAddress = Nothing

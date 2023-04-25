@@ -15,6 +15,7 @@ import DataExtra
 
 import Combi
 
+import Abstract
 
 -- type NPoint = [ Float ]
 
@@ -84,6 +85,7 @@ data Shade =
    Shade { shadeColor :: Color
          , shadeMode :: Int
          , shadeModeVFG :: VizGroupFlag
+         , shadeMbAddress :: Maybe Address
          }
 
 class Shadelike a where
@@ -92,13 +94,15 @@ class Shadelike a where
          Shade { shadeColor = (Rgba 0.5 0.5 0.5 1.0)
               , shadeMode = 0
               , shadeModeVFG = 0
+              , shadeMbAddress = Nothing
             }
-         
+ 
 instance Shadelike Color where
   toShade c =
      Shade { shadeColor = c 
            , shadeMode = 0
            , shadeModeVFG = 0
+           , shadeMbAddress = Nothing
             }  
 
 

@@ -27,8 +27,13 @@ import Data.Aeson
 
 import Data.Maybe
 
+import qualified Data.Map as Map
+
+
 import Data.Bifunctor
 import GHC.Generics
+
+import Abstract
 
 import DataExtra
 
@@ -93,6 +98,7 @@ instance FromJSON PrimitiveMode
 instance ToJSON PrimitiveMode
 
 
+
 data WebGlDescriptor = WebGlDescriptor
   { dPrimitiveMode :: PrimitiveMode
   , dvertexData :: [Float]
@@ -101,6 +107,7 @@ data WebGlDescriptor = WebGlDescriptor
   , dLineWidth :: Int
   , dInitCommands :: String
   , dDrawCommands :: String
+  , dAddrMap :: [(String,(Int , Int))] 
   }
   deriving (Generic,Show)
 
@@ -130,7 +137,7 @@ elemsPerVert = 14
 
 renderables2CVD :: Renderables -> CombinedVertexData
 renderables2CVD =
-  foldl mkVs emptyCVD
+  foldr mkVs emptyCVD
 
   where
 
@@ -142,7 +149,7 @@ renderables2CVD =
     calcNormal [ v0 , v1 ] = [0.0 , 0.0 , 0.0 ] 
     calcNormal _ = [0.0 , 0.0 , 0.0 ] 
     
-    mkVs x (D.Triangle pts , shade) =
+    mkVs (D.Triangle pts , shade) x =
       let pos = fmap (\x -> x ++ [0.0]) $ fmap trpl2arr $ trpl2arr pts          
       in x { triangleVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
                                                      ++ [ fromIntegral (shadeMode shade)
@@ -150,7 +157,7 @@ renderables2CVD =
                                                         , fromIntegral 0]))
                 ++ triangleVs x }
 
-    mkVs x (D.Line pts , shade) =
+    mkVs (D.Line pts , shade) x =
       let pos = fmap (\x -> x ++ [0.0]) $ fmap trpl2arr $ tpl2arr pts          
       in x { lineVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
                                                      ++ [ fromIntegral (shadeMode shade)
@@ -158,7 +165,7 @@ renderables2CVD =
                                                         , fromIntegral 0]))
                  ++ lineVs x }
 
-    mkVs x (D.Point pt , shade) =
+    mkVs (D.Point pt , shade) x=
       let pos = fmap (\x -> x ++ [0.0]) $ fmap trpl2arr [pt]          
       in x { pointVs = (perVert pos (calcNormal pos ++ color2arr (shadeColor shade)
                                       ++ [ fromIntegral ( shadeMode shade)
@@ -168,12 +175,12 @@ renderables2CVD =
       
     
 -- type Descriptors = (Descriptor,Descriptor,Descriptor) 
-
-initResources :: Renderables -> [WebGlDescriptor]
-initResources rs =
-  let de0 = makeTrianglesResources Points (pointVs (renderables2CVD rs))
-      de1 = makeTrianglesResources Lines (lineVs (renderables2CVD rs))
-      de2 = makeTrianglesResources Triangles (triangleVs (renderables2CVD rs))
+-- dAddrMap
+initResources :: Mapped (Renderable,Shade) (Maybe Address) -> [WebGlDescriptor]
+initResources (Mapped rs mp) =
+  let de0 = makeTrianglesResources Points (pointVs (renderables2CVD rs)) mp
+      de1 = makeTrianglesResources Lines (lineVs (renderables2CVD rs)) mp
+      de2 = makeTrianglesResources Triangles (triangleVs (renderables2CVD rs)) mp
 
   in reverse [de0 , de1 , de2]
      
@@ -184,8 +191,9 @@ bufferOffset = plusPtr nullPtr . fromIntegral
 makeInitJSFun :: [String] -> String
 makeInitJSFun l = unlines l
 
-makeTrianglesResources ::  PrimitiveMode -> [Float] -> WebGlDescriptor
-makeTrianglesResources pm vertices = 
+makeTrianglesResources ::  PrimitiveMode -> [Float] ->
+       (Map.Map (Maybe Address) (Int , Int)) -> WebGlDescriptor
+makeTrianglesResources pm vertices mp = 
 
      let numVertices = (length vertices) 
          firstIndex = 0
@@ -220,7 +228,8 @@ makeTrianglesResources pm vertices =
           (fromIntegral (div (length vertices) elemsPerVert) )
           defaultLineWidth
           (makeInitJSFun (execWriter traingleCommands)) ""
-
+          (map (\(x , (y , y')) -> (show x , (y * 3 , y' * 3)) )
+               (Map.toList mp))
 
 
 updateAttribValues :: IO ()
