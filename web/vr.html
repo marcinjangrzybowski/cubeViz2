@@ -1,0 +1,125 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <!-- <title>CubeViz2Web</title>  -->
+
+    <style>
+        html, body {
+            /* background-color: #000000; */
+            margin: 0px;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+        }
+
+        canvas {
+            /*width: 50vw;*/
+            max-width: 100vh;
+        }
+
+        .showCode canvas {
+            width: 50vw;
+            max-width: none;
+        }
+
+        /* div { */
+        /*     position: absolute; */
+        /*     top: 0; */
+        /*     left: 0; */
+        /* } */
+
+        div.term {
+	    display:none;
+            user-select: none;
+	    white-space: pre-wrap;
+            font-family: monospace;
+	    position: absolute;
+            top: 0;
+            left: 0;
+            width: 1024px;
+	    height: 2048px;	    
+            padding: 5px;
+            margin: 0;
+            /* overflow: scroll; */
+	    z-index:0;
+	    font-size:32px;
+	    background-color:white;
+        }
+
+        div.term span.hasCells {
+           font-weight: bold;
+           cursor: pointer;
+
+        }
+
+        div#term:hover {
+           color : #999;
+
+        }
+
+        div#term:hover span {
+           color : #999;
+
+        }
+
+        div#term:hover span:hover {
+           color : #000;
+
+        }
+
+
+        /* .showCode div#term { */
+
+        /* } */
+
+        #slice {
+            height: 600px;
+            position: absolute;
+            appearance: slider-vertical;
+            display: none;
+        }
+
+		#cellCntrl {
+			position: fixed;
+			z-index: 20;
+			bottom:0;
+			max-height: 30vh;
+			overflow: scroll;
+		}
+
+		#logDiv {
+		    position : fixed;
+		    z-index:999999;
+		    top:0;
+		    left:0;
+		}
+			
+    </style>
+</head>
+<body>
+
+<div id="logDiv"></div>
+<script src="webgl-utils.js"></script>
+<script src="lessons-helper.js"></script>
+<script src="webgl-lessons-ui.js"></script>
+<script src="m3.js"></script>
+<script src="m4.js"></script>
+<script src="cvd.js"></script>
+<script src="dom-to-image.min.js" /></script>
+<canvas id="canvas" width="1024" height="1024"></canvas>
+<input type="range" id="slice"
+       min="0" max="100" value="50">
+<div id="term" class="term"></div>
+<div id="termMap" class="term"></div>
+
+<div id="cellCntrl"></div>
+<script src="shaders.js"></script>
+<script src="cursorShaders.js"></script>
+<script src="codeViewShaders.js"></script>
+<script src="vr.js"></script>
+
+
+</body>
+</html>

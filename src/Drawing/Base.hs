@@ -88,6 +88,8 @@ type DrawingGL = Drawing Color
 type Pt3D = (Float , Float , Float)
 
 
+data RenderableKind = PointK | LineK | TriangleK
+
 data Renderable = Point Pt3D | Line (Pt3D , Pt3D) | Triangle (Pt3D , Pt3D , Pt3D)
 
 
@@ -134,24 +136,46 @@ traceDim x = trace
     ("zz: " ++ show (fmap (simplexDim . fst) x))
     x
 
+
+data MappedRenderables =
+  MappedRenderables
+  { mrPoints :: Mapped (Renderable,Shade) (Maybe Address)
+  , mrLines :: Mapped (Renderable,Shade) (Maybe Address)
+  , mrTriangles :: Mapped (Renderable,Shade) (Maybe Address)
+  }
+
 toRenderableDI :: Shadelike a => DrawingInterpreter a -> Drawing a
             -> Either String
-                      (Maybe Int , Mapped (Renderable,Shade) (Maybe Address))
+                      (Maybe Int ,
+                         MappedRenderables
+                         -- Mapped (Renderable,Shade) (Maybe Address)
+                      )
 toRenderableDI di dr =
   case ensureFold (length . head . fst) dr of
-    EFREmpty -> Right (Nothing , ifEmpty di)
+    EFREmpty -> Right (Nothing ,
+                  MappedRenderables
+                   (ifEmpty di)
+                   (ifEmpty di)
+                   (ifEmpty di))
     EFREvery dim -> case fromDrawing di dim <*> pure dr of
                        Nothing -> Left ("not implementedDimInDrawingInterpreter " ++ show dim)
                        Just re' ->
-                         let re = filter
+                         let (re0 , re1 , re2) = triageList
                                    (\case
-                                       (Triangle _ , _) -> True
-                                       _ -> False)
+                                       x@((Triangle _) , _) ->
+                                          (Nothing , Nothing , Just x)
+                                       x@((Line _) , _) ->
+                                          (Nothing , Just x , Nothing)
+                                       x@((Point _) , _) ->
+                                          (Just x , Nothing , Nothing)
+                                   )
                                    re'
                          in Right (Just dim ,
-                                          mkMappable
-                                           (shadeMbAddress . snd)
-                                           re)
+                               MappedRenderables
+                                 (mkMappable (shadeMbAddress . snd) re0)
+                                 (mkMappable (shadeMbAddress . snd) re1)
+                                 (mkMappable (shadeMbAddress . snd) re2)
+                                  )
     _ -> error "mixed dimensions drawing"
 
 mapStyle :: (a -> a) -> Drawing a -> Drawing a

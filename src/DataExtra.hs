@@ -261,3 +261,16 @@ mkMappable f l = Mapped l'' m
   
   -- h :: [a] -> Map.Map b (Int , Int)
   -- h = undefined
+
+
+triageList :: forall a b . (a -> (Maybe b , Maybe b, Maybe b)) -> [a] -> ([b] , [b] , [b]) 
+triageList f = w ([] , [] , [])
+  where
+   w :: ([b] , [b] , [b]) -> [a] -> ([b] , [b] , [b])
+   w ys [] = ys 
+   w (ys , ys' , ys'') (x : xs) = w
+    (case (f x) of
+       (Just y , _ , _) -> (y : ys , ys' , ys'')
+       (_ , Just y , _) -> (ys , y: ys' , ys'')
+       (_ , _ , Just y) -> (ys , ys' , y : ys'')
+       _ -> error ("not exhaustive clasyfing function!")) xs

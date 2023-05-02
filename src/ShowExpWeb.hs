@@ -255,11 +255,27 @@ printDescriptors l' = do
          { cwd = Just "/Users/marcin/cubeViz2" }
   waitForProcess ph
   writeFile "/tmp/cubeViz2Web/cvd.js" ("var cvdR = " ++ dJson ++ ";")
-  _ <- createProcess
-    (shell
-      "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome  --headless --screenshot file:///tmp/cubeViz2Web/index.html") { cwd = Just "/Users/marcin/" }
+  -- _ <- createProcess
+  --   (shell
+  --     "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome  --headless --screenshot file:///tmp/cubeViz2Web/index.html") { cwd = Just "/Users/marcin/" }
   putStrLn "done" 
 
+
+clickPoints :: (Env, Context) -> ClCub () -> Map.Map String [Float]
+clickPoints (ee , ctx) cub = mkDrawCub ClickPoints (ee , ctx) cub
+                        
+                        & fmap (swap . Bf.bimap (head) (show . Just . fst . fst))
+                        & Map.fromList
+
+addClickPoints :: (Env, Context) -> ClCub () -> WebGlDescriptor -> WebGlDescriptor
+addClickPoints (ee , ctx) cub wgd =
+  let cp = clickPoints (ee , ctx) cub
+  in wgd { dAddrMap = map
+             (\(k , v) ->
+                case Map.lookup k cp of
+                  Nothing -> (k , v)
+                  Just cPt -> (k , (fst v , cPt))
+              ) (dAddrMap wgd) } 
 
   
 loadFile :: String -> IO (Either String SessionState)
@@ -277,12 +293,16 @@ updateGL appState =
                       (fst (asExpression appState))
                       ((asCub appState))
       let tryToRen = toRenderableDI drawingInterpreter drawings
+          ee = (fst (ssEnvExpr (asSession appState)))
+          
+          acp = addClickPoints ee (asCub appState)
+      -- putStrLn $ show (clickPoints ee (asCub appState))
       case tryToRen of
            Left msg -> error msg
            Right (_ , rens) -> 
-             return (
+             return (fmap acp $ (
                   onDisplayAll usualVFG (asViewport appState)
-                      (initResources $ rens))
+                      (initResources $ rens)))
 
 asExpression = ssEnvExpr . asSession
 
@@ -308,15 +328,16 @@ drawExpr as Scaffold ee e =
    in concat (
 
               [                
-                mkDrawCub (CursorPT { cptCursorAddress = sptCA
-                                     , cptSecCursorAddress = sptSCA
-                                     , cptSelectedAddressCorners = 
-                                         fromMaybe Set.empty $ do
-                                           (a , _) <- sptCA
-                                           Map.lookup a (asAddress2PointMap as)
-                                        })
+                -- mkDrawCub (CursorPT { cptCursorAddress = sptCA
+                --                      , cptSecCursorAddress = sptSCA
+                --                      , cptSelectedAddressCorners = 
+                --                          fromMaybe Set.empty $ do
+                --                            (a , _) <- sptCA
+                --                            Map.lookup a (asAddress2PointMap as)
+                --                         })
 
-                ,
+                -- ,
+                
                 mkDrawCub (DefaultPT { dptCursorAddress = fmap fst sptCA
                           , dptShowFill = dpShowFilling $ asDisplayPreferences as
                           , dptFillFactor = 1.0
@@ -324,17 +345,13 @@ drawExpr as Scaffold ee e =
                           , dptTags = dpShowTags $ asDisplayPreferences as
                           , dptShowLowDim = 1 -- 1 for 2D examples, 2 for 3D examples
                           })
-                
-               -- , \ee e ->
-               --      fmap (second $ const (([] , Basic ) , nthColor 3))
-               --             (mkDrawCub FaceHandles ee e) 
-                
+              ,                
 
-              -- ,
-              --   mkDrawExpr (ScaffoldPT { sptDrawFillSkelet = True
-              --                              , sptCursorAddress = sptCA
-              --                              , sptMissingSubFaceCursor = sptMSFC
-              --                              , sptScaffDim = 1})
+              
+                mkDrawCub (ScaffoldPT { sptDrawFillSkelet = True
+                                           , sptCursorAddress = sptCA
+                                           , sptMissingSubFaceCursor = sptMSFC
+                                           , sptScaffDim = 1})
               
 
               ] <*> (pure ee) <*> (pure e)
@@ -397,6 +414,17 @@ drawingInterpreter =
       1 -> Just (toRenderablesIgnore . embed 2 (const 0) . embed 1 (const 0.5))
       2 -> Just (toRenderablesIgnore . embed 2 (const 0))
       3 -> Just toRenderablesIgnore)
+
+
+
+-- embedDrawingIn3 :: Drawing a -> Drawing a
+-- embedDrawingIn3 = map  
+--    (\x -> head $ ( case length (head (fst x)) of
+--              0 -> embed 2 (const 0) . embed 1 (const 0.5) . embed 0 (const 0.5)
+--              1 -> embed 2 (const 0) . embed 1 (const 0.5)
+--              2 -> embed 2 (const 0)
+--              3 -> id ) [x] 
+--    )
 
 
 -- -- asCursorAddress :: AppState -> Maybe Address

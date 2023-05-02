@@ -107,12 +107,13 @@ data WebGlDescriptor = WebGlDescriptor
   , dLineWidth :: Int
   , dInitCommands :: String
   , dDrawCommands :: String
-  , dAddrMap :: [(String,(Int , Int))] 
+  , dAddrMap :: [(String,((Int,Int),[Float]))] 
   }
   deriving (Generic,Show)
 
 instance FromJSON WebGlDescriptor
 instance ToJSON WebGlDescriptor
+
 
 
 webGlDescriptorStats :: WebGlDescriptor -> String
@@ -176,11 +177,11 @@ renderables2CVD =
     
 -- type Descriptors = (Descriptor,Descriptor,Descriptor) 
 -- dAddrMap
-initResources :: Mapped (Renderable,Shade) (Maybe Address) -> [WebGlDescriptor]
-initResources (Mapped rs mp) =
-  let de0 = makeTrianglesResources Points (pointVs (renderables2CVD rs)) mp
-      de1 = makeTrianglesResources Lines (lineVs (renderables2CVD rs)) mp
-      de2 = makeTrianglesResources Triangles (triangleVs (renderables2CVD rs)) mp
+initResources :: MappedRenderables -> [WebGlDescriptor]
+initResources (MappedRenderables (Mapped rs0 mp0) (Mapped rs1 mp1) (Mapped rs2 mp2))  =
+  let de0 = makeTrianglesResources Points (pointVs (renderables2CVD rs1)) mp1
+      de1 = makeTrianglesResources Lines (lineVs (renderables2CVD rs1)) mp1
+      de2 = makeTrianglesResources Triangles (triangleVs (renderables2CVD rs2)) mp2
 
   in reverse [de0 , de1 , de2]
      
@@ -228,7 +229,7 @@ makeTrianglesResources pm vertices mp =
           (fromIntegral (div (length vertices) elemsPerVert) )
           defaultLineWidth
           (makeInitJSFun (execWriter traingleCommands)) ""
-          (map (\(x , (y , y')) -> (show x , (y * 3 , y' * 3)) )
+          (map (\(x , (y , y')) -> (show x , ((y * 3 , y' * 3),[])) )
                (Map.toList mp))
 
 

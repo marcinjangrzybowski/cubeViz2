@@ -318,10 +318,18 @@ instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) Default
     -- else drw
 
   drawCellCommon spt k addr _ _ =
-     if k == 0 then
-     [
-       ( [[]] , ((["zeroCellCPI","m0"] , Midpoints) , gray 0))
-     ] else []
+     case k of
+       0 -> [
+            ( [[]] , ((["zeroCellCPI","m0"] , Midpoints) , gray 0))
+             ]
+       3 -> Bf.second (const ((["cellSpace","animated-stripes"] , Basic) , gray 0.5)) <$> 
+            (unitHyCubeSkel 3 2)
+             
+       _ -> [];
+     -- if k == 0 then
+     -- [
+     --   ( [[]] , ((["zeroCellCPI","m0"] , Midpoints) , gray 0))
+     -- ] else []
      -- let partOfSelectedCellBndr =
      --          maybe False (not . isInternalAddress)
      --        $ flip mbSubAddress addr =<< dptCursorAddress spt
