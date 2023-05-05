@@ -318,12 +318,12 @@ instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) Default
     -- else drw
 
   drawCellCommon spt k addr _ _ =
-     case k of
-       0 -> [
+     case (k , k==2||k==3) of
+       (0 , _) -> [
             ( [[]] , ((["zeroCellCPI","m0"] , Midpoints) , gray 0))
              ]
-       3 -> Bf.second (const ((["cellSpace","animated-stripes"] , Basic) , gray 0.5)) <$> 
-            (unitHyCubeSkel 3 2)
+       (_ , True) -> Bf.second (const ((["cellSpace","animated-stripes","addrTag-" ++ (show addr)] , Basic) , gray 0.5)) <$> 
+            (unitHyCubeSkel k 2)
              
        _ -> [];
      -- if k == 0 then

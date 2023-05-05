@@ -101,6 +101,7 @@ function logToDiv(text) {
         const aLocCodeView = {};
 
 
+
         const getLoc = function (n) {
             aLoc[n] = gl.getAttribLocation(program, n);
         }
@@ -112,7 +113,7 @@ function logToDiv(text) {
             uLoc[n] = gl.getUniformLocation(program, n);
         }
 
-        const unis = ["euler", "screen", "shade", "scaleG", "screenDelta", "VisF", "slice","poseMat","projMat","modelMat","alphaOverwrite","u_textureMap","coCu","uTime","cellCC"];
+        const unis = ["euler", "screen", "shade", "scaleG", "screenDelta", "VisF", "slice","poseMat","projMat","modelMat","alphaOverwrite","uHover","uTime"];
         unis.map(getULoc);
 
         //forCursor
@@ -144,7 +145,8 @@ function logToDiv(text) {
             uLocCodeView[n] = gl.getUniformLocation(programCodeView, n);
         }
 
-        const unisCV = ["poseMat","projMat","modelMat","u_texture","u_textureMap","coCu","uTime"];
+        const unisCV = ["poseMat","projMat","modelMat","u_texture","u_textureMap","coCu","uTime",
+		         "selectedCC"];
         unisCV.map(getULocCV);
 
 
@@ -338,11 +340,14 @@ function logToDiv(text) {
 
 	const addressClickTest = function (cMat){
 	    let testedPt = m4.transformPoint(cMat,new Float32Array([0,0,0,1.0]));
-	    let nearestAddr = Object.keys(cells).map(function(addr){
+	    
+	    let nearestAddr = Object.keys(cells).filter(
+	        function(addr){ return (cells[addr] && cells[addr].codePt);
+		}).map(function(addr){
 		let cntr = cells[addr].center;
 		if(cntr.length == 4){
                     let pC = m4.transformPoint(modelMat,cells[addr].center);
-		    return {caddr:addr , dst : m4.distanceSq(pC,testedPt)};
+		    return {caddr:addr , dst : m4.distance(pC,testedPt)};
 		}
 
 	    }).sort(function(a,b){ return (a.dst-b.dst); })[0].caddr;
@@ -372,6 +377,32 @@ function logToDiv(text) {
 	    0.0 , 0.0 , 0.0 , 1.0
 	]);
 
+
+        const phiRot = function(phi){
+	    let tm = m4.translation(-0.5,-0.5,-0.5);
+	    m4.multiply(m4.yRotation(phi) , tm , tm);
+	    m4.multiply(m4.translation(0.5,0.5,0.5) , tm , tm);
+            m4.multiply(modelMat, tm , modelMat);
+	};
+
+        const thetaRot = function(theta){
+	    let tm = m4.translation(-0.5,-0.5,-0.5);
+	    m4.multiply(m4.xRotation(theta) , tm , tm);
+	    m4.multiply(m4.translation(0.5,0.5,0.5) , tm , tm);
+            m4.multiply(modelMat, tm , modelMat);
+	};
+
+	
+        const scaleModelMat = function(inputMat,s){
+	    let tm = m4.translation(-0.5,-0.5,-0.5);
+	    m4.multiply(m4.scaling(s,s,s) , tm , tm);
+	    m4.multiply(m4.translation(0.5,0.5,0.5) , tm , tm);
+            m4.multiply(inputMat, tm , modelMat);
+	};
+
+	
+        window.pr = phiRot;
+	
 	let codeMat = new Float32Array([
             1.0 , 0.0 , 0.0 , 0.0 ,
 	    0.0 , 1.0 , 0.0 , 0.0 ,
@@ -379,6 +410,13 @@ function logToDiv(text) {
 	    0.0 , 0.0 , 0.0 , 1.0
 	]);
 
+	let codeMatInv = new Float32Array([
+            1.0 , 0.0 , 0.0 , 0.0 ,
+	    0.0 , 1.0 , 0.0 , 0.0 ,
+	    0.0 , 0.0 , 1.0 , 0.0 ,
+	    0.0 , 0.0 , 0.0 , 1.0
+	]);
+	
         let VisF = 1;
 	let selectedAddress = "";
 
@@ -525,11 +563,16 @@ function logToDiv(text) {
 	let dragStartMatrix = null;
 	
 	let draggingSource = null;
+	let draggingSource2 = null;
+	let dragStartDist = null;
 
 	
 session.addEventListener("squeezestart", onSqueezeEvent);
 session.addEventListener("squeeze", onSqueezeEvent);
 session.addEventListener("squeezeend", onSqueezeEvent);
+
+
+
 
 
 	
@@ -549,21 +592,34 @@ function onSqueezeEvent(event) {
 
     let pos = targetRayPose.transform.position;
     let posArr = new Float32Array([pos.x , pos.y, pos.z]);
+    
   switch(event.type) {
     case "squeezestart":
-      dragStartPos = posArr;
-      draggingSource = source;
-      dragStartMatrix = new Float32Array(modelMat);
+      if(draggingSource == null){
+	dragStartPos = posArr;
+	draggingSource = source;
+	dragStartMatrix = new Float32Array(modelMat);
+      }else{
+	  draggingSource2 = source;
+	  dragStartMatrix = new Float32Array(modelMat);
+	  let targetRayPose1 = event.frame.getPose(draggingSource.targetRaySpace, refSpace);
+	  let pos1 =  targetRayPose1.transform.position;
+	  let posArr1 = new Float32Array([pos1.x , pos1.y, pos1.z]);
+	  dragStartDist = m4.distance(posArr1, posArr);
+      }
+
       break;
     // case "squeeze":
     //   myDropObject(targetObj, targetRayPose.matrix);
     //   break;
     case "squeezeend":
+            
+	dragStartMatrix = null;
+	dragStartPos = null;
+	draggingSource = null;
+        draggingSource2 = null;
+        dragStartDist = null;
 
-      
-      dragStartMatrix = null;
-      dragStartPos = null;
-      draggingSource = null;
       break;
   }
 }
@@ -624,9 +680,17 @@ function onSqueezeEvent(event) {
             gl.uniformMatrix4fv(uLocCodeView["projMat"], false,  projMat);
             gl.uniformMatrix4fv(uLocCodeView["modelMat"], false,  codeMat);
 	    gl.uniform2fv(uLocCodeView["coCu"], codeCoursor);
+
 	    gl.uniform1fv(uLocCodeView["uTime"], cfft);
 
-	    
+
+	   if(cells[selectedAddress] && cells[selectedAddress].cellColorCode){
+	       // codeCoursor.set(cells[addr].codePt);
+	       gl.uniform3fv(uLocCodeView["selectedCC"], cells[selectedAddress].cellColorCode);
+	   }else{
+	       
+	   }
+
 	    gl.uniform1i(uLocCodeView["u_texture"], 0);  // texture unit 0
             gl.uniform1i(uLocCodeView["u_textureMap"], 1);  // texture unit 1
 
@@ -638,8 +702,8 @@ function onSqueezeEvent(event) {
 	}
 
         const lineWRange = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE);
-        gl.lineWidth(lineWRange[1]);
-	
+        gl.lineWidth(1);
+	// lineWRange[1]
         const drawPrimitives = function (i) {
             if (i.d.dElemNum < 1) return;
             gl.bindBuffer(gl.ARRAY_BUFFER, i.buf);
@@ -658,13 +722,11 @@ function onSqueezeEvent(event) {
             // {console.log(poseMat.join("|"))};
             gl.uniform1fv(uLoc["VisF"], [VisF]);
 
-	    gl.uniform2fv(uLoc["coCu"], codeCoursor);
+	 
 	    gl.uniform1fv(uLoc["uTime"], cfft);
 	    
 	    
-	  
-            gl.uniform1i(uLoc["u_textureMap"], 1);  // texture unit 1
-
+	 
             //console.log(i.d.dElemNum, i.buffData.length);
             //    gl.drawArrays(gl[i.d.dPrimitiveMode.toUpperCase()], i.d.StartIndex,
             // i.d.dElemNum
@@ -677,7 +739,10 @@ function onSqueezeEvent(event) {
                 const countV = cell[1][0][1];
 
 
-		gl.uniform3fv(uLoc["cellCC"], cells[cellAddr].cellColorCode);
+		gl.uniform1fv(uLoc["uHover"],
+			      new Float32Array([
+				  ((cellAddr==selectedAddress)?1.0:0.0)
+			      ]));
 
                 if(cells[cellAddr].visible) {
           	    gl.uniform1fv(uLoc["alphaOverwrite"], [1.0]);
@@ -702,6 +767,7 @@ function onSqueezeEvent(event) {
 
         const clickedState = {right:{},left:{}};
 
+	let lastRotationTick = -1;
 	var doAfterDraw = null;
         const draw = function (currentFrameTime,frame) {
 	    if(firstFrameTime==-1)
@@ -713,6 +779,46 @@ function onSqueezeEvent(event) {
             for (const source of frame.session.inputSources) {
                   const gp = source.gamepad;
                 if (gp) {
+
+	            const hnd = source.handedness.slice(0,1);
+		    if(hnd == "r")
+		    {
+
+
+
+
+			    let targetRayPose = frame.getPose(source.targetRaySpace, refSpace);
+				   let addr = (addressClickTest(targetRayPose.transform.matrix));
+
+				    selectedAddress = addr;
+
+				    // if(cells[addr] && cells[addr].codePt){
+				    // 	codeCoursor.set(cells[addr].codePt);
+				    // }
+
+
+
+			///codePAddMouse
+
+			let targetPos = targetRayPose.transform.position; 
+			let tip = m4.transformPoint(
+			      codeMatInv, 
+			    new Float32Array([targetPos.x,targetPos.y,targetPos.z])
+			);
+
+
+			if(Math.abs(tip[2])<0.1){
+			codeCoursor[0] = Math.min(Math.max(tip[0]*2.0,1.0),0);
+			codeCoursor[1] = Math.min(Math.max(1.0-tip[1],1.0),0);
+			
+			}			//if(fN%20==0){
+			//     console.log(new Float32Array([targetPos.x,targetPos.y,targetPos.z]));
+			//     console.log(codeCoursor[0],codeCoursor[1]);
+			// }
+
+		    }
+
+		    
 		    let constPart = 0.0002;
 		    let speed = 0.02;
 		    let curve = 4;
@@ -720,21 +826,27 @@ function onSqueezeEvent(event) {
 		        return (constPart +
 			    (1.0-constPart)*Math.pow(x,curve))*Math.sign(x);
 		    };
-		    
-		    
-                    if (gp.axes[3] !== 0) {
-                        let dy = curveFn(gp.axes[3])*speed;
-			 // Math.pow(gp.axes[3],curve)*speed*Math.sign(gp.axes[3]);
-			codeCoursor[1] = Math.min(1.0 , Math.max(0.0 , codeCoursor[1] + dy));  
-			// vpScale *= 1+gp.axes[3]*0.01;
+
+
+
+		    if(currentFrameTime-lastRotationTick>1000){
+			if (gp.axes[3] !== 0 || gp.axes[2] !== 0) {
+			    lastRotationTick = currentFrameTime 
+                            if(Math.abs(gp.axes[3])>Math.abs(gp.axes[2])){
+				phiRot(Math.sign(gp.axes[3])*Math.PI/2.0);
+			    }else{
+                                // thetaRot(Math.sign(gp.axes[2])*Math.PI/2.0);
+			    }
+			    
+			}
 
 		    }
-		    if (gp.axes[2] !== 0) {
-                        let dx = curveFn(gp.axes[2])*speed*2;
-			codeCoursor[0] = Math.min(1.0 , Math.max(0.0 , codeCoursor[0] + dx));  
-			// vpScale *= 1+gp.axes[3]*0.01;
+		
 
-		    }
+
+
+
+
 		    // if (gp.axes[3] !== 0) {
 
 		    // 	vpScale *= 1+gp.axes[3]*0.01;
@@ -753,7 +865,7 @@ function onSqueezeEvent(event) {
 			if(clickedState[source.handedness])
 			{
 			    var p = b.value!=0 || b.pressed;
-			    var hnd = source.handedness.slice(0,1);
+
                             if(p && !clickedState[source.handedness][i]) {
                                 clickedState[source.handedness][i] = true;
 				// logToDiv("on "+String(i));
@@ -787,29 +899,34 @@ function onSqueezeEvent(event) {
 			if(p){
                             if(hnd == "r" && i == 4)
 			    {
-				 let targetRayPose = frame.getPose(source.targetRaySpace, refSpace);
+				//  let targetRayPose = frame.getPose(source.targetRaySpace, refSpace);
 			          
-				    codeMat.set(targetRayPose.transform.matrix);
+				// codeMat.set(targetRayPose.transform.matrix);
+				// codeMatInv.set(targetRayPose.transform.inverse.matrix);
 			    }
 
-			    if(hnd == "r" && i == 5)
-			    {
+			    // if(hnd == "r" && i == 5)
+			    // {
 
-			    let targetRayPose = frame.getPose(source.targetRaySpace, refSpace);
-				   let addr = (addressClickTest(targetRayPose.transform.matrix));
+			    // let targetRayPose = frame.getPose(source.targetRaySpace, refSpace);
+			    // 	   let addr = (addressClickTest(targetRayPose.transform.matrix));
 
-				    selectedAddress = addr;
+			    // 	    selectedAddress = addr;
 
-				    if(cells[addr] && cells[addr].codePt){
-					codeCoursor.set(cells[addr].codePt);
-				    }
-			    }
+			    // 	    if(cells[addr] && cells[addr].codePt){
+			    // 		codeCoursor.set(cells[addr].codePt);
+			    // 	    }
+			    // }
 
 
 			}
-			
+
+
 
 		    });
+
+
+
 
 		    
 		    
@@ -831,15 +948,28 @@ function onSqueezeEvent(event) {
                       //   vpScale *= 1.01;
                     // }
                     if(draggingSource==source){
+
 			    let targetRayPose = frame.getPose(source.targetRaySpace, refSpace);
 
 			    let pos = targetRayPose.transform.position;
                             let posArr = new Float32Array([pos.x , pos.y, pos.z]);
+			if(draggingSource2 == null){
+
 	                let dV = m4.subtractVectors(posArr,dragStartPos);
 			    m4.translate(
 				dragStartMatrix ,
 				dV[0],dV[1],dV[2],
 				modelMat);
+			}else{
+	  
+		let targetRayPose2 = frame.getPose(draggingSource2.targetRaySpace, refSpace);
+		let pos2 =  targetRayPose2.transform.position;
+		let posArr2 = new Float32Array([pos2.x , pos2.y, pos2.z]);
+			    let currDist = m4.distance(posArr2, posArr);
+			    let ratioDist = currDist/dragStartDist;
+                            scaleModelMat(dragStartMatrix,ratioDist);
+			    console.log(ratioDist);
+			}
 		    }
 
                   }
@@ -947,7 +1077,7 @@ function onSqueezeEvent(event) {
       // const sesionTy = "immersive-vr"
 	const startSession = function(){
 
-
+;
 
 	    
         if (navigator.xr) {
@@ -956,7 +1086,20 @@ function onSqueezeEvent(event) {
 
             function startSesionOfType(sesionTy){
 	     navigator.xr.requestSession(sesionTy).then((session) => {
-                  console.log(session);
+
+		    window.addEventListener("error" ,function (a, b, c, d, e){
+					 let errMsg = "";
+					  errMsg += `\nmessage: ${a}`;
+					  errMsg += `\nsource: ${b}`;
+					  errMsg += `\nlineno: ${c}`;
+					  errMsg += `\ncolno: ${d}`;
+					  errMsg += `\nerror: ${e}`;
+			logToDiv("error:\n "+errMsg);
+			session.end();
+					  return true;
+				     })
+
+		 
                   document.body.removeEventListener("click",startSession);
                   session.requestReferenceSpace("local").then((refSpace) => {
                     console.log(refSpace);

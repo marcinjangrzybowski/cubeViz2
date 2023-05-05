@@ -95,7 +95,7 @@ cTypeParserDim0 (env , ctx) =
        Nothing -> fail ("not in scope: " ++ sym)
        Just x ->
          case (mkCType env ctx (x , [])) of
-           Left z -> unexpected z
+           Left z -> fail ("unexpected: " ++ z)
            Right cty -> return cty
 
 
@@ -170,9 +170,11 @@ cTypeParser0 :: Parsec String (Env , Context) CType
 cTypeParser0 =
   do (env , ctx) <- getState
      (spaces *>
-      (try (cTypeParserPathP (env , ctx))
-       <|> (cTypeParserId (env , ctx))
-       <|> (cTypeParserDim0 (env , ctx))
+      (    try (NotCType <$> string "A → B")
+       <|> try (cTypeParserPathP (env , ctx))
+       <|> try (cTypeParserId (env , ctx))
+       <|> try (cTypeParserDim0 (env , ctx))
+       -- <|> (NotCType <$> string "A → B")
       ) <* spaces)
      
 
@@ -180,9 +182,11 @@ cTypeParser :: Parsec String (Env , Context) CType
 cTypeParser =
   do (env , ctx) <- getState
      (spaces *>
-      (try (cTypeParserPathP (env , ctx))
-       <|> (cTypeParserId (env , ctx))
+      (    try (NotCType <$> string "A → B")
+       <|> try (cTypeParserPathP (env , ctx))
+       <|> try (cTypeParserId (env , ctx))
        <|> (cTypeParserDim0 (env , ctx))
+       
       )
        <* spaces
        <* optional (string "(not in scope)")

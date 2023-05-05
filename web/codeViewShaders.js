@@ -29,6 +29,7 @@ uniform sampler2D u_texture;
 uniform sampler2D u_textureMap;
 uniform vec2 coCu;
 uniform float uTime;
+uniform vec3 selectedCC;
 out vec4 fColor;
 in vec2 vTex;
 void
@@ -53,7 +54,7 @@ main()
 
    float hovered;
 
-   if(coHover.xyz == coMap.xyz && coHover.xyz!=vec3(1.0,1.0,1.0)){
+   if(distance(selectedCC,255.0*coMap.xyz)<1.0){
      hovered = 0.5+0.5*abs(sin(uTime/200.0));
    }else{
      hovered = 0.0;

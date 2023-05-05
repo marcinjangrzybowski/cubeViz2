@@ -1189,6 +1189,7 @@ toOCub :: (Env , Context) -> Expr -> OCub ()
 
 
 toOCub (env , ct) (Hole hI) = Cub (getDim ct) () Nothing
+toOCub (env , ct) (Generic _) = Cub (getDim ct) () Nothing
 
 toOCub ee@(env , ct) tm@(Var vI tl) = Cub (getDim ct) () $
     Just $ mkCellExpr ee vI (fmap snd tl)

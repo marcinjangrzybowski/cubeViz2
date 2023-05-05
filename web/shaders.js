@@ -28,10 +28,8 @@ uniform mat4 poseMat;
 uniform mat4 projMat;
 uniform mat4 modelMat;
 
-uniform sampler2D u_textureMap;
-uniform vec2 coCu;
-uniform vec3 cellCC;
 uniform float uTime;
+uniform float uHover;
 
 mat4 anglesToAxes(in vec3 angles)
 {
@@ -86,21 +84,26 @@ main()
 {
 
 
-   vec4 coHover = texture(u_textureMap, coCu );
 
-
-   float hovered;
 
    vec4 ColorPrim;
+   bool hovered = uHover > 0.5;
 
-   if(distance(255.0*coHover.xyz,cellCC)<1.0){
-     // hovered = 0.5+0.5*abs(sin(uTime/200.0));
-    ColorPrim = Color*(1.0 + 5.0*abs(sin(uTime/200.0)));
-   }else{
-     // hovered = 0.0;
-     ColorPrim = Color;//*vec4(2.0,2.0,0.2,1.0);
+   bool discardThis = false;
+   // if(distance(255.0*coHover.xyz,cellCC)<1.0){
+   //   hovered = true;
+    
+   // }else{
+   //   hovered = false;
+
+     
+   // }
+
+   if(!hovered && abs(Mode - 3.0)<0.01){
+    discardThis = true;
    }
 
+   ColorPrim = Color;
 
    vCol = ColorPrim;
 
@@ -145,10 +148,9 @@ main()
 
    int VisRes = Vis & VisFlag;
 
-   if(VisRes!=0){
+   if(VisRes!=0 && !discardThis){
       gl_Position =
-        (projMat)*(poseMat)*modelMat*(
-           vec4(euler.w , euler.w , euler.w , 1.0)*vec4(vPosition.x , vPosition.y , vPosition.z ,1.0));
+        (projMat)*(poseMat)*modelMat*(vec4(vPosition.x , vPosition.y , vPosition.z ,1.0));
 
    }
    else
@@ -250,7 +252,7 @@ main()
       {
        discard;
       }
-   }else if(vMode == 3.0){ // selected primitive
+   }else if(abs(vMode - 3.0)<0.01){ // selected primitive
       if (stripper(worldPos , 10.0 , 0.5  , float(time*0.1) ) < 0.5)
       {
        discard;

@@ -435,6 +435,7 @@ data Expr =
   HComp (Maybe Name) Partial Expr
   | Var VarIndex [IArg]
   | Hole Int
+  | Generic String
   deriving (Eq , Show)
 
 type LExpr = ([Maybe String] , Expr)  
@@ -628,7 +629,9 @@ substProj ctx sf =
                    ))
             ((Left b , (e0 , e1)) : _)
                -> substProj ctx sf $ if b then e1 else e0
-    Hole i -> Hole i)
+    Hole i -> Hole i
+    Generic x -> Generic x
+  )
 
 
 -- TODO : how exacly those to function are related? descirbe their inputs and results in details
@@ -758,7 +761,8 @@ data BType = BType Int
   deriving (Eq , Show)
 
 data CType =
-  CType BType [(LExpr , LExpr)]
+    CType BType [(LExpr , LExpr)]
+  | NotCType String
   deriving (Eq , Show)
 
 

@@ -395,7 +395,7 @@ hole =
      return (Hole 0)
 
 expr0 :: Parsec String Context Expr
-expr0 = ((try hcomp) <|> (try var0) <|> hole )
+expr0 = ((try hcomp) <|> (try var0) <|> (try hole))
 
 expr :: Parsec String Context Expr
 expr = expr0 <* spaces <* eof
@@ -423,3 +423,10 @@ parseExpr c = runParser expr c "" .
    map (\case
            '\n' -> ' '
            x -> x)
+
+
+-- genericAgdaExpr' :: Parsec String Context String
+-- genericAgdaExpr' = many1 anyToken
+
+-- genericAgdaExpr :: Parsec String Context Expr
+-- genericAgdaExpr = fmap Generic genericAgdaExpr'
