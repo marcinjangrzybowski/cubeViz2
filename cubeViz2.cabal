@@ -54,6 +54,9 @@ library
       Reorientable
       ShowExpWeb
       Syntax
+      ASyntax
+      AAbstract
+      ShowExpWebA
       Test
   other-modules:
       Paths_cubeViz2

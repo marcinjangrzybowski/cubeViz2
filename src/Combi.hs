@@ -373,6 +373,7 @@ appLI a (FromLI n f) =
   if sizeLI a == n
   then f a
   else error $ "argument of wrong dimension! " ++ show (sizeLI a) ++ " expected:"  ++ show n
+          
 
 
 

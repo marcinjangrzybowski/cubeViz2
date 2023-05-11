@@ -24,6 +24,8 @@ import qualified Data.List.NonEmpty as Ne
 
 import qualified Text.Read as TR
 
+-- import ASyntax
+
 import DataExtra
 
 import Debug.Trace
@@ -761,7 +763,8 @@ data BType = BType Int
   deriving (Eq , Show)
 
 data CType =
-    CType BType [(LExpr , LExpr)]
+    CoType String [String]
+  | CType BType [(LExpr , LExpr)]
   | NotCType String
   deriving (Eq , Show)
 
@@ -1192,9 +1195,18 @@ mkBType (Env lN _) bI =
 getBaseType :: Env -> Context -> CType -> BType
 getBaseType _ _ (CType bTy _) = bTy
 
+log2 :: Int -> Int
+log2 1 = 0
+log2 2 = 1
+log2 4 = 2
+log2 8 = 3
+log2 16 = 4
+log2 _ = error "suprise!"
 
 getCTyDim :: Env -> Context -> CType -> Int
 getCTyDim e c (CType i faces) = length faces
+getCTyDim e c (CoType _ corners) = log2 (length corners)
+
 
 
 

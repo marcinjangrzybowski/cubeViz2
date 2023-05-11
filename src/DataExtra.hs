@@ -274,3 +274,8 @@ triageList f = w ([] , [] , [])
        (_ , Just y , _) -> (ys , y: ys' , ys'')
        (_ , _ , Just y) -> (ys , ys' , y : ys'')
        _ -> error ("not exhaustive clasyfing function!")) xs
+
+safeLookup :: Int -> [a] -> Maybe a
+safeLookup _ [] = Nothing
+safeLookup 0 (x : xs) = Just x
+safeLookup n (_ : xs) = safeLookup (n - 1) xs

@@ -271,7 +271,7 @@ instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) Default
          Just x -> Right (ConcreteCellData x)
          Nothing -> Left g
 
-  drawD _ _ = either renderGCD ccdDrawing
+  drawD _ _ = either (renderGCD) ccdDrawing
 
   drawHole spt k addr ee =
       if k <= 3
@@ -380,6 +380,138 @@ instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) Default
      . removeFillHoles
      . fillP
      . selectP
+
+
+data DefaultPTA = DefaultPTA { dptCursorAddressA ::  Maybe Address
+                           , dptShowFillA      :: Bool
+                           , dptFillFactorA       :: Float
+                           , dptTagsA          :: Set.Set String
+                           , dptShowLowDimA    :: Int
+                           }
+
+
+
+
+instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) DefaultPTA where
+  fromCtx _ = initGCContextA 
+  drawTermFromContext _ gcc _ (VarIndex vi) =
+    let g@(GCData s _) =
+            fromMaybe (error $ "lookupFail! " ++ show gcc ++ " " ++ show vi)
+             (Map.lookup vi gcc)
+    in case renderNamedCell s of
+         Just x -> Right (ConcreteCellData x)
+         Nothing -> Left g
+
+  drawD _ _ = either (renderGCD) ccdDrawing
+
+  drawHole spt k addr ee =
+      if k <= 3
+      then let holeS = (( ["hole" , "hollowBox"] , Basic) , gray 0.0)
+           in  scaleCell 0.8 $ Bf.second (const holeS) <$> unitHyCubeSkel k 1
+      else []
+
+  fillStyleProcess d drw =
+    if dptShowFillA d
+    then filter (\(_ , ((tags , em) , color)) ->
+               not ("ms0" `elem` tags) &&
+               not ("zeroCellCPI" `elem` tags)
+           ) $ (mapStyle (addTag "filling") drw)
+    else []
+
+  holeBleedStyleProcess d drw =
+    mapStyle (addTag "holeBleed") drw
+
+  nodeStyleProcess spt ee n addr drw =
+    case dptCursorAddressA spt of
+      Just ca ->
+        if isJust (mbSubAddress ca addr)
+        then mapStyle ((addTag "selected")) drw -- zaznaczone
+        else mapStyle (addTag "notselected") drw
+      Nothing -> drw
+
+  cellStyleProcess spt ee n addr _ drw' =
+    let addrStr = show addr
+        drw =
+           (mapStyle (addTag ("addrTag-" ++ addrStr)))
+           (filter
+            ((\((tags , em) , color) -> not ("ms0" `elem` tags && n == 2)) . snd)
+             drw')
+           -- if n == 2 then [] else drw'
+    in case dptCursorAddressA spt of
+           Just ca ->
+             if isJust (mbSubAddress ca addr)
+             then mapStyle ((addTag "selected")) drw -- zaznaczone
+             else mapStyle (addTag "notselected") drw
+           Nothing -> drw
+
+    -- if (dptCursorAddress d == Just addr)
+    -- then mapStyle (addTag "selected") drw
+    -- else drw
+
+  drawCellCommon spt k addr _ _ =
+     case (k , k==2||k==3) of
+       (0 , _) -> [
+            ( [[]] , ((["zeroCellCPI","m0"] , Midpoints) , gray 0))
+             ]
+       (_ , True) -> Bf.second (const ((["cellSpace","animated-stripes","addrTag-" ++ (show addr)] , Basic) , gray 0.5)) <$> 
+            (unitHyCubeSkel k 2)
+             
+       _ -> [];
+     -- if k == 0 then
+     -- [
+     --   ( [[]] , ((["zeroCellCPI","m0"] , Midpoints) , gray 0))
+     -- ] else []
+     -- let partOfSelectedCellBndr =
+     --          maybe False (not . isInternalAddress)
+     --        $ flip mbSubAddress addr =<< dptCursorAddress spt
+     --     scaffS = if partOfSelectedCellBndr
+     --              then (( ["cellBorder"] , ExtrudeLines) , Rgba 1.0 0.0 0.0 1.0)
+     --              else (( ["cellBorder"] , ExtrudeLines) , gray 0.9)
+     --     scaff = if k <= 1
+     --         then Bf.second (const scaffS) <$> unitHyCube k
+     --         else []
+
+     -- in if partOfSelectedCellBndr
+     --    then scaff
+     --    else []
+
+  finalProcess settings =
+    let fillP = mapStyle
+                 (\((tags , em) , color)  ->
+                    ((tags, em), color)
+                    -- if "filling" `elem` tags
+                    -- then ((tags , em) , lighter 0.6 color)
+                    -- else ((tags , em) , color)
+                   )
+        selectP = mapStyle
+                 (\((tags , em) , color)  ->
+
+                    if "notselected" `elem` tags
+                    then ((tags , em) , lighter 0.2 $ desat 0.4 color)
+                    else ((tags , em) , color)
+                   )
+        removeFillHoles = 
+           filter ((\((tags , em) , color) -> not ("filling" `elem` tags && "hole" `elem` tags)) . snd)
+
+        removePoints = filter
+           (\(x , ((tags , em) , color)) ->
+              length x > 1 || ("zeroCellCPI" `elem` tags)
+           )
+                 
+        toggleStrands =
+          filter (\(x, ((tags , em) , color)) -> (not ("m2" `elem` tags) || not ("gcd" `elem` tags)
+                                                  || not (Set.null (Set.intersection (Set.fromList tags) (dptTagsA settings)))))
+
+        toggleLowDim =
+          filter (\(x, ((tags , em) , color)) -> not ("m0" `elem` tags))
+    in
+       toggleStrands
+     . toggleLowDim
+     . removePoints
+     . removeFillHoles
+     . fillP
+     . selectP
+
 
 extractAddrFromTags :: [String] -> Maybe Address
 extractAddrFromTags [] = Nothing

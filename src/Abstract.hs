@@ -62,7 +62,8 @@ instance (Show b) => Show (CylCub b) where
   show x = showMbFLI (cylCub x)
 
 data OCub b =
-    Cub Int b (Maybe CellExpr)
+    CAppl (ClCub b) [(ClCub b)]
+  | Cub Int b (Maybe CellExpr)
   | Hcomp b (Maybe Name) (CylCub b) (ClCub b)
   deriving (Show ,  Functor, Eq)
 
@@ -82,7 +83,9 @@ isHole _ = False
 isHoleFreeO :: OCub b -> Bool
 isHoleFreeO (Cub _ _ (Nothing)) = False
 isHoleFreeO (Cub _ _ (Just _)) = True
-isHoleFreeO (Hcomp _ _ c b) =
+isHoleFreeO (CAppl x xs) =  
+  all (all (isHoleFreeO) . clCub) (x : xs) 
+isHoleFreeO (Hcomp _ _ c b) = 
   isHoleFreeO (clInterior b) && all (maybe True isHoleFreeO) (cylCub c) 
 
 isHoleFreeBd :: BdCub b -> Bool
@@ -179,6 +182,7 @@ instance OfDim (BdCub b) where
 
 instance OfDim (OCub b) where
   getDim (Cub n _ _) = n
+  getDim (CAppl f _) = getDim f
   getDim (Hcomp _ _ _ a) = getDim a
 
 instance OfDim Address where
@@ -2022,3 +2026,5 @@ pointSelectStep cub a2pm addrSel addrPt =
 
 countIndependentHoles :: ClCub a -> Int
 countIndependentHoles cub = undefined
+
+

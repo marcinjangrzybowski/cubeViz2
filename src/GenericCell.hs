@@ -48,7 +48,7 @@ import Debug.Trace
               -- first int refers to "color" (index of def of dim0)
               -- second int refers to uniqCounter for this primitive
 data GCData = GCData String (FromLI Piece (Int , Int))
-
+ deriving Show
 
 
 
@@ -104,8 +104,13 @@ renderGCD' :: (Float , Float , Float) -> GCData -> ZDrawing ColorType
 
    
 renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n f)) =
-   FromLI n (\pc@(sbst , prm) ->
+   FromLI n (\pc@(sbst , prm) -> 
         let (vertN , uniqN ) = appLI pc fli
+                -- traceShow (nm ++ " ")
+                -- (0,0)
+                 -- traceShow (defName ++ " | " ++ (show (getCTyDim ee ctx0 ct)))
+                   
+              --
             pieceId = unemerate pc + 1
             vfg = show (pieceId + 4)
             
@@ -218,7 +223,7 @@ par2 = 0.4
 parTranslate = 0.2
 
 
-renderGCD :: GCData -> ZDrawing ColorType
+renderGCD ::  GCData -> ZDrawing ColorType
 renderGCD = renderGCD' (par1 , par2 , parTranslate)
 
 
@@ -226,19 +231,19 @@ type GCContext = Map.Map Int GCData
 
 
 -- mapping variableIds of definitions ofDim0 into ( colorNr , uniqCounter) 
-type GCContextGenState = Map.Map Int (Int , Int)
+type GCContextGenState = (Map.Map Int (Int , Int) , Map.Map String (Int , Int))
 
 initialGCContextGenState :: GCContextGenState
-initialGCContextGenState = Map.empty
+initialGCContextGenState = (Map.empty , Map.empty)
 
 makeGCD :: (Env , Context) -> GCContextGenState
                   -> Int -> (String , CType) -> (GCContextGenState , GCData)
-makeGCD (ee , ctx0) gccGS i (defName , ct) =
-  let n = getCTyDim ee ctx0 ct
+makeGCD (ee , ctx0) (gccGS , zzz) i (defName , ct) =
+  let n = (getCTyDim ee ctx0 ct)
       ctx = foldl addDimToContext ctx0 (replicate n Nothing )
       crnrs = exprCorners ctx (mkVar ctx (VarIndex i) (dim <$> range n))
 
-      visitCorner :: GCContextGenState -> VarIndex -> (GCContextGenState , (Int , Int))
+      visitCorner :: Map.Map Int (Int , Int) -> VarIndex -> (Map.Map Int (Int , Int) , (Int , Int))
       visitCorner gCCGS (VarIndex k) =
          let xx =
                   Map.lookup  k gCCGS
@@ -253,9 +258,37 @@ makeGCD (ee , ctx0) gccGS i (defName , ct) =
       (FromLI _ f) = (fromListFLI n newGCD)
       newGCD' = FromLI n (f . fst) 
       
-  in ( newGCCGS ,  GCData defName $  newGCD')
+  in ( (newGCCGS , zzz) ,  GCData defName $  newGCD')
           -- GCData defName $
           --   (FromLI n (\pc -> (1 , 1 , pc))))
+
+makeGCDA :: (Env , Context) -> GCContextGenState
+                  -> Int -> (String , CType) -> (GCContextGenState , Maybe GCData)
+makeGCDA (ee , ctx0) (zzz , gccGS) i (defName , ct@(CoType tyStr crnrsLi)) =
+  let n = (getCTyDim ee ctx0 ct)
+      ctx = foldl addDimToContext ctx0 (replicate n Nothing )
+      crnrs :: FromLI Subset String
+      crnrs = fromListFLI n crnrsLi
+        -- exprCorners ctx (mkVar ctx (VarIndex i) (dim <$> range n))
+
+      visitCorner :: Map.Map String (Int , Int) -> String ->
+                       (Map.Map String (Int , Int) , (Int , Int))
+      visitCorner gCCGS idS =
+         let xx =
+                  Map.lookup  idS gCCGS
+                & maybe (Set.size (Map.keysSet gCCGS) , 0) (second $ (+) 1)
+
+         in (Map.insert idS xx gCCGS , xx)
+
+
+ 
+      ( newGCCGS , newGCD) =  mapAccumL visitCorner gccGS (toListFLI crnrs)
+
+      (FromLI _ f) = (fromListFLI n newGCD)
+      newGCD' = FromLI n (f . fst) 
+      
+  in ( (zzz , newGCCGS) ,  Just (GCData defName $  newGCD'))
+makeGCDA (ee , ctx0) gccGS i (defName , _) = (gccGS , Nothing)
 
 initGCContext :: (Env , Context) -> GCContext
 initGCContext (ee , Context l _) =
@@ -263,6 +296,17 @@ initGCContext (ee , Context l _) =
       (\ (i , y) (gCCGS , gcc) -> 
            let (newGCCGS , newGCD) =  (makeGCD (ee , Context l []) gCCGS i y)
            in (newGCCGS , Map.insert i newGCD gcc)
+       ) & snd
+
+initGCContextA :: (Env , Context) -> GCContext
+initGCContextA (ee , Context l _) = 
+   (\x -> foldr x (initialGCContextGenState , Map.empty ) (zip [0..] l) )
+      (\ (i , y) (gCCGS , gcc) -> 
+           let (newGCCGS , newGCD) =  (makeGCDA (ee , Context l []) gCCGS i y)
+           in (newGCCGS ,
+                case newGCD of
+                  Just newGCD' -> Map.insert i newGCD' gcc
+                  Nothing -> gcc)
        ) & snd
 
 

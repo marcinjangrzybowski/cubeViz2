@@ -339,19 +339,20 @@ function logToDiv(text) {
         });
 
 	const addressClickTest = function (cMat){
-	    let testedPt = m4.transformPoint(cMat,new Float32Array([0,0,0,1.0]));
+	    return
+	    // let testedPt = m4.transformPoint(cMat,new Float32Array([0,0,0,1.0]));
 	    
-	    let nearestAddr = Object.keys(cells).filter(
-	        function(addr){ return (cells[addr] && cells[addr].codePt);
-		}).map(function(addr){
-		let cntr = cells[addr].center;
-		if(cntr.length == 4){
-                    let pC = m4.transformPoint(modelMat,cells[addr].center);
-		    return {caddr:addr , dst : m4.distance(pC,testedPt)};
-		}
+	    // let nearestAddr = Object.keys(cells).filter(
+	    //     function(addr){ return (cells[addr] && cells[addr].codePt);
+	    // 	}).map(function(addr){
+	    // 	let cntr = cells[addr].center;
+	    // 	if(cntr.length == 4){
+            //         let pC = m4.transformPoint(modelMat,cells[addr].center);
+	    // 	    return {caddr:addr , dst : m4.distance(pC,testedPt)};
+	    // 	}
 
-	    }).sort(function(a,b){ return (a.dst-b.dst); })[0].caddr;
-	    return nearestAddr;
+	    // }).sort(function(a,b){ return (a.dst-b.dst); })[0].caddr;
+	    // return nearestAddr;
 
 	};
 
@@ -671,7 +672,7 @@ function onSqueezeEvent(event) {
 	}
 
 	const drawCodeView = function(){
-
+            return;
 
 	    
 	    initCodeViewDraw();
