@@ -141,7 +141,7 @@ triangle1 = [[0.0, 0.05], [0.05, 0.05], [0.0, 0.0]]
 
 
 renderNamedCell :: String -> Maybe (ZDrawing ColorType)
-renderNamedCell "loop₂" = Just $
+renderNamedCell "Cubical.Experiments.CubeViz2D.J₃S¹.loop₂" = Just $
   let n = 2
   in FromLI 2 (\pc@(sbst , prm) ->
         let shouldTranspose = foldr xor False (toListLI sbst)
@@ -197,7 +197,7 @@ renderNamedCell "loop₂" = Just $
 
 
 
-renderNamedCell "loop₁" = Just $
+renderNamedCell "Cubical.Experiments.CubeViz2D.J₃S¹.loop" = Just $
    renderGCD'
     (par1Loop2 , par2Loop2 , parTranslateLoop2)
     (GCData "loop₁" $ FromLI 1 (\pc -> (unemerate pc , (unemerate pc + 1))))
@@ -206,8 +206,12 @@ renderNamedCell "loop₁" = Just $
    par2Loop2 = 0.3
    parTranslateLoop2 = 0.1
 
+renderNamedCell "Cubical.Experiments.CubeViz2D.J₃S¹.base" = Just $
 
-renderNamedCell "surf" = Just $
+   FromLI 0 (\_ -> [])
+
+
+renderNamedCell "Cubical.HITs.S2.Base.S².surf" = Just $
 
    renderGCD'
     (par1 , par2 , parTranslate)
@@ -217,6 +221,13 @@ renderNamedCell "surf" = Just $
    -- renderGCD'Points
    --  (par1 , par2 , parTranslate)
    --  (GCData "" $ FromLI 2 (\pc -> (unemerate pc , (unemerate pc + 1))))
+
+
+
+renderNamedCell "Cubical.HITs.S2.Base.S².base" = Just $
+
+   FromLI 0 (\_ -> [])
+
 
 renderNamedCell _ = Nothing
 

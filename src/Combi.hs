@@ -373,7 +373,13 @@ appLI a (FromLI n f) =
   if sizeLI a == n
   then f a
   else error $ "argument of wrong dimension! " ++ show (sizeLI a) ++ " expected:"  ++ show n
-          
+
+appLISafer :: (ListInterpretable a b) => a -> FromLI a c -> Either String c
+appLISafer a (FromLI n f) =
+  if sizeLI a == n
+  then Right (f a)
+  else Left $ "argument of wrong dimension! " ++ show (sizeLI a) ++ " expected:"  ++ show n
+
 
 
 

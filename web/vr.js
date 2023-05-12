@@ -672,7 +672,7 @@ function onSqueezeEvent(event) {
 	}
 
 	const drawCodeView = function(){
-            return;
+            // return;
 
 	    
 	    initCodeViewDraw();
@@ -900,24 +900,24 @@ function onSqueezeEvent(event) {
 			if(p){
                             if(hnd == "r" && i == 4)
 			    {
-				//  let targetRayPose = frame.getPose(source.targetRaySpace, refSpace);
+				 let targetRayPose = frame.getPose(source.targetRaySpace, refSpace);
 			          
-				// codeMat.set(targetRayPose.transform.matrix);
-				// codeMatInv.set(targetRayPose.transform.inverse.matrix);
+				codeMat.set(targetRayPose.transform.matrix);
+				codeMatInv.set(targetRayPose.transform.inverse.matrix);
 			    }
 
-			    // if(hnd == "r" && i == 5)
-			    // {
+			    if(hnd == "r" && i == 5)
+			    {
 
-			    // let targetRayPose = frame.getPose(source.targetRaySpace, refSpace);
-			    // 	   let addr = (addressClickTest(targetRayPose.transform.matrix));
+			    let targetRayPose = frame.getPose(source.targetRaySpace, refSpace);
+				   let addr = (addressClickTest(targetRayPose.transform.matrix));
 
-			    // 	    selectedAddress = addr;
+				    selectedAddress = addr;
 
-			    // 	    if(cells[addr] && cells[addr].codePt){
-			    // 		codeCoursor.set(cells[addr].codePt);
-			    // 	    }
-			    // }
+				    if(cells[addr] && cells[addr].codePt){
+					codeCoursor.set(cells[addr].codePt);
+				    }
+			    }
 
 
 			}

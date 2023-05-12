@@ -62,7 +62,7 @@ instance (Show b) => Show (CylCub b) where
   show x = showMbFLI (cylCub x)
 
 data OCub b =
-    CAppl (ClCub b) [(ClCub b)]
+    CAppl b (ClCub b) [(ClCub b)]
   | Cub Int b (Maybe CellExpr)
   | Hcomp b (Maybe Name) (CylCub b) (ClCub b)
   deriving (Show ,  Functor, Eq)
@@ -83,7 +83,7 @@ isHole _ = False
 isHoleFreeO :: OCub b -> Bool
 isHoleFreeO (Cub _ _ (Nothing)) = False
 isHoleFreeO (Cub _ _ (Just _)) = True
-isHoleFreeO (CAppl x xs) =  
+isHoleFreeO (CAppl _ x xs) =  
   all (all (isHoleFreeO) . clCub) (x : xs) 
 isHoleFreeO (Hcomp _ _ c b) = 
   isHoleFreeO (clInterior b) && all (maybe True isHoleFreeO) (cylCub c) 
@@ -92,7 +92,7 @@ isHoleFreeBd :: BdCub b -> Bool
 isHoleFreeBd = all isHoleFreeO . bdCub
 
 
-data AddressPart = AOnCylinder SubFace | AOnBottom SubFace
+data AddressPart = AOnCylinder SubFace | AOnBottom SubFace | AArg Int SubFace
   deriving (Show , Eq , Ord,Read)
 data Address = Address SubFace [AddressPart]
   deriving (Show , Eq, Ord,Read)
@@ -182,7 +182,7 @@ instance OfDim (BdCub b) where
 
 instance OfDim (OCub b) where
   getDim (Cub n _ _) = n
-  getDim (CAppl f _) = getDim f
+  getDim (CAppl _ f _) = getDim f
   getDim (Hcomp _ _ _ a) = getDim a
 
 instance OfDim Address where
@@ -391,19 +391,19 @@ isFaceOfClass cub caP ca =
 --                          _ -> error "imposible"
 
 
-commonSuperFace :: ClCub a -> CAddress -> CAddress -> Maybe (CAddress , (Face , Face))
-commonSuperFace cub ca1 ca2 =
-  let a1 = Set.toList $ cAddress ca1
-      a2 = Set.toList $ cAddress ca2
-      f n addr = return (do
-         (fc1 , _ ) <- uncons $ catMaybes $ fmap (\x -> mbSubFaceAddr addr x >>= toFace ) a1
-         (fc2 , _ ) <- uncons $ catMaybes $ fmap (\x -> mbSubFaceAddr addr x >>= toFace ) a2
-         return (addressClass cub addr , (fc1 , fc2))) 
+-- commonSuperFace :: ClCub a -> CAddress -> CAddress -> Maybe (CAddress , (Face , Face))
+-- commonSuperFace cub ca1 ca2 =
+--   let a1 = Set.toList $ cAddress ca1
+--       a2 = Set.toList $ cAddress ca2
+--       f n addr = return (do
+--          (fc1 , _ ) <- uncons $ catMaybes $ fmap (\x -> mbSubFaceAddr addr x >>= toFace ) a1
+--          (fc2 , _ ) <- uncons $ catMaybes $ fmap (\x -> mbSubFaceAddr addr x >>= toFace ) a2
+--          return (addressClass cub addr , (fc1 , fc2))) 
          
-      fc n addr _ _ = f n addr
-      fn n addr  _ _ _ _ = f n addr
+--       fc n addr _ _ = f n addr
+--       fn n addr  _ _ _ _ = f n addr
 
-  in join $ find isJust $ runIdentity $ cubMapTrav fn fc cub
+--   in join $ find isJust $ runIdentity $ cubMapTrav fn fc cub
 
 
 mbSelectFaces :: ClCub a -> Address -> Address -> Address -> Maybe (CAddress , (Face , Face))
@@ -510,7 +510,8 @@ clCubPick addr =
     h
   . foldl g []
   . cubMap (\_ addr b mbn cyl btm -> (addr , Hcomp b mbn cyl btm) )
-           (\n addr b mbce -> (addr , Cub n b mbce ))  
+           (\n addr b mbce -> (addr , Cub n b mbce ))
+           undefined
 
   where
     g l (addr' , ocub) =
@@ -707,7 +708,7 @@ traceConstraintsSingleAll cl caddrs =
 
 traceConstraintsSingle :: forall a. ClCub a -> CAddress -> ClCub (Maybe SubFace , a)
 traceConstraintsSingle cl caddrs =
-      cubMap' nf cf  cl
+      cubMap' nf cf undefined cl
 
   where
 
@@ -733,7 +734,7 @@ traceConstraintsSingle cl caddrs =
 
 traceConstraints :: forall a. ClCub a -> Set.Set CAddress -> ClCub (Maybe Int , a)
 traceConstraints cl caddrs =
-      cubMap' nf cf cl
+      cubMap' nf cf undefined cl
 
   where
 
@@ -812,13 +813,26 @@ cubMapShallow f (Hcomp b mbNm cyl btm) =
 cubMapTrav ::  forall a b bb. (Monad a) =>
              (Int -> Address -> b -> Maybe Name -> CylCub b -> ClCub b -> a bb)
           -> (Int -> Address -> b -> Maybe CellExpr -> a bb)
+          -> (Address -> b -> ClCub b -> [ClCub b] -> a bb)
                  -> ClCub b
                  -> a (ClCub bb)
-cubMapTrav g f (ClCub xx) = ClCub <$>
+cubMapTrav g f u (ClCub xx) = ClCub <$>
    traverseMapLI (\sf -> cm (Address sf [])) xx
 
   where
      cm :: (Monad a) => Address -> OCub b -> a (OCub bb)
+
+     cm addr@(Address sf0 tla) (CAppl b x xs) =
+       
+          do let n = (getDim x)
+                 hh (i,y) = ClCub
+                      <$> traverseMapLI (\sf -> (cm (Address sf0 (AArg i sf : tla)))) (clCub y)
+             b2 <- u addr b x xs
+             h0 <- hh (0 , x)
+             hT <- mapM hh (zip [1..] xs)
+             return $ CAppl b2 h0 hT
+
+     
      cm addr@(Address _ tla) (Cub n b mbc) =
           do b2 <- f n addr b mbc
              return $ Cub n b2 mbc
@@ -834,13 +848,25 @@ cubMapTrav g f (ClCub xx) = ClCub <$>
 cubMapTrav' ::  forall a b bb. (Monad a) =>
              (Int -> Address -> b -> Maybe Name -> CylCub bb -> ClCub bb -> a bb)
           -> (Int -> Address -> b -> Maybe CellExpr -> a bb)
+          -> (Address -> b -> ClCub bb -> [ClCub bb] -> a (bb))
                  -> ClCub b
                  -> a (ClCub bb)
-cubMapTrav' g f (ClCub xx) = ClCub <$>
+cubMapTrav' g f u (ClCub xx) = ClCub <$>
    traverseMapLI (\sf -> cm (Address sf [])) xx
 
   where
      cm :: (Monad a) => Address -> OCub b -> a (OCub bb)
+     cm addr@(Address sf0 tla) (CAppl b x xs) =
+
+       do let n = (getDim x)
+              hh (i,y) = ClCub
+                   <$> traverseMapLI (\sf -> (cm (Address sf0 (AArg i sf : tla)))) (clCub y)
+          
+          h0 <- hh (0 , x)
+          hT <- mapM hh (zip [1..] xs)
+          b2 <- u addr b h0 hT
+          return $ CAppl b2 h0 hT
+
      cm addr@(Address _ tla) (Cub n b mbc) =
           do b2 <- f n addr b mbc
              return $ Cub n b2 mbc
@@ -858,16 +884,33 @@ cubMapTrav' g f (ClCub xx) = ClCub <$>
 cubMapTravWithB ::  forall a b bb. (Monad a) =>
              (Int -> Address -> BdCub b -> b -> Maybe Name -> CylCub b -> ClCub b -> a bb)
           -> (Int -> Address -> BdCub b -> b -> Maybe CellExpr -> a bb)
+          -> (Address -> BdCub b -> b -> ClCub b -> [ClCub b] -> a bb)
                  -> ClCub b
                  -> a (ClCub bb)
-cubMapTravWithB g f xxx@(ClCub xx) = ClCub <$>
+cubMapTravWithB g f u xxx@(ClCub xx) = ClCub <$>
    traverseMapLI (\sf _ -> uncurryCl (cm (Address sf [])) (clCubPickSF sf xxx)) xx
 
   where
      cm :: (Monad a) => Address -> BdCub b -> OCub b -> a (OCub bb)
+
+     cm addr@(Address sf0 tla) bd (CAppl b x xs) =
+       
+          do let n = (getDim x)
+                 hh (i,y) =
+                     ClCub
+                      <$> traverseMapLI (\sf _ ->
+                                                  uncurryCl (cm (Address sf0 (AArg i sf : tla)))
+                                                  (clCubPickSF sf y)  ) (clCub y)
+             b2 <- u addr bd b x xs
+             h0 <- hh (0 , x)
+             hT <- mapM hh (zip [1..] xs)
+             return $ CAppl b2 h0 hT
+     
      cm addr@(Address _ tla) bd (Cub n b mbc) =
           do b2 <- f n addr bd b mbc
              return $ Cub n b2 mbc
+
+
 
      cm addr@(Address sf0 tla) bd ocub@(Hcomp b mbNm cyl btm) =
           do b2 <- g (getDim ocub) addr bd b mbNm cyl btm
@@ -891,9 +934,11 @@ cubMapTravWithB g f xxx@(ClCub xx) = ClCub <$>
 cubMapWithB ::
              (Int -> Address -> BdCub b -> b -> Maybe Name -> CylCub b -> ClCub b -> bb)
           -> (Int -> Address -> BdCub b -> b -> Maybe CellExpr -> bb)
+          -> (Address -> BdCub b -> b -> ClCub b -> [ClCub b] -> bb)
                  -> ClCub b
                  -> ClCub bb
-cubMapWithB f g = runIdentity . cubMapTravWithB (dot7 Identity f) (dot5 Identity  g)
+cubMapWithB f g u = runIdentity . cubMapTravWithB (dot7 Identity f) (dot5 Identity  g)
+     (dot5 Identity u)
 -- -- instead of ClCub Boundary shoudl be used here...
 -- cubMapTravWithBd ::  forall a b. (Monad a) =>
 --              (Int -> Address -> ClCub b -> b -> a b)
@@ -918,15 +963,19 @@ cubMapWithB f g = runIdentity . cubMapTravWithB (dot7 Identity f) (dot5 Identity
 
 cubMap :: (Int -> Address -> b -> Maybe Name -> CylCub b -> ClCub b -> bb)
           -> (Int -> Address -> b -> Maybe CellExpr -> bb)
+          -> (Address -> b -> bb)
                  -> ClCub b
                  -> ClCub bb
-cubMap f g = runIdentity . cubMapTrav (dot6 Identity f) (dot4 Identity  g)
+cubMap f g u = runIdentity . cubMapTrav (dot6 Identity f) (dot4 Identity  g)
+  (\a x _ _ -> Identity (u a x))
 
 cubMap' :: (Int -> Address -> b -> Maybe Name -> CylCub bb -> ClCub bb -> bb)
           -> (Int -> Address -> b -> Maybe CellExpr -> bb)
+         -> (Address -> b -> bb)
                  -> ClCub b
                  -> ClCub bb
-cubMap' f g = runIdentity . cubMapTrav' (dot6 Identity f) (dot4 Identity  g)
+cubMap' f g u = runIdentity . cubMapTrav' (dot6 Identity f) (dot4 Identity  g)
+  (\a x _ _ -> Identity (u a x))
 
 -- cubFill :: Monoid b => (Int -> Address -> FromLI SubFace b -> SubFace -> b)
 --                  -> ClCub b
@@ -940,7 +989,7 @@ cubMap' f g = runIdentity . cubMapTrav' (dot6 Identity f) (dot4 Identity  g)
 cubMapWAddr :: (Address -> b -> bb)
                  -> ClCub b
                  -> ClCub bb
-cubMapWAddr f = cubMap (\_ addr b _ _ _ -> f addr b) (\_ addr b _ -> f addr b)
+cubMapWAddr f = cubMap (\_ addr b _ _ _ -> f addr b) (\_ addr b _ -> f addr b) f
 
 clClearAllCells :: ClCub [b] -> ClCub [b]
 clClearAllCells = cubMapWAddr (\_ _ -> [])
@@ -975,9 +1024,10 @@ cubMapMayReplace f (ClCub xx) = ClCub <$>
 
 
 -- -- variant of cubMap constant on node data
-cubMapOld = cubMap (const $ const $ \b -> const $ const $ const b)
+cubMapOld = cubMap (const $ const $ \b -> const $ const $ const b) undefined
 
 cubMapOldBoth f = cubMap (\n addr b _ _ _ -> f n addr b) (\n addr b _ -> f n addr b)
+   undefined 
 
 
 
@@ -985,7 +1035,7 @@ cubMapOldBoth f = cubMap (\n addr b _ _ _ -> f n addr b) (\n addr b _ -> f n add
 travOldBoth :: forall a b b2 . (Monad a) =>
                  (Int -> Address -> b -> a b2)
                  -> ClCub b -> a (ClCub b2)
-travOldBoth f = cubMapTrav' (\n addr b _ _ _ -> f n addr b) (\n addr b _ -> f n addr b)
+travOldBoth f = cubMapTrav' (\n addr b _ _ _ -> f n addr b) (\n addr b _ -> f n addr b) undefined
 
 
 -- cubMapFill :: forall a b . (Monad a) => (Int -> Address -> (CylCub b , ClCub b) -> a (CylCub b)  )
@@ -1011,6 +1061,7 @@ travOldBoth f = cubMapTrav' (\n addr b _ _ _ -> f n addr b) (\n addr b _ -> f n 
 instance Foldable OCub where
   foldMap f (Cub _ b _) = f b
   foldMap f (Hcomp b _ cyl btm) =  f b <> foldMap f cyl <> foldMap f btm
+  foldMap f (CAppl b x xs) =  f b <> foldMap f x <> (mconcat $ fmap (foldMap f ) xs)
 
 instance Foldable ClCub where
   foldMap f (ClCub w) = foldMap (foldMap f) w
@@ -1024,7 +1075,7 @@ instance Foldable CylCub where
 
 -- untested !!!!
 isHoleFree :: ClCub a -> Bool
-isHoleFree x = execState (cubMapTrav (\_ _ _ _ _ _  -> return ()) (\_ _ _ z -> modify (&& (isJust z) )) x) True
+isHoleFree x = execState (cubMapTrav (\_ _ _ _ _ _  -> return ()) (\_ _ _ z -> modify (&& (isJust z) )) undefined  x)  True
 
 -- foldSubFaces :: (b -> a -> (Map.Map SubFace a) -> a) -> Cub b a -> a
 -- foldSubFaces f (Cub _ a) = a
@@ -1994,7 +2045,7 @@ type Address2PointMap = Map.Map Address (Set.Set Address)
 
 mkAddress2PointMap :: forall a1 . ClCub a1 -> Address2PointMap
 mkAddress2PointMap  cub =  
-    execWriter (cubMapTravWithB f g wb)
+    execWriter (cubMapTravWithB f g undefined wb)
 
   where
     wb :: ClCub (Address)

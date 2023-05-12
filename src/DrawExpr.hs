@@ -57,6 +57,9 @@ import Safe (readMay)
 
 defaultCompPar = 0.3
 
+defaultCongPar = 0.1
+
+
 type CellPainter b =
        Int -> Address
          -> Maybe CellExpr -> Drawing b
@@ -83,6 +86,9 @@ cellTransformPA :: AddressPart -> Drawing b ->  Drawing b
 cellTransformPA (AOnCylinder sf) = sideTransformSF STSubFace sf
 cellTransformPA (AOnBottom sf) =
    sMap (map $ centerTransInv defaultCompPar) . embedSF sf
+cellTransformPA (AArg 1 sf) = 
+   sMap (map $ centerTransInv defaultCongPar) . embedSF sf
+cellTransformPA (AArg _ sf) = \x -> x 
 
 cellTransform :: Address -> Drawing b -> Drawing b
 cellTransform (Address sf addr) =
@@ -107,7 +113,7 @@ fillCub fillStyle bleedStyle x = foldFL (fmap fillCubAt  [1..(getDim x)]) x
 
   where
     fillCubAt :: Extrudable b => Int -> ClCub (Drawing b) -> ClCub (Drawing b)
-    fillCubAt k = cubMapWithB funAtComp funAtCell
+    fillCubAt k = cubMapWithB funAtComp funAtCell (\_ _ _ _ _ -> [])
       where
 
 
@@ -205,6 +211,7 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
   nodeStyleProcess _ _ _ _ = id
 
   cellPainter :: d -> a -> CellPainter b
+  cellPainter d dctx n (Address _ (AArg 0 _ : _)) x = []
   cellPainter d dctx n adr x =
      let zz =
            case x of
@@ -227,7 +234,9 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
   drawAllCells d envCtx cub =
       let  dctx = fromCtx d envCtx
       in  cubMap (\i addr _ -> nodePainterCommon d dctx i addr)
-                  (\i addr _ -> cellPainter d dctx i addr) cub
+                  (\i addr _ -> cellPainter d dctx i addr)
+                  (\addr _ -> [])
+           cub
 
   mkDrawCub :: d  -> (Env , Context) -> ClCub () -> Drawing b
   mkDrawCub d envCtx clcub =
@@ -236,6 +245,7 @@ class (Colorlike b , DiaDeg c , Extrudable b) => DrawingCtx a b c d | d -> a b c
         finalProcess d
       $ collectAndOrient
       $ cubMap (\n addr b _ _ _ -> nodeStyleProcess d dctx n addr b) (\_ _ x _ -> x)
+          (\_ _ -> [])
       $ fillCub (fillStyleProcess d) (holeBleedStyleProcess d)
       $ drawAllCells d envCtx clcub
 
@@ -393,14 +403,26 @@ data DefaultPTA = DefaultPTA { dptCursorAddressA ::  Maybe Address
 
 
 instance DrawingCtx GCContext ColorType (Either GCData ConcreteCellData) DefaultPTA where
-  fromCtx _ = initGCContextA 
-  drawTermFromContext _ gcc _ (VarIndex vi) =
+  fromCtx _ = initGCContextA
+
+  drawTermFromContext _ gcc _ (VarIndex vi) = 
     let g@(GCData s _) =
             fromMaybe (error $ "lookupFail! " ++ show gcc ++ " " ++ show vi)
              (Map.lookup vi gcc)
-    in case renderNamedCell s of
+    in  Left g
+
+  drawTermFromContext _ gcc _ (SomeDef nm) = 
+      case renderNamedCell nm of
          Just x -> Right (ConcreteCellData x)
-         Nothing -> Left g
+         Nothing -> error ("definition not recognised:" ++ nm)
+
+
+
+  
+  -- drawTermFromContext _ gcc _ (VarIndex vi) = 
+  --   let g@(GCData s _) =
+  --           fromMaybe (error $ "lookupFail! " ++ show gcc ++ " " ++ show vi)
+  --            (Map.lookup vi gcc)
 
   drawD _ _ = either (renderGCD) ccdDrawing
 

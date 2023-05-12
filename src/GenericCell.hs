@@ -105,7 +105,10 @@ renderGCD' :: (Float , Float , Float) -> GCData -> ZDrawing ColorType
    
 renderGCD' (par1 , par2 , parTranslate) (GCData nm fli@(FromLI n f)) =
    FromLI n (\pc@(sbst , prm) -> 
-        let (vertN , uniqN ) = appLI pc fli
+        let (vertN , uniqN ) =
+                case appLISafer pc fli of
+                  Left err -> traceShow (nm ++ " " ++ err) (0,0)
+                  Right x -> x
                 -- traceShow (nm ++ " ")
                 -- (0,0)
                  -- traceShow (defName ++ " | " ++ (show (getCTyDim ee ctx0 ct)))

@@ -142,8 +142,10 @@ printCubO' (ee , c) cpd addr (Cub _ _ a) =
       isSelectedNode = Just addr == cpdCursorAddress cpd
       ifSel = id
 
-      clStr (CellExpr (VarIndex k) tl) =
-         let sym = fromRight (error "!!") $ getVarSymbol c k
+      clStr (CellExpr hd tl) =
+         let sym = case hd of
+                     (VarIndex k) -> fromRight (error "!!") $ getVarSymbol c k
+                     (SomeDef nm) -> nm
              tailStr = concat $ intersperse (ifSel " ") $
                        zipWith (\i eI ->
                                   let ss' = toString (ee , c) $ (remapIExpr (fromDimI c )) $ eI

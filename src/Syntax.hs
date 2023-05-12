@@ -411,7 +411,7 @@ primPOr ei ei1 ei2 pa1 pa2 =
                                ++ "\n\n" ++ show ei2
                                ++ "\n\n" ++ (show $ Syntax.max ei1 ei2) 
 
-data VarIndex = VarIndex Int
+data VarIndex = VarIndex Int | SomeDef String
   deriving (Eq , Show, Ord)
 
 data DimIndex = DimIndex Int

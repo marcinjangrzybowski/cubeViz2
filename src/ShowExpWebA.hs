@@ -206,16 +206,21 @@ main =
                        , asParentAppState = Nothing
                        , asMainRenderables = []
                        }
+            -- putStrLn ((printCub' ee
+            --                         (CubPrintData Nothing Nothing)
+            --                         cub))           
             updateGL ap >>=
-                   (\l -> do return $ Right
+                   (\l ->
+            -- (
+                      do return $ Right
                                (
-                                 -- (printCub' ee
-                                 --    (CubPrintData Nothing Nothing)
-                                 --    cub)
-                                 ""
+                                 (printCub' ee
+                                    (CubPrintData Nothing Nothing)
+                                    cub)
+                                 -- ""
                                , WebFrontendDescriptor
-                                 -- []
                                  l
+                                 -- l
                                  --(filter (\x -> dPrimitiveMode x == Triangles) l)
                                  (getDim $ asCub ap)
                                  "[*exprplaceholder*]"

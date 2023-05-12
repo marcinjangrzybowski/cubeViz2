@@ -70,13 +70,17 @@ toOCubA :: Int -> Int -> A.OExpr -> OCub ()
 toOCubA k n = \case
     A.HComp mbs pa cle ->
       Hcomp () mbs (toCylCubA k n pa)  (toClCubA' k cle)
-    A.Cell (A.CellExpr (A.VarIndex v) args) ->
-       Cub
-        n ()
-        (Just (CellExpr (VarIndex (v + (k - n))) (map fromAIExpr args)))
+    A.Cell (A.CellExpr (hd) args) ->
+      let hd' = case hd of
+                   A.VarIndex v -> (VarIndex (v + (k - n)))
+                   A.SomeDef s -> SomeDef s
+      
+      in Cub n () (Just (CellExpr hd' (map fromAIExpr args)))
     A.ConstE _ -> Cub n () Nothing
     A.CHole _ -> Cub n () Nothing
-    A.Appl _ _ -> undefined --Cub 0 () Nothing  
+    A.Appl x xs ->
+          CAppl () (toClCubA' k x) (map (toClCubA' k) xs)  
+          -- undefined --Cub 0 () Nothing  
   
    -- ClCub (fromMapFLI n (Map.mapKeys (SubFace n) (fmap . mp)))  
 
@@ -86,7 +90,11 @@ toOCubA k n = \case
 
 toClCubA' :: Int -> A.ClExpr -> ClCub ()
 toClCubA' k (A.ClExpr n mp) =
-   let f sf e = toOCubA k (n - subFaceCodim sf) e
+   let f sf e =
+          -- if subFaceCodim sf == 0
+          -- then
+            toOCubA k (n - subFaceCodim sf) e
+          -- else Cub (n - subFaceCodim sf) () Nothing
    in ClCub (fromMapFLIUnsafe n ((Map.mapWithKey f (Map.mapKeys (SubFace n) mp))))  
 
 
