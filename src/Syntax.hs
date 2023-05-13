@@ -1015,6 +1015,13 @@ getVarType (Context l _) (VarIndex i) =
         id
         (snd <$> (indexS ((length l - 1) - i) l))
 
+getVarTypeRev :: Context -> VarIndex -> CType
+getVarTypeRev (Context l _) (VarIndex i) =
+  maybe (error "fatal : varIndex not consistent with context!!")
+        id
+        (snd <$> (indexS (i) l))
+
+
 varCorners :: Env -> Context -> VarIndex -> FromLI Subset VarIndex
 varCorners ee ctx0 vi =
         let ct = getVarType ctx0 vi

@@ -10,10 +10,12 @@ function logToDiv(text) {
 
   div.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
   div.style.border = '1px solid black';
-  div.style.padding = '8px';
-  div.style.margin = '4px';
+  div.style.padding = '20px';
+  div.style.margin = '16px';
   div.style.fontFamily = 'monospace';
-  div.style.fontSize = '12px';
+    div.style.fontSize = '48px';
+    div.style.cursor = 'pointer';
+    
 
   // Append the div to the body
     document.getElementById("logDiv").appendChild(div);
@@ -75,12 +77,22 @@ function logToDiv(text) {
 		}
 	}
 
-    function main(cvd,session,refSpace) {
+function main(cvd,session,refSpace) {
+
+
+       document.getElementById("logDiv").style.display = "none";
         // Get A WebGL context
         /** @type {HTMLCanvasElement} */
         var canvas = document.querySelector("#canvas");
         var sliceSlider = document.querySelector("#slice");
-        var gl = canvas.getContext("webgl2",{ xrCompatible: true });
+	var glConf 
+	if(session){
+            glConf = { xrCompatible: true };
+	}else{
+            glConf = { };
+	}
+
+	  var gl = canvas.getContext("webgl2",glConf);
         if (!gl) {
             return;
         }
@@ -301,7 +313,7 @@ function logToDiv(text) {
 	};
 
 	gl.useProgram(program);
-        const initiated = cvd.webGlDescriptors.map(function (d) {
+        const initiated = cvd.webGlDescriptors.slice(0,3).map(function (d) {
 	    
             var buf = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -315,7 +327,8 @@ function logToDiv(text) {
 
 
 
-			d.dAddrMap.forEach(function (cell, cellK) {
+	    d.dAddrMap.forEach(function (cell, cellK) {
+		// console.log(cell);
 				const cellAddr = cell[0];
 				const fstV = cell[1][0][0];
 			    const countV = cell[1][0][1];
@@ -338,21 +351,23 @@ function logToDiv(text) {
 
         });
 
-	const addressClickTest = function (cMat){
-	    return
-	    // let testedPt = m4.transformPoint(cMat,new Float32Array([0,0,0,1.0]));
-	    
-	    // let nearestAddr = Object.keys(cells).filter(
-	    //     function(addr){ return (cells[addr] && cells[addr].codePt);
-	    // 	}).map(function(addr){
-	    // 	let cntr = cells[addr].center;
-	    // 	if(cntr.length == 4){
-            //         let pC = m4.transformPoint(modelMat,cells[addr].center);
-	    // 	    return {caddr:addr , dst : m4.distance(pC,testedPt)};
-	    // 	}
+	// console.log(cells);
 
-	    // }).sort(function(a,b){ return (a.dst-b.dst); })[0].caddr;
-	    // return nearestAddr;
+	const addressClickTest = function (cMat){
+	    
+	    let testedPt = m4.transformPoint(cMat,new Float32Array([0,0,0,1.0]));
+	    
+	    let nearestAddr = Object.keys(cells).filter(
+	        function(addr){ return (cells[addr]); // && cells[addr].codePt
+		}).map(function(addr){
+		let cntr = cells[addr].center;
+		if(cntr.length == 4){
+                    let pC = m4.transformPoint(modelMat,cells[addr].center);
+		    return {caddr:addr , dst : m4.distance(pC,testedPt)};
+		}
+
+	    }).sort(function(a,b){ return (a.dst-b.dst); })[0].caddr;
+	    return nearestAddr;
 
 	};
 
@@ -364,6 +379,7 @@ function logToDiv(text) {
         let vpAlpha = 0;
         let vpBeta = 0;
         let vpGamma = 0;
+	const modelPos = new Float32Array([0.0,0.0,0.0]);
         let vpScale = 1.0;
         let cfft = new Float32Array([0]);
         let codeCoursor = new Float32Array([
@@ -371,7 +387,7 @@ function logToDiv(text) {
 	]);
 
 	
-        let modelMat = new Float32Array([
+        const modelMat = new Float32Array([
             1.0 , 0.0 , 0.0 , 0.0 ,
 	    0.0 , 1.0 , 0.0 , 0.0 ,
 	    0.0 , 0.0 , 1.0 , 0.0 ,
@@ -379,30 +395,43 @@ function logToDiv(text) {
 	]);
 
 
-        const phiRot = function(phi){
-	    let tm = m4.translation(-0.5,-0.5,-0.5);
-	    m4.multiply(m4.yRotation(phi) , tm , tm);
-	    m4.multiply(m4.translation(0.5,0.5,0.5) , tm , tm);
-            m4.multiply(modelMat, tm , modelMat);
+	const cmm = function(){
+                  
+	    m4.translate(m4.identity(),modelPos[0],modelPos[1],modelPos[2],modelMat);            
+	    m4.yRotate(modelMat,vpGamma,modelMat);
+	    m4.scale(modelMat  , vpScale , vpScale , vpScale, modelMat);
+	    m4.translate(modelMat ,-0.5 ,-0.5,-0.5,modelMat );
+	    // console.log(modelMat);
+	    // m4.zRotate(modelMat,vpAlpha);
+	    	    // m4.translation(modelPos[0],modelPos[1],modelPos[2],modelMat);        
 	};
 
-        const thetaRot = function(theta){
-	    let tm = m4.translation(-0.5,-0.5,-0.5);
-	    m4.multiply(m4.xRotation(theta) , tm , tm);
-	    m4.multiply(m4.translation(0.5,0.5,0.5) , tm , tm);
-            m4.multiply(modelMat, tm , modelMat);
-	};
+
+	cmm();
+        // const phiRot = function(phi){
+	//     let tm = m4.translation(-0.5,-0.5,-0.5);
+	//     m4.multiply(m4.yRotation(phi) , tm , tm);
+	//     m4.multiply(m4.translation(0.5,0.5,0.5) , tm , tm);
+        //     m4.multiply(modelMat, tm , modelMat);
+	// };
+
+        // const thetaRot = function(theta){
+	//     let tm = m4.translation(-0.5,-0.5,-0.5);
+	//     m4.multiply(m4.xRotation(theta) , tm , tm);
+	//     m4.multiply(m4.translation(0.5,0.5,0.5) , tm , tm);
+        //     m4.multiply(modelMat, tm , modelMat);
+	// };
 
 	
-        const scaleModelMat = function(inputMat,s){
-	    let tm = m4.translation(-0.5,-0.5,-0.5);
-	    m4.multiply(m4.scaling(s,s,s) , tm , tm);
-	    m4.multiply(m4.translation(0.5,0.5,0.5) , tm , tm);
-            m4.multiply(inputMat, tm , modelMat);
-	};
+        // const scaleModelMat = function(inputMat,s){
+	//     let tm = m4.translation(-0.5,-0.5,-0.5);
+	//     m4.multiply(m4.scaling(s,s,s) , tm , tm);
+	//     m4.multiply(m4.translation(0.5,0.5,0.5) , tm , tm);
+        //     m4.multiply(inputMat, tm , modelMat);
+	// };
 
 	
-        window.pr = phiRot;
+        // window.pr = phiRot;
 	
 	let codeMat = new Float32Array([
             1.0 , 0.0 , 0.0 , 0.0 ,
@@ -419,7 +448,7 @@ function logToDiv(text) {
 	]);
 	
         let VisF = 1;
-	let selectedAddress = "";
+	let hoveredAddress = "";
 
         let sliceVal = 0.5;
         if (cvd.exprDim == 2) {
@@ -442,6 +471,7 @@ function logToDiv(text) {
 	        domtoimage.toPng(termElem,{height:2048,width:1024})
 		.then(function (dataUrl) {
 		    // console.log(termPre);
+		
 	        termElem.style.display = "none";
 		var img = new Image();
 
@@ -476,13 +506,16 @@ function logToDiv(text) {
 	};
 
 	termPre.innerHTML = cvd.exprString;
-	termPreMap.innerHTML = cvd.exprString;
-	termPreMap.style.display = "block"
-	renderCode();
 	
+
+	if(session){
+	    termPreMap.innerHTML = cvd.exprString;
+       	termPreMap.style.display = "block"
+	   renderCode();
+	}
         // };
 
-	window.rc = renderCode();
+	// window.rc = renderCode();
 
 
         document.querySelectorAll("#termMap .addrWrapper").forEach(function(x){
@@ -510,7 +543,19 @@ function logToDiv(text) {
 
           if(addr in cells){
             x.classList.add("hasCells");
-             // console.log("isIn",addr);
+              // console.log("isIn",addr);
+	      x.addEventListener("mouseenter",function(e){
+
+
+                  hoveredAddress = addr;
+
+              });
+	      x.addEventListener("mouseleave",function(e){
+
+
+                  hoveredAddress = "";
+
+              });
              x.addEventListener("click",function(e){
 
                if (e.shiftKey){
@@ -520,7 +565,7 @@ function logToDiv(text) {
                   setOnlyThisVisible(addr);
                }
 
-           })
+             });
           }else{
                      // console.log("notIn",addr);
           }
@@ -543,6 +588,7 @@ function logToDiv(text) {
         });
 
         function handleScroll(event) {
+	    // event.preventDefault();
             // Get the scroll delta
             const delta = Math.sign(event.deltaY);
 
@@ -557,20 +603,23 @@ function logToDiv(text) {
 
             // Limit the zoom level to a reasonable range
             vpScale = Math.max(0.5, Math.min(vpScale, 10));
-
+            cmm();
         }
 
 	let dragStartPos = null;
-	let dragStartMatrix = null;
+	let dragStartModelPos = null;
+	let dragStartModelScale = null;
+	
+        
 	
 	let draggingSource = null;
 	let draggingSource2 = null;
 	let dragStartDist = null;
 
 	
-session.addEventListener("squeezestart", onSqueezeEvent);
-session.addEventListener("squeeze", onSqueezeEvent);
-session.addEventListener("squeezeend", onSqueezeEvent);
+session && session.addEventListener("squeezestart", onSqueezeEvent);
+session && session.addEventListener("squeeze", onSqueezeEvent);
+session && session.addEventListener("squeezeend", onSqueezeEvent);
 
 
 
@@ -599,10 +648,10 @@ function onSqueezeEvent(event) {
       if(draggingSource == null){
 	dragStartPos = posArr;
 	draggingSource = source;
-	dragStartMatrix = new Float32Array(modelMat);
+        dragStartModelPos = new Float32Array(modelPos);	
       }else{
 	  draggingSource2 = source;
-	  dragStartMatrix = new Float32Array(modelMat);
+	  dragStartModelScale = vpScale;
 	  let targetRayPose1 = event.frame.getPose(draggingSource.targetRaySpace, refSpace);
 	  let pos1 =  targetRayPose1.transform.position;
 	  let posArr1 = new Float32Array([pos1.x , pos1.y, pos1.z]);
@@ -614,9 +663,10 @@ function onSqueezeEvent(event) {
     //   myDropObject(targetObj, targetRayPose.matrix);
     //   break;
     case "squeezeend":
-            
-	dragStartMatrix = null;
-	dragStartPos = null;
+
+        dragStartModelPos = null;
+      dragStartPos = null;
+      dragStartModelScale = null;
 	draggingSource = null;
         draggingSource2 = null;
         dragStartDist = null;
@@ -651,7 +701,9 @@ function onSqueezeEvent(event) {
                 vpAlpha =
                     Math.min(Math.max(vpAlpha + (((e.movementY) / 1024) * -0.3), 0), 0.5);
 
-                vpGamma += (e.movementX / 1024) * 0.3;
+                vpGamma += (e.movementX / 1024) * 3;
+		
+		cmm();
             }
 
         });
@@ -685,9 +737,9 @@ function onSqueezeEvent(event) {
 	    gl.uniform1fv(uLocCodeView["uTime"], cfft);
 
 
-	   if(cells[selectedAddress] && cells[selectedAddress].cellColorCode){
+	   if(cells[hoveredAddress] && cells[hoveredAddress].cellColorCode){
 	       // codeCoursor.set(cells[addr].codePt);
-	       gl.uniform3fv(uLocCodeView["selectedCC"], cells[selectedAddress].cellColorCode);
+	       gl.uniform3fv(uLocCodeView["selectedCC"], cells[hoveredAddress].cellColorCode);
 	   }else{
 	       
 	   }
@@ -707,6 +759,8 @@ function onSqueezeEvent(event) {
 	// lineWRange[1]
         const drawPrimitives = function (i) {
             if (i.d.dElemNum < 1) return;
+
+	    
             gl.bindBuffer(gl.ARRAY_BUFFER, i.buf);
             i.f(program, gl, gl.canvas.clientWidth, gl.canvas.clientHeight, uLoc, aLoc);
 
@@ -719,7 +773,7 @@ function onSqueezeEvent(event) {
             gl.uniformMatrix4fv(uLoc["poseMat"], false,  poseMat);
             gl.uniformMatrix4fv(uLoc["projMat"], false,  projMat);
 	    gl.uniformMatrix4fv(uLoc["modelMat"], false,  modelMat);
-            // if(fN%30==0)
+            
             // {console.log(poseMat.join("|"))};
             gl.uniform1fv(uLoc["VisF"], [VisF]);
 
@@ -735,6 +789,11 @@ function onSqueezeEvent(event) {
 
 
             i.d.dAddrMap.forEach(function (cell, cellK) {
+				
+                    if(window.maxI && window.maxI < cellK)
+		    {
+			return;
+		    }
                 const cellAddr = cell[0];
                 const fstV = cell[1][0][0];
                 const countV = cell[1][0][1];
@@ -742,7 +801,7 @@ function onSqueezeEvent(event) {
 
 		gl.uniform1fv(uLoc["uHover"],
 			      new Float32Array([
-				  ((cellAddr==selectedAddress)?1.0:0.0)
+				  ((cellAddr==hoveredAddress)?1.0:0.0)
 			      ]));
 
                 if(cells[cellAddr].visible) {
@@ -770,7 +829,7 @@ function onSqueezeEvent(event) {
 
 	let lastRotationTick = -1;
 	var doAfterDraw = null;
-        const draw = function (currentFrameTime,frame) {
+        const drawVR = function (currentFrameTime,frame) {
 	    if(firstFrameTime==-1)
 	    {firstFrameTime = currentFrameTime}
 	    cfft[0] = currentFrameTime;
@@ -791,7 +850,7 @@ function onSqueezeEvent(event) {
 			    let targetRayPose = frame.getPose(source.targetRaySpace, refSpace);
 				   let addr = (addressClickTest(targetRayPose.transform.matrix));
 
-				    selectedAddress = addr;
+				    hoveredAddress = addr;
 
 				    // if(cells[addr] && cells[addr].codePt){
 				    // 	codeCoursor.set(cells[addr].codePt);
@@ -809,8 +868,8 @@ function onSqueezeEvent(event) {
 
 
 			if(Math.abs(tip[2])<0.1){
-			codeCoursor[0] = Math.min(Math.max(tip[0]*2.0,1.0),0);
-			codeCoursor[1] = Math.min(Math.max(1.0-tip[1],1.0),0);
+			codeCoursor[0] = Math.max(Math.min(tip[0]*2.0,1.0),0);
+			codeCoursor[1] = Math.max(Math.min(1.0-tip[1],1.0),0);
 			
 			}			//if(fN%20==0){
 			//     console.log(new Float32Array([targetPos.x,targetPos.y,targetPos.z]));
@@ -834,7 +893,7 @@ function onSqueezeEvent(event) {
 			if (gp.axes[3] !== 0 || gp.axes[2] !== 0) {
 			    lastRotationTick = currentFrameTime 
                             if(Math.abs(gp.axes[3])>Math.abs(gp.axes[2])){
-				phiRot(Math.sign(gp.axes[3])*Math.PI/2.0);
+				// phiRot(Math.sign(gp.axes[3])*Math.PI/2.0);
 			    }else{
                                 // thetaRot(Math.sign(gp.axes[2])*Math.PI/2.0);
 			    }
@@ -876,7 +935,7 @@ function onSqueezeEvent(event) {
 
 				//     // setOnlyThisVisible(addr);
 				//     // toggleVisibility(addr);
-				//     selectedAddress = addr;
+				//     hoveredAddress = addr;
 				//     // doAfterDraw = renderCode;
 				//     if(cells[addr] && cells[addr].codePt){
 				// 	codeCoursor.set(cells[addr].codePt);
@@ -912,7 +971,7 @@ function onSqueezeEvent(event) {
 			    let targetRayPose = frame.getPose(source.targetRaySpace, refSpace);
 				   let addr = (addressClickTest(targetRayPose.transform.matrix));
 
-				    selectedAddress = addr;
+				    hoveredAddress = addr;
 
 				    if(cells[addr] && cells[addr].codePt){
 					codeCoursor.set(cells[addr].codePt);
@@ -957,10 +1016,11 @@ function onSqueezeEvent(event) {
 			if(draggingSource2 == null){
 
 	                let dV = m4.subtractVectors(posArr,dragStartPos);
-			    m4.translate(
-				dragStartMatrix ,
-				dV[0],dV[1],dV[2],
-				modelMat);
+			    m4.addVectors(
+				dragStartModelPos ,
+				dV,
+				modelPos);
+			    cmm();
 			}else{
 	  
 		let targetRayPose2 = frame.getPose(draggingSource2.targetRaySpace, refSpace);
@@ -968,8 +1028,8 @@ function onSqueezeEvent(event) {
 		let posArr2 = new Float32Array([pos2.x , pos2.y, pos2.z]);
 			    let currDist = m4.distance(posArr2, posArr);
 			    let ratioDist = currDist/dragStartDist;
-                            scaleModelMat(dragStartMatrix,ratioDist);
-			    console.log(ratioDist);
+                            vpScale = dragStartModelScale * ratioDist;
+			    cmm();
 			}
 		    }
 
@@ -1036,6 +1096,59 @@ function onSqueezeEvent(event) {
 
 
         }
+
+	const drawDesktop = function (currentFrameTime,frame) {
+	    if(firstFrameTime==-1)
+	    {firstFrameTime = currentFrameTime}
+	    cfft[0] = currentFrameTime;
+
+            
+            	    
+	    // if(fN%30==0){
+	    // 	console.log(fN);
+	    // }
+	                      
+              // gl.clearColor(0, 0, 0, 0.0);
+              // gl.clearDepth(1.0);
+              // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+              // Compute the time elapsed since the last frame was rendered.
+              // Use this value to ensure your animation runs at the exact
+              // rate you intend.
+
+              const deltaTime = currentFrameTime - lastFrameTime;
+              lastFrameTime = currentFrameTime;
+
+            // vpGamma += deltaTime * 0.0001;
+	    cmm();
+	    
+              // Now call the scene rendering code once for each of
+              // the session's views.
+
+
+                // const viewport = glLayer.getViewport(view);
+
+
+                // console.log(viewport.x, viewport.y, viewport.width, viewport.height);
+            poseMat = m4.translation(0.0 , 0.0, -3.0);
+
+	    
+
+            projMat =  m4.perspective(
+		   Math.PI/6.0, gl.canvas.clientWidth/gl.canvas.clientHeight, 0.01, 20);	    
+		  gl.useProgram(program);
+		  // gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+
+		  
+	    initiated.forEach(drawPrimitives);
+                  
+		 
+              
+            
+
+
+        }
+	
         gl.clearColor(0, 0, 0, 0)
         // gl.clear(gl.COLOR_BUFFER_BIT)
         //gl.cullFace(gl.BACK);
@@ -1046,19 +1159,31 @@ function onSqueezeEvent(event) {
             fN++;
             // console.log(frame);
 
+            let draw = session ? drawVR : drawDesktop; 
+	    
             draw(timestamp,frame);
 	    if(doAfterDraw){
 		doAfterDraw();
 		doAfterDraw = null;
 	    }
+	    if(!window.stopStep){
+	    if(session){
             session.requestAnimationFrame(step);
-
+            }else{
+		window.requestAnimationFrame(step);
+	    }
+	    }
         }
-        session.updateRenderState({
+	
+        session && session.updateRenderState({
             baseLayer: new XRWebGLLayer(session, gl),
           });
         console.log("firstFrameReq");
-        session.requestAnimationFrame(step);
+         if(session){
+            session.requestAnimationFrame(step);
+            }else{
+		window.requestAnimationFrame(step);
+	    }
 
     }
 
@@ -1078,7 +1203,7 @@ function onSqueezeEvent(event) {
       // const sesionTy = "immersive-vr"
 	const startSession = function(){
 
-;
+
 
 	    
         if (navigator.xr) {
@@ -1086,6 +1211,8 @@ function onSqueezeEvent(event) {
             // target of the 'Enter XR' button.
 
             function startSesionOfType(sesionTy){
+		
+		
 	     navigator.xr.requestSession(sesionTy).then((session) => {
 
 		    window.addEventListener("error" ,function (a, b, c, d, e){
@@ -1103,7 +1230,7 @@ function onSqueezeEvent(event) {
 		 
                   document.body.removeEventListener("click",startSession);
                   session.requestReferenceSpace("local").then((refSpace) => {
-                    console.log(refSpace);
+                    // console.log(refSpace);
                     // if (session.domOverlayState) {
                     //   logToDiv("session.domOverlayState.type");
                     // } else {
@@ -1139,10 +1266,23 @@ function onSqueezeEvent(event) {
 		});
 	    
           });
-        }
+        }else{
+            
+	}
+          
 
+	};
+	
 
-	    ;}
+	(function(){
+			 var b = logToDiv("desktop session");
+			 
+                         b.addEventListener("click",function(){
+			     main(cvdR.Right,null,null);
+			     document.body.classList.add("onDesktop");
+			 });	    
+	})();
+
 	startSession();
       // document.body.addEventListener("click",startSession);
 

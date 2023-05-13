@@ -24,50 +24,64 @@
             max-width: none;
         }
 
-        pre {
-            position: absolute;
+        /* div { */
+        /*     position: absolute; */
+        /*     top: 0; */
+        /*     left: 0; */
+        /* } */
+
+        div.term {
+	    display:none;
+            user-select: none;
+	    white-space: pre-wrap;
+            font-family: monospace;
+	    position: absolute;
             top: 0;
             left: 0;
+            width: 1024px;
+	    height: 2048px;	    
+            padding: 5px;
+            margin: 0;
+            /* overflow: scroll; */
+	    z-index:0;
+	    font-size:32px;
+	    background-color:white;
         }
 
-        pre#term {
-            display: none;
-            user-select: none;
-        }
-
-        pre#term span.hasCells {
+        div.term span.hasCells {
            font-weight: bold;
            cursor: pointer;
 
         }
 
-        pre#term:hover {
+        div#term:hover {
            color : #999;
 
         }
 
-        pre#term:hover span {
+        div#term:hover span {
            color : #999;
 
         }
 
-        pre#term:hover span:hover {
+        div#term:hover span:hover {
            color : #000;
 
         }
 
 
-        .showCode pre#term {
-            display: block;
-            position: absolute;
-            top: 0;
-            left: 50vw;
-            width: 50vw;
-            padding: 5px;
-            margin: 0;
-            overflow: scroll;
+        .showCode div#term {
+            display : block;
         }
 
+        .onDesktop.showCode div.term {
+            height: 100vh;
+	    font-size:12px;
+	    left: 50vw;
+            width: 50vw;
+        }
+
+	
         #slice {
             height: 600px;
             position: absolute;
@@ -82,716 +96,37 @@
 			max-height: 30vh;
 			overflow: scroll;
 		}
+
+		#logDiv {
+		    position : fixed;
+		    z-index:999999;
+		    top:0;
+		    left:0;
+		}
+			
     </style>
 </head>
-<body class="showCode">
+<body>
 
-
+<div id="logDiv"></div>
 <script src="webgl-utils.js"></script>
 <script src="lessons-helper.js"></script>
 <script src="webgl-lessons-ui.js"></script>
 <script src="m3.js"></script>
 <script src="m4.js"></script>
 <script src="cvd.js"></script>
+<script src="dom-to-image.min.js" /></script>
 <canvas id="canvas" width="1024" height="1024"></canvas>
 <input type="range" id="slice"
        min="0" max="100" value="50">
-<pre id="term"></pre>
+<div id="term" class="term"></div>
+<div id="termMap" class="term"></div>
 
 <div id="cellCntrl"></div>
-
-<script>
-
-    var vs = `#version 300 es
-
-in vec4 vPosition;
-in vec3 Normal;
-in vec4 Color;
-in float Mode;
-in float VisFlagF;
-in float ObjGroup;
-
-out vec4 vCol;
-
-out vec3 vNor;
-
-out vec3 worldPos;
-out vec3 screenPos;
-
-out float vMode;
-
-uniform vec4 euler;
-uniform vec2 screen;
-uniform float scaleG;
-
-uniform vec2 screenDelta;
-
-uniform float VisF;
-
-
-mat4 anglesToAxes(in vec3 angles)
-{
-    const float DEG2RAD = acos(-1.0) / 180.0;  // PI/180
-    float sx, sy, sz, cx, cy, cz, theta;
-
-
-    vec3 left, up, forward ;
-
-    // rotation angle about X-axis (pitch)
-    theta = angles.x * DEG2RAD;
-    sx = sin(theta);
-    cx = cos(theta);
-
-    // rotation angle about Y-axis (yaw)
-    theta = angles.y * DEG2RAD;
-    sy = sin(theta);
-    cy = cos(theta);
-
-    // rotation angle about Z-axis (roll)
-    theta = angles.z * DEG2RAD;
-    sz = sin(theta);
-    cz = cos(theta);
-
-    // determine left axis
-    left.x = cy*cz;
-    left.y = sx*sy*cz + cx*sz;
-    left.z = -cx*sy*cz + sx*sz;
-
-    // determine up axis
-    up.x = -cy*sz;
-    up.y = -sx*sy*sz + cx*cz;
-    up.z = cx*sy*sz + sx*cz;
-
-    // determine forward axis
-    forward.x = sy;
-    forward.y = -sx*cy;
-    forward.z = cx*cy;
-
-    return mat4(
-           vec4(left,0.0),
-	   vec4(up,0.0),
-	   vec4(forward,0.0),
-	   vec4(0.0,0.0,0.0,1.0)
-        );
-}
-
-
-
-void
-main()
-{
-
-   vCol = Color;
-
-   float scale = scaleG * euler.w;
-
-   vNor = Normal;
-   vMode = Mode;
-
-   float n , r , t , f ;
-
-   mat4 frustum;
-
-   r = 1.0;
-   t = 1.0;
-
-   n = 0.1;
-
-   f = 3.0;
-
-
-   frustum =
-     mat4( n/r , 0.0 , 0.0 , 0.0
-         , 0.0 , n/t , 0.0 , 0.0
-	 , 0.0 , 0.0 , (-1.0 * (f + n)) /( f - n) , (-2.0 * f * n) /( f - n)
-	 , 0.0 , 0.0 , -1.0 , 0.0);
-
-   float aspect = screen.x/screen.y; // * 0.75;
-
-   float sx,sy;
-
-   if(aspect > 1.0){
-      sx = scale/aspect;
-      sy = scale;
-   } else {
-      sx = scale;
-      sy = scale * aspect;
-   }
-
-   highp int VisFlag = int(VisFlagF);
-   highp int Vis = int(VisF);
-
-   int VisRes = Vis & VisFlag;
-
-   if(VisRes!=0){
-      gl_Position =
-		     ((
-		      (
-			vec4(sx , sy , 0.1 , 1.0)  *
-		       ( anglesToAxes(euler.xyz) *
-		      (vec4(2.0 , 2.0 , 2.0 , 1.0) *
-              ((vec4(vPosition.x , vPosition.y , vPosition.z , 1.0)
-			 - vec4(0.5 , 0.5 , 0.5 , 0.0)))))))
-			  + vec4(screenDelta.x,screenDelta.y,0.0,0.0)) ;
-   }
-   else
-   {
-      gl_Position = vec4(0.0,0.0,0.0,0.0);
-   }
-
-
-   worldPos = vPosition.xyz;
-   screenPos = (gl_Position.xyz)/gl_Position.w;
-
-
-   gl_PointSize = 5.0+ObjGroup;
-}
-`;
-
-    var fs = `#version 300 es
-precision highp float;
-in vec4 vCol;
-
-in vec3 vNor;
-
-in float vMode;
-
-out vec4 fColor;
-
-in vec3 worldPos;
-in vec3 screenPos;
-
-uniform float time;
-uniform float shade;
-uniform float slice;
-
-float checker(vec3 uvw, float repeats)
-{
-  float cx = floor(repeats * uvw.x);
-  float cy = floor(repeats * uvw.y);
-  float cz = floor(repeats * uvw.z);
-  float result = mod(cx + cz + cy, 2.0);
-  return sign(result);
-}
-
-float dotter(vec3 uvw, float repeats)
-{
-  float cx = mod(floor(repeats * uvw.x) , 2.0);
-  float cy = mod(floor(repeats * uvw.y) , 2.0);
-  float cz = mod(floor(repeats * uvw.z) , 2.0);
-  float result = cx * cz * cy;
-  return sign(result);
-}
-
-float stripper(vec3 uvw, float repeats, float fill , float delta)
-{
-  float phase = mod(repeats * (uvw.x + uvw.y + uvw.z + delta) , 1.0);
-
-  if(phase > fill){
-	return 0.0;
-  }else{
-	return 1.0;
-	}
-
-
-}
-
-
-void
-main()
-{
-
-   vec3 lightDir = normalize(vec3(3.0 , 2.0 , 4.0));
-   vec3 normal = normalize(vNor);
-
-   float boost = 0.5 ;
-   float ambient = 0.3;
-
-   float allLightFactor = 1.0;
-
-   vec3 preRGB;
-   vec3 finalRGB;
-
-   preRGB = vCol.rgb;
-
-   if(vMode == 0.0){
-
-   }else if(vMode == 1.0){
-      if (stripper(worldPos , 30.0 , 0.5  , float(time*0.1) ) < 0.5)
-      {
-       preRGB  = vec3(0.0,0.0,0.0);
-      }else{
-       preRGB  = vec3(1.0,1.0,1.0);
-      }
-   }else if(vMode == 2.0){
-      if (checker(worldPos , 10.0) < 0.5)
-      {
-       discard;
-      }
-   }else if(vMode == 3.0){ // selected primitive
-      if (stripper(worldPos , 10.0 , 0.5  , float(time*0.1) ) < 0.5)
-      {
-       allLightFactor = 1.7;
-      }
-   }else if(vMode == 4.0){ // hollowBox
-      if (stripper(worldPos , 50.0 , 0.5  , float(time*0.0) ) < 0.5)
-      {
-       discard;
-       // allLightFactor = 1.7;
-      }
-   }else if(vMode == 5.0){ // stripped
-      if (stripper(worldPos , 10.0 , 0.2  , float(time*0.1) ) < 0.5)
-      {
-       discard;
-      }
-   }else if(vMode == 6.0){ // cursor moving
-      if (stripper(worldPos , 30.0 , 0.5  , float(time*0.1) ) < 0.5)
-      {
-       preRGB  = preRGB * 0.7;
-      }else{
-       preRGB  = preRGB * 1.3;
-      }
-   }else if(vMode == 7.0){ // cursor stationary
-      if (stripper(worldPos , 30.0 , 0.5  , float(time*0.0) ) < 0.5)
-      {
-       preRGB  = vec3(0.0,0.0,0.0);
-      }else{
-       preRGB  = vec3(1.0,1.0,1.0);
-      }
-   }
-
-   if (shade > 0.5){
-	finalRGB = preRGB * allLightFactor * (ambient + boost * abs(dot(lightDir,normal)));
-   } else {
-	finalRGB = preRGB * allLightFactor * (ambient + boost * 0.5);
-   }
-   //
-   // if(abs (worldPos.y - slice) > 0.02) {
-   //   discard;
-   // }
-
-   // if(worldPos.x > slice) {
-   //   discard;
-   // }
-
-
-   // if (dotter(worldPos , 1000.0 ) < 0.5)
-   // {
-   //   discard;
-   // }
-   //fColor = vec4(0.5,0.5,0.5,1.0);
-   fColor = vec4(
-      //vCol.rgb
-      finalRGB
-     , vCol.a);
-}`;
-
-	function renderCheckboxesForObject(obj, parentNode) {
-		// Function to set all other checkboxes to false except for the target one
-		function setOnlyThisVisible(targetKey) {
-			for (const key in obj) {
-				if (obj.hasOwnProperty(key) && obj[key].hasOwnProperty("visible")) {
-					obj[key].visible = key === targetKey;
-				}
-			}
-		}
-
-		// Create a button to set all fields to true
-		const allVisibleButton = document.createElement("button");
-		allVisibleButton.textContent = "Set All Fields to True";
-		allVisibleButton.addEventListener("click", function () {
-			for (const key in obj) {
-				if (obj.hasOwnProperty(key) && obj[key].hasOwnProperty("visible")) {
-					obj[key].visible = true;
-				}
-			}
-		});
-
-		// Add the allVisibleButton to the parentNode
-		parentNode.appendChild(allVisibleButton);
-		parentNode.appendChild(document.createElement("br"));
-
-		// Iterate through each property in the object
-		for (const key in obj) {
-			if (obj.hasOwnProperty(key) && obj[key].hasOwnProperty("visible")) {
-				const label = document.createElement("label");
-				label.textContent = key;
-
-				const checkbox = document.createElement("input");
-				checkbox.type = "checkbox";
-				checkbox.name = key;
-				checkbox.checked = obj[key].visible;
-
-				checkbox.addEventListener("change", function () {
-					obj[key].visible = this.checked;
-				});
-
-				// Create a small button to set only this field's value to true
-				const setOnlyThisVisibleButton = document.createElement("button");
-				setOnlyThisVisibleButton.textContent = "Set Only This Field to True";
-				setOnlyThisVisibleButton.addEventListener("click", function () {
-					setOnlyThisVisible(key);
-				});
-
-				parentNode.appendChild(checkbox);
-				parentNode.appendChild(label);
-				parentNode.appendChild(setOnlyThisVisibleButton);
-				parentNode.appendChild(document.createElement("br"));
-			}
-		}
-	}
-
-    function main(cvd) {
-        // Get A WebGL context
-        /** @type {HTMLCanvasElement} */
-        var canvas = document.querySelector("#canvas");
-        var sliceSlider = document.querySelector("#slice");
-        var gl = canvas.getContext("webgl2");
-        if (!gl) {
-            return;
-        }
-        var termPre = document.querySelector("#term");
-
-
-        // setup GLSL program
-        var program = webglUtils.createProgramFromSources(gl, [vs, fs]);
-        gl.useProgram(program);
-        uLoc = {};
-        aLoc = {};
-
-
-        getLoc = function (n) {
-            aLoc[n] = gl.getAttribLocation(program, n);
-        }
-        attrs = ["vPosition", "Normal", "Color", "Mode", "VisFlagF"];
-        attrs.map(getLoc);
-
-
-        getULoc = function (n) {
-            uLoc[n] = gl.getUniformLocation(program, n);
-        }
-
-        unis = ["euler", "screen", "shade", "scaleG", "screenDelta", "VisF", "slice"];
-        unis.map(getULoc);
-
-		const cells = {};
-
-    function setOnlyThisVisible(targetKey) {
-			for (const key in cells) {
-				if (cells.hasOwnProperty(key) && cells[key].hasOwnProperty("visible")) {
-					cells[key].visible = key === targetKey;
-				}
-			}
-		}
-
-
-
-        const initiated = cvd.webGlDescriptors.map(function (d) {
-            var buf = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-            var buffData = new Float32Array(d.dvertexData);
-            gl.bufferData(gl.ARRAY_BUFFER,
-                buffData,
-                gl.STATIC_DRAW);
-            var f = new Function("program", "webgl", "w", "h", "uLoc", "aLoc", d.dInitCommands
-                + d.dDrawCommands
-            );
-
-
-
-			d.dAddrMap.forEach(function (cell, cellK) {
-				const cellAddr = cell[0];
-				const fstV = cell[1][0];
-				const countV = cell[1][1];
-
-				cells[cellAddr] = {visible : true};
-
-			});
-
-
-
-            return {buf: buf, f: f, d: d, buffData: buffData};
-
-
-        });
-
-		// renderCheckboxesForObject(cells,document.getElementById("cellCntrl"));
-
-
-        let vpAlpha = 1 / 5;
-        let vpBeta = 0;
-        let vpGamma = -0.1;
-        let vpScale = 0.5;
-
-
-        let VisF = 1;
-
-        let sliceVal = 0.5;
-        if (cvd.exprDim == 2) {
-
-            vpAlpha = 0;
-            vpBeta = 0;
-            vpGamma = 0;
-            vpScale = 0.8;
-
-        }
-
-        termPre.innerHTML = cvd.exprString;
-
-        document.querySelectorAll(".addrWrapper").forEach(function(x){
-          const addr = x.id.slice(10);
-
-          if(addr in cells){
-            x.classList.add("hasCells");
-             // console.log("isIn",addr);
-             x.addEventListener("click",function(e){
-
-               if (e.shiftKey){
-                 e.preventDefault();
-                  cells[addr].visible = !(cells[addr].visible);
-               }else {
-                  setOnlyThisVisible(addr);
-               }
-
-           })
-          }else{
-                     // console.log("notIn",addr);
-          }
-        });
-
-        toggleVisGroup = function (k) {
-            VisF = (VisF ^ 1 << (4 + k));
-//	console.log(VisF);
-        };
-
-        [1, 2, 3, 4, 5, 6, 7, 8].forEach(toggleVisGroup);
-
-        // [3,4].forEach(toggleVisGroup);
-        // vpAlpha = 0;
-        // toggleVisGroup(7);
-
-        sliceSlider.addEventListener("input", function (e) {
-            sliceVal = parseFloat(e.target.value) / 100;
-        });
-
-        function handleScroll(event) {
-            // Get the scroll delta
-            const delta = Math.sign(event.deltaY);
-
-            // Update the vpScale (zoom) according to the scroll direction
-            if (delta < 0) {
-                // Zoom in
-                vpScale *= 1.1;
-            } else {
-                // Zoom out
-                vpScale *= 0.9;
-            }
-
-            // Limit the zoom level to a reasonable range
-            vpScale = Math.max(0.5, Math.min(vpScale, 10));
-
-        }
-
-// Add the event listener for the 'wheel' event on the canvas DOM element
-        canvas.addEventListener('wheel', handleScroll, {passive: true});
-
-        document.body.addEventListener("keydown", function (e) {
-            if (e.code.slice(0, 5) == "Digit") {
-                let k = parseInt(e.code.slice(5, 6));
-                if (e.shiftKey) {
-
-
-                    VisF = 1;
-
-                }
-                toggleVisGroup(k);
-            }
-            console.log(e.code);
-            if (e.code == "KeyC") {
-                document.body.classList.toggle("showCode");
-            }
-        });
-
-
-        canvas.addEventListener("mousemove", function (e) {
-            if (e.buttons == 1) {
-                vpAlpha =
-                    Math.min(Math.max(vpAlpha + (((e.movementY) / 1024) * -0.3), 0), 0.5);
-
-                vpGamma += (e.movementX / 1024) * 0.3;
-            }
-
-        });
-
-        gl.enable(gl.DEPTH_TEST);
-        const drawPrimitives = function (i) {
-            if (i.d.dElemNum < 1) return;
-            gl.bindBuffer(gl.ARRAY_BUFFER, i.buf);
-            i.f(program, gl, gl.canvas.clientWidth, gl.canvas.clientHeight, uLoc, aLoc);
-
-            let vMat = [(vpAlpha * 360)
-                , (vpBeta * 360)
-                , (vpGamma * 360)
-                , (vpScale)];
-
-            gl.uniform4fv(uLoc["euler"], vMat);
-            gl.uniform1fv(uLoc["VisF"], [VisF]);
-            //console.log(i.d.dElemNum, i.buffData.length);
-            //    gl.drawArrays(gl[i.d.dPrimitiveMode.toUpperCase()], i.d.StartIndex,
-            // i.d.dElemNum
-            //    )
-
-
-            i.d.dAddrMap.forEach(function (cell, cellK) {
-                const cellAddr = cell[0];
-                const fstV = cell[1][0];
-                const countV = cell[1][1];
-
-                if(cells[cellAddr].visible) {
-					gl.drawArrays(gl[i.d.dPrimitiveMode.toUpperCase()]
-							, fstV
-							, countV
-					)
-				}
-
-
-            });
-
-            gl.uniform1fv(uLoc["slice"], [sliceVal]);
-        }
-
-        const draw = function () {
-            initiated.forEach(drawPrimitives);
-            gl.clearColor(0, 0, 0, 1);
-        }
-        gl.clearColor(0, 0, 0, 1)
-        // gl.clear(gl.COLOR_BUFFER_BIT)
-        //gl.cullFace(gl.BACK);
-        //draw();
-
-
-        function step(timestamp) {
-
-            draw();
-            window.requestAnimationFrame(step);
-
-        }
-
-        step();
-
-        //  drawPrimitives(initiated[0]);
-
-//   // look up where the vertex data needs to go.
-//   var positionLocation = gl.getAttribLocation(program, "a_position");
-
-//   // lookup uniforms
-//   var matrixLocation = gl.getUniformLocation(program, "u_matrix");
-
-//   // Create set of attributes
-//   var vao = gl.createVertexArray();
-//   gl.bindVertexArray(vao);
-
-//   // Create a buffer.
-//   var buffer = gl.createBuffer();
-//   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-
-//   // Set Geometry.
-//   setGeometry(gl);
-
-//   // tell the position attribute how to pull data out of the current ARRAY_BUFFER
-//   gl.enableVertexAttribArray(positionLocation);
-//   var size = 2;
-//   var type = gl.FLOAT;
-//   var normalize = false;
-//   var stride = 0;
-//   var offset = 0;
-//   gl.vertexAttribPointer(positionLocation, size, type, normalize, stride, offset);
-
-//   var translation = [200, 150];
-//   var angleInRadians = 0;
-//   var scale = [1, 1];
-
-//   drawScene();
-
-//   // Setup a ui.
-//   webglLessonsUI.setupSlider("#x",      {value: translation[0], slide: updatePosition(0), max: gl.canvas.width });
-//   webglLessonsUI.setupSlider("#y",      {value: translation[1], slide: updatePosition(1), max: gl.canvas.height});
-//   webglLessonsUI.setupSlider("#angle",  {slide: updateAngle, max: 360});
-//   webglLessonsUI.setupSlider("#scaleX", {value: scale[0], slide: updateScale(0), min: -5, max: 5, step: 0.01, precision: 2});
-//   webglLessonsUI.setupSlider("#scaleY", {value: scale[1], slide: updateScale(1), min: -5, max: 5, step: 0.01, precision: 2});
-
-//   function updatePosition(index) {
-//     return function(event, ui) {
-//       translation[index] = ui.value;
-//       drawScene();
-//     };
-//   }
-
-//   function updateAngle(event, ui) {
-//     var angleInDegrees = 360 - ui.value;
-//     angleInRadians = angleInDegrees * Math.PI / 180;
-//     drawScene();
-//   }
-
-//   function updateScale(index) {
-//     return function(event, ui) {
-//       scale[index] = ui.value;
-//       drawScene();
-//     };
-//   }
-
-//   // Draw the scene.
-//   function drawScene() {
-//     webglUtils.resizeCanvasToDisplaySize(gl.canvas);
-
-//     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-
-//     // Clear the canvas
-//     gl.clearColor(0, 0, 0, 0);
-//     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-//     // Compute the matrix
-//     var matrix = m3.projection(gl.canvas.clientWidth, gl.canvas.clientHeight);
-//     matrix = m3.translate(matrix, translation[0], translation[1]);
-//     matrix = m3.rotate(matrix, angleInRadians);
-//     matrix = m3.scale(matrix, scale[0], scale[1]);
-
-//     // Tell it to use our program (pair of shaders)
-//     gl.useProgram(program);
-
-//     // Bind the attribute/buffer set we want.
-//     gl.bindVertexArray(vao);
-
-//     // Set the matrix.
-//     gl.uniformMatrix3fv(matrixLocation, false, matrix);
-
-//     // Draw the geometry.
-//     var offset = 0;
-//     var count = 3;
-//     gl.drawArrays(gl.TRIANGLES, offset, count);
-//   }
-    }
-
-    function createPreTag(content) {
-        // Create a new <pre> element
-        const preElement = document.createElement('pre');
-
-        // Set the content of the <pre> element
-        preElement.textContent = content;
-
-        // Append the <pre> element to the body
-        document.body.appendChild(preElement);
-    }
-
-
-    if (cvdR.Right) {
-        main(cvdR.Right);
-    } else {
-
-        createPreTag(cvdR.Left);
-    }
-
-</script>
+<script src="shaders.js"></script>
+<script src="cursorShaders.js"></script>
+<script src="codeViewShaders.js"></script>
+<script src="vr.js"></script>
 
 
 </body>

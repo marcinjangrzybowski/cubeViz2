@@ -135,6 +135,10 @@ wrapInAddrSpan addr s =
    ++ "\\\">"
    ++ s
    ++ "</span>"
+
+lastPart :: String -> String
+lastPart = reverse . takeWhile (\c -> '.' /= c) . reverse  
+
   
 printCubO' :: (Env , Context) -> CubPrintData -> Address -> OCub b -> String 
 printCubO' (ee , c) cpd addr (Cub _ _ a) = 
@@ -145,7 +149,7 @@ printCubO' (ee , c) cpd addr (Cub _ _ a) =
       clStr (CellExpr hd tl) =
          let sym = case hd of
                      (VarIndex k) -> fromRight (error "!!") $ getVarSymbol c k
-                     (SomeDef nm) -> nm
+                     (SomeDef nm) -> lastPart nm
              tailStr = concat $ intersperse (ifSel " ") $
                        zipWith (\i eI ->
                                   let ss' = toString (ee , c) $ (remapIExpr (fromDimI c )) $ eI

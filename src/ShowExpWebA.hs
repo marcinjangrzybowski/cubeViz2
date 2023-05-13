@@ -338,7 +338,7 @@ updateGL appState =
       case tryToRen of
            Left msg -> error msg
            Right (_ , rens) -> 
-             return (--fmap acp $
+             return (fmap acp $
                       (
                   onDisplayAll usualVFG (asViewport appState)
                       (initResources $ rens)))
@@ -384,13 +384,13 @@ drawExpr as Scaffold ee e =
                           , dptTagsA = dpShowTags $ asDisplayPreferences as
                           , dptShowLowDimA = 1 -- 1 for 2D examples, 2 for 3D examples
                           })
-              -- ,                
+              ,                
 
               
-              --   mkDrawCub (ScaffoldPT { sptDrawFillSkelet = True
-              --                              , sptCursorAddress = sptCA
-              --                              , sptMissingSubFaceCursor = sptMSFC
-              --                              , sptScaffDim = 1})
+                mkDrawCub (ScaffoldPT { sptDrawFillSkelet = True
+                                           , sptCursorAddress = sptCA
+                                           , sptMissingSubFaceCursor = sptMSFC
+                                           , sptScaffDim = 1})
               
 
               ] <*> (pure ee) <*> (pure e)

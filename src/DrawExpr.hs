@@ -588,7 +588,11 @@ data ScaffoldPT = ScaffoldPT
 instance DrawingCtx (Env , Context) ColorType Int ScaffoldPT where
   fromCtx _ = id
 
-  drawTermFromContext _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
+  drawTermFromContext _ (env , ctx) _ vI@(VarIndex _) = getCTyDim env ctx (getVarType ctx vI)
+  drawTermFromContext _ (env , ctx) _ vI@(SomeDef d) =
+      case renderNamedCell d of
+        Nothing -> error $ "not implemented: " ++ d
+        Just (FromLI n _) -> n
 
   drawD _ _ k = FromLI k (const [])
 
@@ -745,7 +749,11 @@ data ClickPoints = ClickPoints
 instance DrawingCtx (Env , Context) (ColorType2 Address) Int ClickPoints where
   fromCtx _ = id
 
-  drawTermFromContext _ (env , ctx) _ vI = getCTyDim env ctx (getVarType ctx vI)
+  drawTermFromContext _ (env , ctx) _ vI@(VarIndex _) = getCTyDim env ctx (getVarType ctx vI)
+  drawTermFromContext _ (env , ctx) _ vI@(SomeDef d) =
+      case renderNamedCell d of
+        Nothing -> error $ "not implemented: " ++ d
+        Just (FromLI n _) -> n
 
   drawD _ _ k = FromLI k (const [])
 
