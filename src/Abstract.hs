@@ -144,6 +144,7 @@ isHcompSideAddrToAdd _ _ = Nothing
 addresedDimPart :: AddressPart -> Int
 addresedDimPart (AOnCylinder sf) = subFaceDimEmb sf + 1
 addresedDimPart (AOnBottom sf) = subFaceDimEmb sf
+addresedDimPart (AArg _ sf) = subFaceDimEmb sf
 
 
 addresedDim :: Address -> Int
@@ -159,6 +160,10 @@ onCyl addr@(Address x y) sf
   | addresedDim addr == getDim sf = Address x (AOnCylinder sf : y)
   | isFullSF sf = error "fullSF cannot be put in Cyliner part of address"
   | otherwise = error "Address aprt do not match rest of address"
+
+argAddr :: Address -> Int -> Address
+argAddr addr@(Address x y) k = Address x (AArg k (fullSF (getDim x)) : y) 
+
 
 onBottom :: Address -> SubFace -> Address
 onBottom addr@(Address x y) sf

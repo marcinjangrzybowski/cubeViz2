@@ -1,4 +1,19 @@
 
+var getJSON = function(url, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.responseType = 'json';
+    xhr.onload = function() {
+      var status = xhr.status;
+      if (status === 200) {
+        callback(null, xhr.response);
+      } else {
+        callback(status, xhr.response);
+      }
+    };
+    xhr.send();
+};
+
 function logToDiv(text) {
   // Create a new div element
   const div = document.createElement('div');
@@ -335,8 +350,13 @@ function main(cvd,session,refSpace) {
 			    let kNum = cellK*10; 
                             let ccc = new Float32Array(
 				[(kNum) % 256,(kNum>>8) % 256,(kNum>>16) % 256]);
+		            cntrPoint = cell[1][1];
+		while(cntrPoint.length<3)
+		{
+		    cntrPoint.push(0.0);
+		}
 			    cells[cellAddr] = {visible : true ,
-					       center : new Float32Array(cell[1][1].concat([1.0])),
+					       center : new Float32Array(cntrPoint.concat([1.0])),
 					       cellK : cellK,
 					       cellColorCode : ccc,
 					       codePt : undefined
@@ -358,7 +378,8 @@ function main(cvd,session,refSpace) {
 	    let testedPt = m4.transformPoint(cMat,new Float32Array([0,0,0,1.0]));
 	    
 	    let nearestAddr = Object.keys(cells).filter(
-	        function(addr){ return (cells[addr]); // && cells[addr].codePt
+	        function(addr){ return (cells[addr]
+					  && cells[addr].domElem); // && cells[addr].codePt
 		}).map(function(addr){
 		let cntr = cells[addr].center;
 		if(cntr.length == 4){
@@ -456,7 +477,7 @@ function main(cvd,session,refSpace) {
             vpAlpha = 0;
             vpBeta = 0;
             vpGamma = 0;
-            vpScale = 0.8;
+            vpScale = 2.0;
 
         }
 
@@ -531,7 +552,8 @@ function main(cvd,session,refSpace) {
               let rect = x.getBoundingClientRect();
 	      let codePt = new Float32Array([((rect.left+rect.right)/2)/1024 , ((rect.top+rect.bottom)/2)/2048]); 
 	      cells[addr].codePt = codePt;
-	      
+
+	      cells[addr].domElem = x;
           }else{
                      // console.log("notIn",addr);
           }
@@ -676,7 +698,8 @@ function onSqueezeEvent(event) {
 }
 	
 // Add the event listener for the 'wheel' event on the canvas DOM element
-        canvas.addEventListener('wheel', handleScroll, {passive: true});
+    if(!window.embedMode)
+    {canvas.addEventListener('wheel', handleScroll, {passive: true});}
 
         document.body.addEventListener("keydown", function (e) {
             if (e.code.slice(0, 5) == "Digit") {
@@ -1151,7 +1174,7 @@ function onSqueezeEvent(event) {
 	
         gl.clearColor(0, 0, 0, 0)
         // gl.clear(gl.COLOR_BUFFER_BIT)
-        //gl.cullFace(gl.BACK);
+        gl.cullFace(gl.FRONT_AND_BACK);
         //draw();
 
 
@@ -1198,12 +1221,28 @@ function onSqueezeEvent(event) {
         document.body.appendChild(preElement);
     }
 
+let jsonFileName = window.location.hash.slice(1);
 
+if(jsonFileName){
+    jsonFileName = "../"+jsonFileName+".json";
+}else{
+    jsonFileName = "cvd.json";
+}
+
+
+
+getJSON(jsonFileName,function(e,cvdR){ 
     if (cvdR.Right) {
-      // const sesionTy = "immersive-vr"
+	// const sesionTy = "immersive-vr"
+	     if(window.embedMode){
+		 main(cvdR.Right,null,null);
+			     document.body.classList.add("onDesktop")
+            return;
+	    }
+	    
 	const startSession = function(){
 
-
+       
 
 	    
         if (navigator.xr) {
@@ -1291,3 +1330,5 @@ function onSqueezeEvent(event) {
 
         createPreTag(cvdR.Left);
     }
+
+});

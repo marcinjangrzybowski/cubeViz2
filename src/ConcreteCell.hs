@@ -127,6 +127,76 @@ primitivePieceLoop2 withCrossing stacking (distCorner , distCenter) (su , pm) =
   in
     pt
 
+
+primitivePieceLoopTwo :: Bool -> Bool -> Bool -> (Float , Float) -> Piece -> ([Smplx], [Smplx], [Smplx])
+primitivePieceLoopTwo coHlp withCrossing stacking (distCorner , distCenter) (su , pm) =
+  let crnr = toListLI su
+      n = length crnr
+      width = distCenter - distCorner
+      distCornerPrime = distCorner - 0.6 * width
+      distCenterPrime = distCenter - (0.6 * width + 0.03)
+      smallCubeCenter = map (bool 0.25 0.75) crnr
+      ptCrnr = map (bool (0.0 + distCornerPrime) (1.0 - distCornerPrime)) crnr
+      ptCenter = map (bool (0.0 + distCenterPrime) (1.0 - distCenterPrime)) crnr
+      smallTriangleMirrorTransformation =
+        sMap (\[x,y] ->
+                 let xx = x - 0.5
+                     yy = y - 0.5
+                     u = xx + yy
+                     v = xx - yy
+                     xxx = ((-1.0) * u + v)/2.0
+                     yyy = ((-1.0) * u + (-1.0) * v)/2.0
+                 in [xxx, yyy])
+      pt = if not withCrossing
+           then
+             let half = [[ptCrnr, ptCenter, [0.2, 0.0]],
+                         [ptCenter, [0.2, 0.0], [0.3, 0.0]]]
+             in (smallTriangleMirrorTransformation half, half, [])
+           else
+             let alpha = ((1.0/8) - (width / ((sqrt 2.0) * 2.0)))
+                 beta = 0.05
+                 gamma = 0.025 * 0.0
+                 c1 = [alpha + beta, 0.5 - alpha - beta]
+                 c2 = [0.25 - alpha + beta, 0.25 + alpha - beta]
+                 c3 = [alpha + beta, 0.25 + alpha - beta]
+                 c1Prime = [alpha + beta - gamma, 0.5 - alpha - beta]
+                 c2Prime = [0.25 - alpha + beta, 0.25 + alpha - beta]
+                 c3Prime = [alpha + beta - gamma, 0.25 + alpha - beta]
+                 c1PrimePrime = [alpha + beta, 0.5 - alpha - beta]
+                 c2PrimePrime = [0.25 - alpha + beta, 0.25 + alpha - beta - gamma]
+                 c3PrimePrime = [alpha + beta, 0.25 + alpha - beta - gamma]
+                 redHalfs =
+                   ([[c1, [0.0, 0.2], [0.0, 0.3]],
+                     [c3, c1, [0.0, 0.2]]],
+                    [[c1Prime, [0.0, 0.2], [0.0, 0.3]],
+                     [c3Prime, c1Prime, [0.0, 0.2]]])
+                 blueHalfs =
+                   ([[c2, ptCrnr, ptCenter],
+                     [c3, c2, ptCrnr]]
+                   ,
+                    [[c2PrimePrime, ptCrnr, ptCenter],
+                     [c3PrimePrime, c2PrimePrime, ptCrnr]]
+                   )
+                 (redHalf, redHalfM, blueHalf, blueHalfM) =
+                   if not stacking
+                   then (fst redHalfs, snd redHalfs
+                               , snd blueHalfs
+                               , fst blueHalfs
+                               )
+                   else (if (coHlp) then [] else (snd redHalfs) 
+                               , if (coHlp) then [] else (fst redHalfs)
+                               , if (not coHlp) then [] else (fst blueHalfs)
+                               , if (not coHlp) then [] else (snd blueHalfs)
+                               )
+                 crossing =
+                   [[c1, c3, c2]]
+             in (redHalf ++ smallTriangleMirrorTransformation blueHalfM,
+                 blueHalf ++ smallTriangleMirrorTransformation redHalfM,
+                 crossing ++ smallTriangleMirrorTransformation crossing)
+  in pt
+
+
+
 -- primitivePieceLoop2Bd :: Bool -> (Float , Float) -> Piece -> [Smplx]
 -- primitivePieceLoop2Bd mirror x y | (getDim y == 0) = []
 --                      | otherwise =
@@ -227,6 +297,61 @@ renderNamedCell "Cubical.HITs.S2.Base.S².surf" = Just $
 renderNamedCell "Cubical.HITs.S2.Base.S².base" = Just $
 
    FromLI 0 (\_ -> [])
+
+renderNamedCell "Cubical.HITs.S2.Base.S².base" = Just $
+
+   FromLI 0 (\_ -> [])
+
+renderNamedCell "Cubical.HITs.Delooping.Two.Base.Bℤ₂.base" = Just $
+  FromLI 0 (\_ ->
+                [])
+
+renderNamedCell "Cubical.HITs.Delooping.Two.Base.Bℤ₂.loop" = 
+  Just $
+   renderGCD'
+    (par1Loop2 , par2Loop2 , parTranslateLoop2)
+    (GCData "loop₁" $ FromLI 1 (\pc -> (unemerate pc , (unemerate pc + 1))))
+  where
+   par1Loop2 = 0.2
+   par2Loop2 = 0.3
+   parTranslateLoop2 = 0.1
+
+
+renderNamedCell "Cubical.HITs.Delooping.Two.Base.Bℤ₂.loop²" = Just $
+  let n = 2
+  in FromLI 2 (\pc@(sbst , prm) ->
+        let shouldTranspose = foldr xor False (toListLI sbst)
+            pcId = unemerate prm + 1
+            (stacking , reflSide) =
+              case (toListLI sbst) of
+                [False, False] -> (True , unemerate prm == 0)
+                [True, True] -> (True , False)
+                [True, False] -> (True , True)
+                [False, True] -> (True , False)
+            withCrossing = not ((unemerate prm == 0) `xor` (foldr xor False (toListLI sbst)))
+            rotQuarter = scaleNonUniformOrigin [if b then -1.0 else 1.0 | b <- toListLI sbst] [0.5, 0.5]
+                         . sMap (\[x,y] -> if shouldTranspose then [y,x] else [x,y])
+            pcPrime = (fromListLI [False, False], prm)
+            (mainSmplxs, mainSmplxs2, mainSmplxs3) =
+               if [False, True]  == (toListLI sbst)
+               then rotQuarter (primitivePieceLoop2 withCrossing stacking (par1Loop2 , par2Loop2) pcPrime)
+               else rotQuarter (primitivePieceLoopTwo
+                                  (head (toListLI sbst)) withCrossing stacking (par1Loop2 , par2Loop2) pcPrime)
+            -- (bdSmplxs, bdSmplxs2) = primitivePieceLoop2Bd undefined (par1Loop2 , par2Loop2) pc
+            -- mainStyle = if n == 0 then [ExtrudeLines] else []
+            -- TODO maybe vary color by permutation?
+            colorFst = nthColor 1 --nthColor (unemerate pcOrg) --
+            colorSnd = nthColor 2 --nthColor (unemerate pcOrg) -- nthColor 2
+            (colorOver, colorUnder) =
+              case toListLI sbst of
+                [False, False] -> (colorFst, colorFst)
+                [True, True] -> (colorSnd, colorSnd)
+                [True, False] -> (colorFst, colorSnd)
+                [False, True] -> (colorSnd, colorFst)
+        in if reflSide then [] else [(mainSmplx  , ((["ms"++(show n), "m"++(show n), "piece"++(show pcId), "gcd"] , Basic) , colorUnder)) | mainSmplx <- mainSmplxs] ++
+           [(mainSmplx2 , ((["ms"++(show n), "m"++(show n), "piece"++(show pcId), "gcd"] , Basic) , colorOver)) | mainSmplx2 <- mainSmplxs2] ++
+           [(mainSmplx3 , ((["ms"++(show n), "m"++(show n), "piece"++(show pcId), "gcd"] , Basic) , colorOver)) | mainSmplx3 <- mainSmplxs3])
+
 
 
 renderNamedCell _ = Nothing

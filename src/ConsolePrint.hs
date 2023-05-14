@@ -141,6 +141,14 @@ lastPart = reverse . takeWhile (\c -> '.' /= c) . reverse
 
   
 printCubO' :: (Env , Context) -> CubPrintData -> Address -> OCub b -> String 
+printCubO' (ee , c) cpd addr (CAppl _ x xs) =
+  let cc = map (\(i , x) ->
+                   let s = printCubO' (ee , c) cpd (argAddr addr i) (clInterior x)
+                   in "(" ++ s ++")"
+               )
+                
+                $ zip [0..] (x : xs)
+  in unwords cc
 printCubO' (ee , c) cpd addr (Cub _ _ a) = 
   let
       isSelectedNode = Just addr == cpdCursorAddress cpd

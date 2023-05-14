@@ -117,7 +117,7 @@ data UserMode =
     Idle
   | UMNavigation { umCoursorAddress :: Address , umModalNav :: Maybe ModalNav }
 
-data SessionStateA = SessionStateA (Env , Context) ClExpr
+data SessionStateA = SessionStateA (Env , Context) ClExpr (Maybe String)
  deriving (Show)
 
 data AppState = AppState
@@ -224,6 +224,7 @@ main =
                                  --(filter (\x -> dPrimitiveMode x == Triangles) l)
                                  (getDim $ asCub ap)
                                  "[*exprplaceholder*]"
+                                 (ssMbDefName initialSessionState)
                                ))
           Left errorMsg -> putStrLn errorMsg >> (return $ Left errorMsg)
              
@@ -233,6 +234,7 @@ data WebFrontendDescriptor = WebFrontendDescriptor
   { webGlDescriptors :: [WebGlDescriptor]
   , exprDim :: Int
   , exprString :: String
+  , mbDefName :: Maybe String
   }
   deriving (Generic,Show)
 
@@ -254,16 +256,18 @@ printDescriptors l' = do
       
   case l of
     Left err -> putStrLn err
-    Right wfd -> putStrLn $
-      unlines (intersperse "" (map webGlDescriptorStats (webGlDescriptors wfd)))
+    Right wfd -> do
+        putStrLn $ show (mbDefName wfd)
+        putStrLn $
+          unlines (intersperse "" (map webGlDescriptorStats (webGlDescriptors wfd)))
 
 
-  let dJson =
+  let (dJson , mbDN) =
          case l' of
-           Left _ -> dJson'
-           Right (e , _) ->
+           Left _ -> (dJson' , Nothing)
+           Right (e , wfd) ->
              let [s0,s1] = splitOn "[*exprplaceholder*]" dJson'
-             in s0 ++ (escapeNlns e) ++ s1
+             in (s0 ++ (escapeNlns e) ++ s1 , (mbDefName wfd))
           
   -- putStrLn dJson
   
@@ -273,7 +277,16 @@ printDescriptors l' = do
       "rm -rf /tmp/cubeViz2Web ; cp -fR web /tmp/cubeViz2Web")
          { cwd = Just "/Users/marcin/cubeViz2" }
   waitForProcess ph
-  writeFile "/tmp/cubeViz2Web/cvd.js" ("var cvdR = " ++ dJson ++ ";")
+  writeFile "/tmp/cubeViz2Web/cvd.json" (dJson)
+  case mbDN of
+    Nothing -> return ()
+    Just mbDN -> do
+         (_ , _ , _ , ph) <- createProcess
+           (shell
+             "rm -rf web; cp -fR /tmp/cubeViz2Web web")
+                { cwd = Just "/Users/marcin/cvGen" }
+         waitForProcess ph
+         writeFile ("/Users/marcin/cvGen/"++ mbDN ++".json") (dJson)
   -- _ <- createProcess
   --   (shell
   --     "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome  --headless --screenshot file:///tmp/cubeViz2Web/index.html") { cwd = Just "/Users/marcin/" }
@@ -297,7 +310,7 @@ addClickPoints (ee , ctx) cub wgd =
               ) (dAddrMap wgd) } 
 
 initailSS :: Visualisation -> SessionStateA
-initailSS (Visualisation ce@(ClExpr n _) vctx) =
+initailSS (Visualisation mbNm ce@(ClExpr n _) vctx) =
     let dims = map ((\x -> (Just x , Nothing)) . fst) (filter (\(_ , (t , _)) -> t == "I") vctx)
         c = map ((\(x , (tyS , crnrs )) -> (x ,
                       case (tyS , crnrs) of
@@ -307,7 +320,7 @@ initailSS (Visualisation ce@(ClExpr n _) vctx) =
                         (_ , Nothing) -> CoType tyS [x]
                         (_ , Just crnrsL) -> CoType tyS crnrsL
                         )))  vctx
-    in SessionStateA (Env [] [] , Context c dims) ce
+    in SessionStateA (Env [] [] , Context c dims) ce mbNm
   
 loadFile :: String -> IO (Either String SessionStateA)
 loadFile fName =
@@ -319,10 +332,13 @@ loadFile fName =
 usualVFG = 1
 
 ssEnvA :: SessionStateA -> ((Env, Context))
-ssEnvA (SessionStateA ee _) = (ee)
+ssEnvA (SessionStateA ee _ _) = (ee)
 
 ssClA :: SessionStateA -> ClExpr
-ssClA (SessionStateA _ cle) = cle
+ssClA (SessionStateA _ cle _) = cle
+
+ssMbDefName :: SessionStateA -> Maybe String
+ssMbDefName (SessionStateA _ _ x) = x
 
 
 updateGL :: AppState -> IO [WebGlDescriptor]
@@ -338,7 +354,7 @@ updateGL appState =
       case tryToRen of
            Left msg -> error msg
            Right (_ , rens) -> 
-             return (fmap acp $
+             return ( fmap acp $
                       (
                   onDisplayAll usualVFG (asViewport appState)
                       (initResources $ rens)))

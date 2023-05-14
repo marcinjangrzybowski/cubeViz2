@@ -62,5 +62,5 @@ data OExpr =
 
 
 data Visualisation =
-    Visualisation ClExpr ([ (String,(String,Maybe [String]))])  
+    Visualisation (Maybe String) ClExpr ([ (String,(String,Maybe [String]))])  
  deriving (Show,Read)
