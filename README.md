@@ -46,9 +46,7 @@ The custom branch of agda, can generate html code representations where suitable
 
 ## Applications:
 
-Tom Jack futured diagrams generated using this tool in his presentation:
-
-https://hott.github.io/HoTT-2023/slides/jack.pdf
+Tom Jack futured diagrams generated using this tool in his [HoTT-2023 presentation](https://hott.github.io/HoTT-2023/slides/jack.pdf).
 
 Let me know if you have some nice diagrams to showcase :)
 
