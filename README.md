@@ -14,7 +14,7 @@ The goal of this project is to provide visual representations of cubical Agda co
 
 ## Integration with Agda Compiler
 
-This version of the tool is directly integrated with the Agda compiler. To use it, you need to switch to the modified Agda branch, but plans are underway to migrate it to communicate with the compiler via reflection and macro machinery.
+This version of the tool is directly integrated with the Agda compiler. To use it, you need to switch to the [modified Agda branch](https://github.com/marcinjangrzybowski/agda/tree/cubeviz), but plans are underway to migrate it to communicate with the compiler via reflection and macro machinery.
 
 ## From OpenGL to WebGL
 
@@ -26,27 +26,25 @@ Now, the tool produces a self-contained web application that allows for interact
 
 here are some examples:
 
-(scroll down to the definition with the blue button, and you can see the diagram, or open it in a new window in case you want to experience it full screen or on a VR device)
+(in links bellow scroll down to the definition with the blue button, and you can see the diagram, or open it in a new window in case you want to experience it full screen or on a VR device)
 
-Cubical Agda library:
-https://marcinjangrzybowski.github.io/cubeViz2-gen/code/Cubical.Foundations.GroupoidLaws.html
+### Cubical Agda library (live demos):
+[Cubical.Foundations.GroupoidLaws](https://marcinjangrzybowski.github.io/cubeViz2-gen/code/Cubical.Foundations.GroupoidLaws.html)
 
-https://marcinjangrzybowski.github.io/cubeViz2-gen/code/Cubical.Foundations.Path.html
+[Cubical.Foundations.Path](https://marcinjangrzybowski.github.io/cubeViz2-gen/code/Cubical.Foundations.Path.html)
 
-Brunerie Cobordism (by Tom Jack):
-https://marcinjangrzybowski.github.io/cubeViz2-gen/code/Cubical.Experiments.BrunerieCobordism.html
+[Brunerie Cobordism (by Tom Jack)](https://marcinjangrzybowski.github.io/cubeViz2-gen/code/Cubical.Experiments.BrunerieCobordism.html)
 
-screencasts from VR sessions:
-
+### Screencasts from VR sessions:
 
 [![VR mode overview](https://i.ytimg.com/vi/QB93KFwUNz4/mqdefault.jpg)](https://www.youtube.com/watch?v=QB93KFwUNz4 "VR mode overview")
 [![VR - Hopf fibration](https://i.ytimg.com/vi/TJoXI9OOeqA/mqdefault.jpg)](https://www.youtube.com/watch?v=TJoXI9OOeqA "VR mode overview")
 
 ## Links from html code
 
-The custom branch of agda, can generate html code representations where suitable definitions are accompanied by links to diagrams (tbhere si separate repository with demo of this feature)
+The custom branch of agda, can generate html code representations where suitable definitions are accompanied by links to diagrams.
 
-## Usecase!
+## Applications:
 
 Tom Jack futured diagrams generated using this tool in his presentation:
 
