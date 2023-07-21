@@ -38,8 +38,13 @@ https://marcinjangrzybowski.github.io/cubeViz2-gen/code/Cubical.Experiments.Brun
 
 screencasts from VR sessions:
 
-https://www.youtube.com/watch?v=QB93KFwUNz4 
-https://www.youtube.com/watch?v=TJoXI9OOeqA
+
+[![VR mode overview]
+(https://i.ytimg.com/vi/QB93KFwUNz4/maxresdefault.jpg)]
+(https://www.youtube.com/watch?v=QB93KFwUNz4 "VR mode overview")
+[![VR - Hopf fibration]
+(https://i.ytimg.com/vi/TJoXI9OOeqA/maxresdefault.jpg)]
+(https://www.youtube.com/watch?v=TJoXI9OOeqA "VR mode overview")
 
 ## Links from html code
 
